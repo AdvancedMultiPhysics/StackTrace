@@ -1,0 +1,1 @@
+cmake -D CMAKE_CXX_COMPILER=CC -D CMAKE_BUILD_TYPE=Debug ../src
