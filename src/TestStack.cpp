@@ -1,16 +1,13 @@
 #include <iostream>
 
-#include "Utilities.h"
 #include "StackTrace.h"
 #include "UnitTest.h"
+#include "Utilities.h"
 #include <mpi.h>
 
 
 // Function to return the call stack
-std::vector<StackTrace::stack_info> get_call_stack()
-{
-    return StackTrace::getCallStack();
-}
+std::vector<StackTrace::stack_info> get_call_stack() { return StackTrace::getCallStack(); }
 
 
 int main( int argc, char **argv )

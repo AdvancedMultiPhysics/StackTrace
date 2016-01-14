@@ -105,8 +105,9 @@ private:
 
     // Function to pack the messages into a single data stream and send to the given processor
     // Note: This function does not return until the message stream has been sent
-    void pack_message_stream(
-        const std::vector<std::string> &messages, const int rank, const int tag ) const;
+    void pack_message_stream( const std::vector<std::string> &messages,
+                              const int rank,
+                              const int tag ) const;
 
     // Function to unpack the messages from a single data stream
     // Note: This function does not return until the message stream has been received

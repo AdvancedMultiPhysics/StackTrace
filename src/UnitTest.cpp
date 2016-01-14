@@ -1,10 +1,10 @@
 #include "UnitTest.h"
 #include "Utilities.h"
+#include <cstring>
 #include <iostream>
 #include <sstream>
 #include <string>
 #include <vector>
-#include <cstring>
 
 
 #define printp printf
@@ -64,9 +64,9 @@ void UnitTest::report( const int level0 ) const
     std::vector<int> N_pass( size, 0 );
     std::vector<int> N_fail( size, 0 );
     std::vector<int> N_expected_fail( size, 0 );
-    int local_pass_size          = static_cast<int>(pass_messages.size());
-    int local_fail_size          = static_cast<int>(fail_messages.size());
-    int local_expected_fail_size = static_cast<int>(expected_fail_messages.size());
+    int local_pass_size          = static_cast<int>( pass_messages.size() );
+    int local_fail_size          = static_cast<int>( fail_messages.size() );
+    int local_expected_fail_size = static_cast<int>( expected_fail_messages.size() );
     if ( getSize() > 1 ) {
 #ifdef USE_MPI
         MPI_Allgather( &local_pass_size, 1, MPI_INT, &N_pass[0], 1, MPI_INT, comm );
@@ -150,7 +150,8 @@ void UnitTest::report( const int level0 ) const
                 // Print a summary for each processor
                 for ( int i = 0; i < size; i++ )
                     printp( "     %i tests passed (proc %i) (use report level 2 for more detail)\n",
-                        N_pass[i], i );
+                            N_pass[i],
+                            i );
             }
         } else {
             // We want to print all messages
@@ -170,7 +171,8 @@ void UnitTest::report( const int level0 ) const
                 // Print a summary for each processor
                 for ( int i = 0; i < size; i++ )
                     printp( "     %i tests failed (proc %i) (use report level 2 for more detail)\n",
-                        N_fail[i], i );
+                            N_fail[i],
+                            i );
             }
         } else {
             // We want to print all messages
@@ -186,13 +188,14 @@ void UnitTest::report( const int level0 ) const
             if ( size > 8 ) {
                 // Print 1 summary for all processors
                 printp( "     %i tests expected failed (use report level 2 for more detail)\n",
-                    N_expected_fail_tot );
+                        N_expected_fail_tot );
             } else {
                 // Print a summary for each processor
                 for ( int i = 0; i < size; i++ )
                     printp( "     %i tests expected failed (proc %i) (use report level 2 for more "
                             "detail)\n",
-                        N_expected_fail[i], i );
+                            N_expected_fail[i],
+                            i );
             }
         } else {
             // We want to print all messages
@@ -214,8 +217,9 @@ void UnitTest::report( const int level0 ) const
 /********************************************************************
 *  Pack and send the given messages                                 *
 ********************************************************************/
-void UnitTest::pack_message_stream(
-    const std::vector<std::string> &messages, const int rank, const int tag ) const
+void UnitTest::pack_message_stream( const std::vector<std::string> &messages,
+                                    const int rank,
+                                    const int tag ) const
 {
 #ifdef USE_MPI
     // Get the size of the messages
@@ -230,8 +234,8 @@ void UnitTest::pack_message_stream(
     int size_data = ( N_messages + 1 ) * sizeof( int ) + msg_size_tot;
     char *data    = new char[size_data];
     // Pack the message stream
-    memcpy(data,&N_messages,sizeof(int));
-    memcpy(&data[sizeof(int)],msg_size,N_messages*sizeof(int));
+    memcpy( data, &N_messages, sizeof( int ) );
+    memcpy( &data[sizeof( int )], msg_size, N_messages * sizeof( int ) );
     int k = ( N_messages + 1 ) * sizeof( int );
     for ( int i = 0; i < N_messages; i++ ) {
         messages[i].copy( &data[k], msg_size[i] );
@@ -270,10 +274,10 @@ std::vector<std::string> UnitTest::unpack_message_stream( const int rank, const 
     MPI_Wait( &request, &status );
     // Unpack the message stream
     int N_messages = 0;
-    memcpy(&N_messages,data,sizeof(int));
+    memcpy( &N_messages, data, sizeof( int ) );
     std::vector<int> msg_size( N_messages );
     std::vector<std::string> messages( N_messages );
-    memcpy(msg_size.data(),data,N_messages*sizeof(int));
+    memcpy( msg_size.data(), data, N_messages * sizeof( int ) );
     int k = ( N_messages + 1 ) * sizeof( int );
     for ( int i = 0; i < N_messages; i++ ) {
         messages[i] = std::string( &data[k], msg_size[i] );
