@@ -3,7 +3,10 @@
 #include "StackTrace.h"
 #include "UnitTest.h"
 #include "Utilities.h"
+
+#ifdef USE_MPI
 #include <mpi.h>
+#endif
 
 
 // Function to return the call stack
@@ -14,11 +17,13 @@ int main( int argc, char **argv )
 {
 
     // Initialize MPI
+    int rank=0, size=1;
+#ifdef USE_MPI
     MPI_Init( &argc, &argv );
-    int rank, size;
     MPI_Comm_size( MPI_COMM_WORLD, &size );
     MPI_Comm_rank( MPI_COMM_WORLD, &rank );
     MPI_Barrier( MPI_COMM_WORLD );
+#endif
 
     // Set the error handler
     Utilities::setAbortBehavior( true, true, true );
@@ -37,7 +42,7 @@ int main( int argc, char **argv )
         ut.passes( "non empty call stack" );
         bool pass = false;
         if ( call_stack.size() > 1 ) {
-            if ( call_stack[1].print().find( "get_call_stack()" ) != std::string::npos )
+            if ( call_stack[1].print().find( "get_call_stack" ) != std::string::npos )
                 pass = true;
         }
         if ( pass )
@@ -67,6 +72,8 @@ int main( int argc, char **argv )
 
     ut.report();
     int N_errors = ut.NumFailGlobal();
+#ifdef USE_MPI
     MPI_Finalize();
+#endif
     return N_errors;
 }

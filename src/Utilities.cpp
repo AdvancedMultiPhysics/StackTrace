@@ -19,16 +19,13 @@
     defined( _MSC_VER )
 // Note: windows has not been testeds
 #define USE_WINDOWS
-#include <DbgHelp.h>
+#include <windows.h>
 #include <iostream>
 #include <process.h>
 #include <psapi.h>
 #include <stdio.h>
 #include <tchar.h>
-#include <windows.h>
 #define mkdir( path, mode ) _mkdir( path )
-//#pragma comment(lib, psapi.lib) //added
-//#pragma comment(linker, /DEFAULTLIB:psapi.lib)
 #elif defined( __APPLE__ )
 #define USE_MAC
 #include <dlfcn.h>

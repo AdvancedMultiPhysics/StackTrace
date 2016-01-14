@@ -18,17 +18,56 @@ ENDIF()
 PROJECT( STACKTRACE )
 
 
-# Try to add rdynamic and dl so we have names in backtrace
-SET( CMAKE_REQUIRED_FLAGS "${CMAKE_CXX_FLAGS} -rdynamic" )
-CHECK_CXX_SOURCE_COMPILES( "int main() { return 0;}" rdynamic )
-IF ( rdynamic )
-    SET( SYSTEM_LDFLAGS "${SYSTEM_LDFLAGS} -rdynamic" )
+# Add system specific libraries
+IF ( ${CMAKE_SYSTEM_NAME} STREQUAL "Windows" )
+    # Windows specific system libraries
+    SET( SYSTEM_PATHS "C:/Program Files (x86)/Microsoft SDKs/Windows/v7.0A/Lib/x64" 
+                      "C:/Program Files (x86)/Microsoft Visual Studio 8/VC/PlatformSDK/Lib/AMD64" 
+                      "C:/Program Files (x86)/Microsoft Visual Studio 12.0/Common7/Packages/Debugger/X64" )
+    FIND_LIBRARY( PSAPI_LIB    NAMES Psapi    PATHS ${SYSTEM_PATHS}  NO_DEFAULT_PATH )
+    FIND_LIBRARY( DBGHELP_LIB  NAMES DbgHelp  PATHS ${SYSTEM_PATHS}  NO_DEFAULT_PATH )
+    FIND_LIBRARY( DBGHELP_LIB  NAMES DbgHelp )
+    IF ( PSAPI_LIB ) 
+        ADD_DEFINITIONS( -D PSAPI )
+        SET( SYSTEM_LIBS ${PSAPI_LIB} )
+    ENDIF()
+    IF ( DBGHELP_LIB ) 
+        ADD_DEFINITIONS( -D DBGHELP )
+        SET( SYSTEM_LIBS ${DBGHELP_LIB} )
+    ELSE()
+        MESSAGE( WARNING "Did not find DbgHelp, stack trace will not be availible" )
+    ENDIF()
+    MESSAGE("System libs: ${SYSTEM_LIBS}")
+ELSEIF( ${CMAKE_SYSTEM_NAME} STREQUAL "Linux" )
+    # Linux specific system libraries
+    SET( SYSTEM_LIBS "-ldl -lpthread" )
+    CONFIGURE_ZLIB()
+    IF ( NOT USE_STATIC )
+        SET( SYSTEM_LIBS "${SYSTEM_LIBS} -rdynamic" )   # Needed for backtrace to print function names
+    ENDIF()
+    IF ( USING_GCC )
+        SET( SYSTEM_LIBS "${SYSTEM_LIBS} -lgfortran" )   # Needed for backtrace to print function names
+    ENDIF()
+ELSEIF( ${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" )
+    # Max specific system libraries
+    SET( SYSTEM_LIBS "-ldl -lpthread" )
+    CONFIGURE_ZLIB()
+    IF ( USING_GCC )
+        SET( SYSTEM_LIBS "${SYSTEM_LIBS} -lgfortran" )
+    ENDIF()
+ELSEIF( ${CMAKE_SYSTEM_NAME} STREQUAL "Generic" )
+    # Generic system libraries
+ELSE()
+    MESSAGE( FATAL_ERROR "OS not detected" )
 ENDIF()
-SET( CMAKE_REQUIRED_FLAGS "${CMAKE_CXX_FLAGS} -ldl" )
-CHECK_CXX_SOURCE_COMPILES( "int main() { return 0;}" dl )
-IF ( dl )
-    SET( SYSTEM_LDFLAGS "${SYSTEM_LDFLAGS} -ldl" )
-ENDIF()
+
+
+# Try to add Dbghelp.lib
+#SET( CMAKE_REQUIRED_FLAGS "${CMAKE_CXX_FLAGS} Dbghelp.lib" )
+#CHECK_CXX_SOURCE_COMPILES( "int main() { return 0;}" Dbghelp )
+#IF ( Dbghelp )
+    SET( SYSTEM_LDFLAGS "${SYSTEM_LDFLAGS} Dbghelp.lib" )
+#ENDIF()
 
 
 # Add distclean target
@@ -44,8 +83,8 @@ ENDIF()
 
 # Add the include directory
 INCLUDE_DIRECTORIES( "${CMAKE_CURRENT_SOURCE_DIR}" )
-ADD_DEFINITIONS( -D USE_MPI )
-
+#ADD_DEFINITIONS( -DUSE_MPI )
+ADD_DEFINITIONS( -DDBGHELP )
 
 # Add extra compile flags
 SET( CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} --std=c++11 )
@@ -61,7 +100,6 @@ INSTALL( TARGETS stacktrace DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/lib" )
 # Add an executable
 ADD_EXECUTABLE( TestStack "${CMAKE_CURRENT_SOURCE_DIR}/TestStack.cpp" )
 TARGET_LINK_LIBRARIES( TestStack stacktrace )
-MESSAGE( "SYSTEM_LDFLAGS = ${SYSTEM_LDFLAGS}")
-TARGET_LINK_LIBRARIES( TestStack "${LDFLAGS} ${SYSTEM_LDFLAGS}" )
+TARGET_LINK_LIBRARIES( TestStack "${SYSTEM_LIBS}" )
 
 
