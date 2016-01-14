@@ -18,7 +18,7 @@ struct stack_info {
     std::string filename;
     int line;
     //! Default constructor
-    stack_info() : address( NULL ), address2( NULL ), line( 0 ) {}
+    stack_info() : address( nullptr ), address2( nullptr ), line( 0 ) {}
     //! Print the stack info
     std::string print() const;
 };
@@ -36,8 +36,16 @@ stack_info getStackInfo( void *address );
  * Return the symbols from the current executable (not availible for all platforms)
  * @return      Returns 0 if sucessful
  */
-int getSymbols(
-    std::vector<void *> &address, std::vector<char> &type, std::vector<std::string> &obj );
+int getSymbols( std::vector<void *> &address,
+                std::vector<char> &type,
+                std::vector<std::string> &obj );
+
+
+/*!
+ * Return the name of the executable
+ * @return      Returns the name of the executable (usually the full path)
+ */
+std::string getExecutable();
 
 
 } // namespace StackTrace

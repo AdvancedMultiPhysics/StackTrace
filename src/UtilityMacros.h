@@ -69,12 +69,14 @@
  *  \details Print a warning without exit.  Print file and line number of the warning.
  *  \param MSG  Warning message to print
  */
-#define WARNING( MSG )                                                                     \
-    do {                                                                                   \
-        std::stringstream tboxos;                                                          \
-        tboxos << MSG << std::ends;                                                        \
-        printf( "WARNING: %s\n   Warning called in %s on line %i\n", tboxos.str().c_str(), \
-            __FILE__, __LINE__ );                                                          \
+#define WARNING( MSG )                                               \
+    do {                                                             \
+        std::stringstream tboxos;                                    \
+        tboxos << MSG << std::ends;                                  \
+        printf( "WARNING: %s\n   Warning called in %s on line %i\n", \
+                tboxos.str().c_str(),                                \
+                __FILE__,                                            \
+                __LINE__ );                                          \
     } while ( 0 )
 
 

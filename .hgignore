@@ -1,0 +1,12 @@
+syntax: glob
+
+# Ignore build files
+build/CMakeFiles/*
+build/CMakeCache.txt
+build/Makefile
+build/TestStack
+build/cmake_install.cmake
+build/install_manifest.txt
+build/lib/*
+build/libstacktrace.a
+
