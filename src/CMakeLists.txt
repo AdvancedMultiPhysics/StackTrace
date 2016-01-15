@@ -41,20 +41,12 @@ IF ( ${CMAKE_SYSTEM_NAME} STREQUAL "Windows" )
 ELSEIF( ${CMAKE_SYSTEM_NAME} STREQUAL "Linux" )
     # Linux specific system libraries
     SET( SYSTEM_LIBS "-ldl -lpthread" )
-    CONFIGURE_ZLIB()
     IF ( NOT USE_STATIC )
         SET( SYSTEM_LIBS "${SYSTEM_LIBS} -rdynamic" )   # Needed for backtrace to print function names
-    ENDIF()
-    IF ( USING_GCC )
-        SET( SYSTEM_LIBS "${SYSTEM_LIBS} -lgfortran" )   # Needed for backtrace to print function names
     ENDIF()
 ELSEIF( ${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" )
     # Max specific system libraries
     SET( SYSTEM_LIBS "-ldl -lpthread" )
-    CONFIGURE_ZLIB()
-    IF ( USING_GCC )
-        SET( SYSTEM_LIBS "${SYSTEM_LIBS} -lgfortran" )
-    ENDIF()
 ELSEIF( ${CMAKE_SYSTEM_NAME} STREQUAL "Generic" )
     # Generic system libraries
 ELSE()
@@ -75,9 +67,17 @@ ADD_CUSTOM_TARGET (distclean @echo cleaning for source distribution)
 IF (UNIX)
     ADD_CUSTOM_COMMAND( DEPENDS clean  COMMENT "distribution clean"
         COMMAND rm
-        ARGS -Rf CMake* libstacktrace.a Makefile cmake_install.cmake install_manifest.txt lib TestStack
+        ARGS -Rf CMake* libstacktrace.a Makefile cmake_install.cmake install_manifest.txt lib include TestStack
         TARGET  distclean
     )
+ENDIF()
+
+
+# Set the install path
+IF ( INSTALL_PREFIX )
+    SET( CMAKE_INSTALL_PREFIX "${INSTALL_PREFIX}" )
+ELSE()
+    SET( CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_BINARY_DIR}" )
 ENDIF()
 
 
@@ -86,16 +86,19 @@ INCLUDE_DIRECTORIES( "${CMAKE_CURRENT_SOURCE_DIR}" )
 #ADD_DEFINITIONS( -DUSE_MPI )
 ADD_DEFINITIONS( -DDBGHELP )
 
+
 # Add extra compile flags
 SET( CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} --std=c++11 )
+
 
 # Add a static library
 ADD_LIBRARY( stacktrace STATIC
     "${CMAKE_CURRENT_SOURCE_DIR}/Utilities.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/StackTrace.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/UnitTest.cpp" )
-INSTALL( TARGETS stacktrace DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/lib" )
-
+INSTALL( TARGETS stacktrace DESTINATION "${CMAKE_INSTALL_PREFIX}/lib" )
+FILE(GLOB headers "${CMAKE_CURRENT_SOURCE_DIR}/*.h")
+INSTALL(FILES ${headers} DESTINATION "${CMAKE_INSTALL_PREFIX}/include" )
 
 # Add an executable
 ADD_EXECUTABLE( TestStack "${CMAKE_CURRENT_SOURCE_DIR}/TestStack.cpp" )

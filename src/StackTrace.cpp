@@ -264,7 +264,7 @@ static const global_symbols_struct &getSymbols2()
                     c++;
                     char *d = strchr( c, '\n' );
                     if ( d )
-                        d[0]   = 0;
+                        d[0] = 0;
                     size_t add = strtoul( a, nullptr, 16 );
                     data.address.push_back( reinterpret_cast<void *>( add ) );
                     data.type.push_back( b[0] );
@@ -568,7 +568,7 @@ std::vector<StackTrace::stack_info> StackTrace::getCallStack()
 std::string StackTrace::getSymPaths( )
 {
     std::string paths;
-#ifdef USE_WINDOWS
+#if defined(USE_WINDOWS)
     // Create the path list (seperated by ';' )
     paths = std::string(".;");
     paths.reserve( 1000 );
@@ -624,7 +624,7 @@ std::string StackTrace::getSymPaths( )
 /****************************************************************************
 *  Load modules for windows                                                 *
 ****************************************************************************/
-#ifdef USE_WINDOWS
+#if defined(USE_WINDOWS)
 BOOL StackTrace::GetModuleListTH32( HANDLE hProcess, DWORD pid )
 {
     // CreateToolhelp32Snapshot()

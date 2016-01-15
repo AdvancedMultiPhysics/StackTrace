@@ -8,5 +8,6 @@ build/TestStack
 build/cmake_install.cmake
 build/install_manifest.txt
 build/lib/*
+build/include/*
 build/libstacktrace.a
 
