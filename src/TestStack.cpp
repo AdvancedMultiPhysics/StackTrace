@@ -32,17 +32,20 @@ int main( int argc, char **argv )
     UnitTest ut;
 
     // Test getting the current call stack
+    double ts1 = Utilities::time();
     auto call_stack = get_call_stack();
+    double ts2 = Utilities::time();
     if ( rank == 0 ) {
-        std::cout << "\nCall stack:" << std::endl;
+        std::cout << "Call stack:" << std::endl;
         for ( auto &elem : call_stack )
             std::cout << "   " << elem.print() << std::endl;
+        std::cout << "Time to get call stack: " << ts2-ts1 << std::endl;
     }
     if ( !call_stack.empty() ) {
         ut.passes( "non empty call stack" );
         bool pass = false;
         if ( call_stack.size() > 1 ) {
-            if ( call_stack[1].print().find( "get_call_stack" ) != std::string::npos )
+            if ( call_stack[1].print().find( "getCallStack" ) != std::string::npos )
                 pass = true;
         }
         if ( pass )
@@ -52,6 +55,10 @@ int main( int argc, char **argv )
     } else {
         ut.failure( "non empty call stack" );
     }
+    ts1 = Utilities::time();
+    auto trace = StackTrace::backtrace();
+    ts2 = Utilities::time();
+    std::cout << "Time to get backtrace: " << ts2-ts1 << std::endl;
 
     // Test getting the symbols
     std::vector<void *> address;
@@ -69,6 +76,14 @@ int main( int argc, char **argv )
         ut.passes( "getExecutable" );
     else
         ut.failure( "getExecutable" );
+
+    // Test catching an error
+    try {
+        throw std::logic_error( "test" );
+        ut.failure( "Failed to catch exception" );
+    } catch ( ... ) {
+        ut.passes( "Caught exception" );
+    }
 
     ut.report();
     int N_errors = ut.NumFailGlobal();

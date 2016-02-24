@@ -2,6 +2,7 @@ INCLUDE(CheckCXXCompilerFlag)
 INCLUDE(CheckCXXSourceCompiles)
 CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
 CMAKE_POLICY(SET CMP0004 OLD)
+CMAKE_POLICY(SET CMP0026 OLD)
 
 MESSAGE( "===========================" )
 MESSAGE( "Configuring StackTrace"      )
@@ -16,6 +17,11 @@ ENDIF()
 
 # Set the project name
 PROJECT( STACKTRACE )
+
+
+# Enable testing
+ENABLE_TESTING()
+INCLUDE( CTest )
 
 
 # Add system specific libraries
@@ -104,5 +110,6 @@ INSTALL(FILES ${headers} DESTINATION "${CMAKE_INSTALL_PREFIX}/include" )
 ADD_EXECUTABLE( TestStack "${CMAKE_CURRENT_SOURCE_DIR}/TestStack.cpp" )
 TARGET_LINK_LIBRARIES( TestStack stacktrace )
 TARGET_LINK_LIBRARIES( TestStack "${SYSTEM_LIBS}" )
-
+GET_TARGET_PROPERTY(EXE TestStack LOCATION)
+ADD_TEST( TestStack ${EXE} )
 
