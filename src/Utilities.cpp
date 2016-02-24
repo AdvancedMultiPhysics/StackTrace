@@ -129,68 +129,19 @@ void MPI_error_handler_fun( MPI_Comm *comm, int *err, ... )
 
 
 /****************************************************************************
-*  Function to handle unhandled exceptions                                  *
-****************************************************************************/
-bool tried_MPI_Abort = false;
-void term_func_abort( int err )
-{
-    std::cerr << "Exiting due to abort (" << err << ")\n";
-    std::vector<StackTrace::stack_info> stack = StackTrace::getCallStack();
-    std::string message                       = "Stack Trace:\n";
-    for ( size_t i = 0; i < stack.size(); i++ )
-        message += "   " + stack[i].print() += "\n";
-    message += "\nExiting\n";
-    // Print the message and abort
-    std::cerr << message;
-#ifdef USE_MPI
-    if ( !abort_throwException && !tried_MPI_Abort ) {
-        tried_MPI_Abort = true;
-        MPI_Abort( MPI_COMM_WORLD, -1 );
-    }
-#endif
-    exit( -1 );
-}
-#if defined( USE_LINUX ) || defined( USE_MAC )
-static int tried_throw = 0;
-#endif
-void term_func()
-{
-    // Try to re-throw the last error to get the last message
-    std::string last_message;
-#if defined( USE_LINUX ) || defined( USE_MAC )
-    try {
-        if ( tried_throw == 0 ) {
-            tried_throw = 1;
-            throw;
-        }
-        // No active exception
-    } catch ( const std::exception &err ) {
-        // Caught a std::runtime_error
-        last_message = err.what();
-    } catch ( ... ) {
-        // Caught an unknown exception
-        last_message = "unknown exception occurred.";
-    }
-#endif
-    std::stringstream msg;
-    msg << "Unhandled exception:" << std::endl;
-    msg << "   " << last_message << std::endl;
-    Utilities::abort( msg.str(), __FILE__, __LINE__ );
-}
-
-
-/****************************************************************************
 *  Functions to set the error handler                                       *
 ****************************************************************************/
+static void abort_fun( std::string msg, StackTrace::terminateType type )
+{
+    if ( type == StackTrace::terminateType::exception )
+        force_exit = std::max(force_exit,1);
+    Utilities::abort( msg, __FILE__, __LINE__ );
+}
 static void setTerminateErrorHandler()
 {
-    std::set_terminate( term_func );
-    signal( SIGABRT, &term_func_abort );
-    signal( SIGFPE, &term_func_abort );
-    signal( SIGILL, &term_func_abort );
-    signal( SIGINT, &term_func_abort );
-    signal( SIGSEGV, &term_func_abort );
-    signal( SIGTERM, &term_func_abort );
+    // Set the terminate routine for runtime errors
+    StackTrace::setErrorHandlers( abort_fun );
+
 }
 /*#ifdef USE_MPI
     static void setMPIErrorHandler( MPI_Comm mpi )
@@ -230,18 +181,18 @@ void Utilities::setenv( const char *name, const char *value )
     char env[100];
     sprintf( env, "%s=%s", name, value );
     bool pass = false;
-    if ( value != NULL )
+    if ( value != nullptr )
         pass = ::setenv( name, value, 1 ) == 0;
     else
         pass = ::unsetenv( name ) == 0;
 #elif defined( USE_WINDOWS )
-    bool pass     = SetEnvironmentVariable( name, value );
+    bool pass = SetEnvironmentVariable( name, value ) != 0;
 #else
 #error Unknown OS
 #endif
     if ( !pass ) {
         char msg[100];
-        if ( value != NULL )
+        if ( value != nullptr )
             sprintf( msg, "Error setting enviornmental variable: %s=%s\n", name, value );
         else
             sprintf( msg, "Error clearing enviornmental variable: %s\n", name );
@@ -270,7 +221,7 @@ size_t Utilities::getSystemMemory()
     u_int namelen = sizeof( mib ) / sizeof( mib[0] );
     uint64_t size;
     size_t len = sizeof( size );
-    if ( sysctl( mib, namelen, &size, &len, NULL, 0 ) == 0 )
+    if ( sysctl( mib, namelen, &size, &len, nullptr, 0 ) == 0 )
         N_bytes = size;
 #elif defined( USE_WINDOWS )
     MEMORYSTATUSEX status;
@@ -286,14 +237,6 @@ size_t Utilities::getMemoryUsage()
 {
     size_t N_bytes = 0;
 #if defined( USE_LINUX )
-    /*std::ifstream stat_stream("/proc/self/stat",std::ios_base::in);
-    size_t stats[100];
-    memset(stats,0,100*sizeof(size_t));
-    for (int i=0; (i<100)&(!stat_stream.eof()); i++) {
-        std::string tmp;
-        stat_stream >> tmp;
-        stats[i] = strtoul(tmp.c_str(),NULL,10);
-    }*/
     struct mallinfo meminfo = mallinfo();
     size_t size_hblkhd      = static_cast<unsigned int>( meminfo.hblkhd );
     size_t size_uordblks    = static_cast<unsigned int>( meminfo.uordblks );
@@ -340,17 +283,17 @@ double Utilities::tick()
 double Utilities::time()
 {
     timeval current_time;
-    gettimeofday( &current_time, NULL );
+    gettimeofday( &current_time, nullptr );
     double time = ( (double) current_time.tv_sec ) + 1e-6 * ( (double) current_time.tv_usec );
     return time;
 }
 double Utilities::tick()
 {
     timeval start, end;
-    gettimeofday( &start, NULL );
-    gettimeofday( &end, NULL );
+    gettimeofday( &start, nullptr );
+    gettimeofday( &end, nullptr );
     while ( end.tv_sec == start.tv_sec && end.tv_usec == start.tv_usec )
-        gettimeofday( &end, NULL );
+        gettimeofday( &end, nullptr );
     double resolution = ( (double) ( end.tv_sec - start.tv_sec ) ) +
                         1e-6 * ( (double) ( end.tv_usec - start.tv_usec ) );
     return resolution;
@@ -368,15 +311,10 @@ void Utilities::sleep_ms( int milliseconds )
 #ifdef USE_WINDOWS
     Sleep( milliseconds );
 #else
-#ifdef _POSIX_C_SOURCE
-#if _POSIX_C_SOURCE < 199309L
-#error Using a really old POSIX?
-#endif
-#endif
     struct timespec ts;
     ts.tv_sec  = milliseconds / 1000;
     ts.tv_nsec = ( milliseconds % 1000 ) * 1000000;
-    nanosleep( &ts, NULL );
+    nanosleep( &ts, nullptr );
 #endif
 }
 void Utilities::sleep_s( int seconds )

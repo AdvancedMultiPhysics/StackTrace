@@ -32,9 +32,8 @@ void setErrorHandlers();
 
 /*!
  * Set an environmental variable
- * @param printMemory       Print the current memory usage (default is true)
- * @param printStack        Print the current call stack (default is true)
- * @param throwException    Throw an exception instead of MPI_Abort (default is false)
+ * @param name              The name of the environmental variable
+ * @param value             The value to set
  */
 void setenv( const char *name, const char *value );
 

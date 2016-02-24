@@ -41,8 +41,6 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <mach/mach_types.h>
-#include <mach-o/getsect.h>
 #elif defined( __linux ) || defined( __unix ) || defined( __posix )
 #define USE_LINUX
 #define USE_NM
@@ -192,8 +190,8 @@ std::string StackTrace::getExecutable()
     std::string exe;
     try {
 #ifdef USE_LINUX
-        char *buf = new char[0x10000];
-        int len   = ::readlink( "/proc/self/exe", buf, 0x10000 );
+        auto buf = new char[0x10000];
+        int len  = ::readlink( "/proc/self/exe", buf, 0x10000 );
         if ( len != -1 ) {
             buf[len] = '\0';
             exe      = std::string( buf );
@@ -210,7 +208,7 @@ std::string StackTrace::getExecutable()
         DWORD size = 0x10000;
         char *buf  = new char[size];
         memset( buf, 0, size );
-        GetModuleFileName( NULL, buf, size );
+        GetModuleFileName( nullptr, buf, size );
         exe = std::string( buf );
         delete[] buf;
 #endif
@@ -243,7 +241,7 @@ static const global_symbols_struct &getSymbols2()
                     data.error = -2;
                     return data;
                 }
-                char *buf = new char[0x100000];
+                auto buf = new char[0x100000];
                 while ( fgets( buf, 0xFFFFF, in ) != nullptr ) {
                     if ( buf[0] == ' ' )
                         continue;
@@ -626,7 +624,7 @@ std::string StackTrace::getSymPaths()
     // Now add the path for the main-module:
     char temp[1024];
     memset( temp, 0, sizeof( temp ) );
-    if ( GetModuleFileNameA( NULL, temp, sizeof( temp ) - 1 ) > 0 ) {
+    if ( GetModuleFileNameA( nullptr, temp, sizeof( temp ) - 1 ) > 0 ) {
         for ( char *p = ( temp + strlen( temp ) - 1 ); p >= temp; --p ) {
             // locate the rightmost path separator
             if ( ( *p == '\\' ) || ( *p == '/' ) || ( *p == ':' ) ) {
@@ -684,10 +682,10 @@ BOOL StackTrace::GetModuleListTH32( HANDLE hProcess, DWORD pid )
 
     // try both dlls...
     const TCHAR *dllname[] = { _T("kernel32.dll"), _T("tlhelp32.dll") };
-    HINSTANCE hToolhelp    = NULL;
-    tCT32S pCT32S          = NULL;
-    tM32F pM32F            = NULL;
-    tM32N pM32N            = NULL;
+    HINSTANCE hToolhelp    = nullptr;
+    tCT32S pCT32S          = nullptr;
+    tM32F pM32F            = nullptr;
+    tM32N pM32N            = nullptr;
 
     HANDLE hSnap;
     MODULEENTRY32 me;
@@ -695,18 +693,18 @@ BOOL StackTrace::GetModuleListTH32( HANDLE hProcess, DWORD pid )
 
     for ( size_t i = 0; i < ( sizeof( dllname ) / sizeof( dllname[0] ) ); i++ ) {
         hToolhelp = LoadLibrary( dllname[i] );
-        if ( hToolhelp == NULL )
+        if ( hToolhelp == nullptr )
             continue;
         pCT32S = (tCT32S) GetProcAddress( hToolhelp, "CreateToolhelp32Snapshot" );
         pM32F  = (tM32F) GetProcAddress( hToolhelp, "Module32First" );
         pM32N  = (tM32N) GetProcAddress( hToolhelp, "Module32Next" );
-        if ( ( pCT32S != NULL ) && ( pM32F != NULL ) && ( pM32N != NULL ) )
+        if ( ( pCT32S != nullptr ) && ( pM32F != nullptr ) && ( pM32N != nullptr ) )
             break; // found the functions!
         FreeLibrary( hToolhelp );
-        hToolhelp = NULL;
+        hToolhelp = nullptr;
     }
 
-    if ( hToolhelp == NULL )
+    if ( hToolhelp == nullptr )
         return FALSE;
 
     hSnap = pCT32S( TH32CS_SNAPMODULE, pid );
@@ -734,26 +732,26 @@ DWORD StackTrace::LoadModule(
     CHAR *szImg  = _strdup( img );
     CHAR *szMod  = _strdup( mod );
     DWORD result = ERROR_SUCCESS;
-    if ( ( szImg == NULL ) || ( szMod == NULL ) )
+    if ( ( szImg == nullptr ) || ( szMod == nullptr ) )
         result = ERROR_NOT_ENOUGH_MEMORY;
     else {
         if ( SymLoadModule( hProcess, 0, szImg, szMod, baseAddr, size ) == 0 )
             result = GetLastError();
     }
     ULONGLONG fileVersion = 0;
-    if ( szImg != NULL ) {
+    if ( szImg != nullptr ) {
         // try to retrive the file-version:
-        VS_FIXEDFILEINFO *fInfo = NULL;
+        VS_FIXEDFILEINFO *fInfo = nullptr;
         DWORD dwHandle;
         DWORD dwSize = GetFileVersionInfoSizeA( szImg, &dwHandle );
         if ( dwSize > 0 ) {
             LPVOID vData = malloc( dwSize );
-            if ( vData != NULL ) {
+            if ( vData != nullptr ) {
                 if ( GetFileVersionInfoA( szImg, dwHandle, dwSize, vData ) != 0 ) {
                     UINT len;
                     TCHAR szSubBlock[] = _T("\\");
                     if ( VerQueryValue( vData, szSubBlock, (LPVOID *) &fInfo, &len ) == 0 )
-                        fInfo = NULL;
+                        fInfo = nullptr;
                     else {
                         fileVersion = ( (ULONGLONG) fInfo->dwFileVersionLS ) +
                                       ( (ULONGLONG) fInfo->dwFileVersionMS << 32 );
@@ -771,9 +769,9 @@ DWORD StackTrace::LoadModule(
         if ( Module.LoadedPdbName[0] != 0 )
             pdbName = Module.LoadedPdbName;
     }
-    if ( szImg != NULL )
+    if ( szImg != nullptr )
         free( szImg );
-    if ( szMod != NULL )
+    if ( szMod != nullptr )
         free( szMod );
     return result;
 }
