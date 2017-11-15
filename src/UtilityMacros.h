@@ -41,17 +41,17 @@
  *  \param variable  Variable to pretend to use
  */
 #ifndef NULL_USE
-#define NULL_USE( variable )                 \
-    do {                                     \
-        if ( 0 ) {                           \
-            char *temp = (char *) &variable; \
-            temp++;                          \
-        }                                    \
+#define NULL_USE( variable )                \
+    do {                                    \
+        if ( 0 ) {                          \
+            auto temp = (char *) &variable; \
+            temp++;                         \
+        }                                   \
     } while ( 0 )
 #endif
 
 
-/*! \def ERROR_MSG(MSG)
+/*! \def ERROR(MSG)
  *  \brief      Throw error
  *  \details    Throw an error exception from within any C++ source code.  The
  *     macro argument may be any standard ostream expression.  The file and
@@ -74,9 +74,7 @@
         std::stringstream tboxos;                                    \
         tboxos << MSG << std::ends;                                  \
         printf( "WARNING: %s\n   Warning called in %s on line %i\n", \
-                tboxos.str().c_str(),                                \
-                __FILE__,                                            \
-                __LINE__ );                                          \
+            tboxos.str().c_str(), __FILE__, __LINE__ );              \
     } while ( 0 )
 
 

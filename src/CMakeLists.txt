@@ -73,7 +73,8 @@ ADD_CUSTOM_TARGET (distclean @echo cleaning for source distribution)
 IF (UNIX)
     ADD_CUSTOM_COMMAND( DEPENDS clean  COMMENT "distribution clean"
         COMMAND rm
-        ARGS -Rf CMake* libstacktrace.a Makefile cmake_install.cmake install_manifest.txt lib include TestStack
+        ARGS -Rf CMake* libstacktrace.a Makefile cmake_install.cmake install_manifest.txt
+                 lib include TestStack CTestTestfile.cmake  DartConfiguration.tcl  Testing
         TARGET  distclean
     )
 ENDIF()
@@ -89,8 +90,11 @@ ENDIF()
 
 # Add the include directory
 INCLUDE_DIRECTORIES( "${CMAKE_CURRENT_SOURCE_DIR}" )
-#ADD_DEFINITIONS( -DUSE_MPI )
 ADD_DEFINITIONS( -DDBGHELP )
+IF ( USE_MPI )
+    FIND_PACKAGE( MPI )
+    ADD_DEFINITIONS( -DUSE_MPI )
+ENDIF()
 
 
 # Add extra compile flags
@@ -112,4 +116,7 @@ TARGET_LINK_LIBRARIES( TestStack stacktrace )
 TARGET_LINK_LIBRARIES( TestStack "${SYSTEM_LIBS}" )
 GET_TARGET_PROPERTY(EXE TestStack LOCATION)
 ADD_TEST( TestStack ${EXE} )
+IF ( USE_MPI )
+    ADD_TEST( TestStack-4procs ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4 ${EXE} )
+ENDIF()
 

@@ -3,83 +3,151 @@
 #include "StackTrace.h"
 
 #include <algorithm>
+#include <csignal>
+#include <cstring>
 #include <fstream>
 #include <iostream>
-#include <signal.h>
 #include <sstream>
 #include <stdexcept>
-#include <string.h>
 
 #ifdef USE_MPI
 #include "mpi.h"
 #endif
 
-// Detect the OS and include system dependent headers
-#if defined( WIN32 ) || defined( _WIN32 ) || defined( WIN64 ) || defined( _WIN64 ) || \
-    defined( _MSC_VER )
-// Note: windows has not been testeds
-#define USE_WINDOWS
-#include <windows.h>
-#include <iostream>
-#include <process.h>
-#include <psapi.h>
-#include <stdio.h>
-#include <tchar.h>
-#define mkdir( path, mode ) _mkdir( path )
+
+
+#define perr std::cerr
+
+
+// Detect the OS
+// clang-format off
+#if defined( WIN32 ) || defined( _WIN32 ) || defined( WIN64 ) || defined( _WIN64 ) || defined( _MSC_VER )
+    #define USE_WINDOWS
 #elif defined( __APPLE__ )
-#define USE_MAC
-#include <dlfcn.h>
-#include <execinfo.h>
-#include <mach/mach.h>
-#include <sched.h>
-#include <signal.h>
-#include <sys/sysctl.h>
-#include <sys/sysctl.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <unistd.h>
+    #define USE_MAC
 #elif defined( __linux ) || defined( __unix ) || defined( __posix )
-#define USE_LINUX
-#include <dlfcn.h>
-#include <execinfo.h>
-#include <malloc.h>
-#include <sched.h>
-#include <sys/time.h>
-#include <time.h>
-#include <unistd.h>
+    #define USE_LINUX
+    #define USE_NM
 #else
-#error Unknown OS
+    #error Unknown OS
 #endif
+// clang-format on
+
+
+// Include system dependent headers
+// clang-format off
+#ifdef USE_WINDOWS
+    #include <process.h>
+    #include <psapi.h>
+    #include <stdio.h>
+    #include <tchar.h>
+    #include <windows.h>
+#else
+    #include <dlfcn.h>
+    #include <execinfo.h>
+    #include <sched.h>
+    #include <sys/time.h>
+    #include <ctime>
+    #include <unistd.h>
+#endif
+#ifdef USE_LINUX
+    #include <malloc.h>
+#endif
+#ifdef USE_MAC
+    #include <mach/mach.h>
+    #include <sys/sysctl.h>
+    #include <sys/types.h>
+#endif
+// clang-format on
 
 
 /****************************************************************************
-*  Function to terminate the program                                        *
-****************************************************************************/
+ *  Function to find an entry                                                *
+ ****************************************************************************/
+template<class TYPE>
+inline size_t findfirst( const std::vector<TYPE> &X, TYPE Y )
+{
+    if ( X.empty() )
+        return 0;
+    size_t lower = 0;
+    size_t upper = X.size() - 1;
+    if ( X[lower] >= Y )
+        return lower;
+    if ( X[upper] < Y )
+        return upper;
+    while ( ( upper - lower ) != 1 ) {
+        size_t value = ( upper + lower ) / 2;
+        if ( X[value] >= Y )
+            upper = value;
+        else
+            lower = value;
+    }
+    return upper;
+}
+
+
+/****************************************************************************
+ *  Function to terminate the program                                        *
+ ****************************************************************************/
 static bool abort_printMemory    = true;
 static bool abort_printStack     = true;
 static bool abort_throwException = false;
+static bool abort_printOnAbort   = false;
+static int abort_stackType       = 2;
 static int force_exit            = 0;
-void Utilities::setAbortBehavior( bool printMemory, bool printStack, bool throwException )
+void Utilities::setAbortBehavior( bool printMemory, bool printStack, bool throwException, bool printOnAbort, int stackType )
 {
     abort_printMemory    = printMemory;
     abort_printStack     = printStack;
     abort_throwException = throwException;
+    abort_printOnAbort   = printOnAbort;
+    abort_stackType      = stackType;
 }
 void Utilities::abort( const std::string &message, const std::string &filename, const int line )
 {
     std::stringstream msg;
     msg << "Program abort called in file `" << filename << "' at line " << line << std::endl;
+    if ( abort_printOnAbort ) {
+        if ( abort_printMemory ) {
+            size_t N_bytes = Utilities::getMemoryUsage();
+            msg << "Bytes used = " << N_bytes << std::endl;
+        }
+        if ( abort_printStack ) {
+            StackTrace::multi_stack_info stack;
+            if ( abort_stackType == 1 ) {
+                stack = StackTrace::getCallStack();
+            } else if ( abort_stackType == 2 ) {
+                stack = StackTrace::getAllCallStacks();
+            } else if ( abort_stackType == 3 ) {
+                stack = StackTrace::getGlobalCallStacks();
+            }
+            StackTrace::cleanupStackTrace( stack );
+            auto data = stack.print();
+            msg << std::endl;
+            msg << "Stack Trace:\n";
+            for ( const auto &i : data )
+                msg << " " << i << std::endl;
+        }
+    }
+    msg << std::endl << message << std::endl;
+    throw std::logic_error( msg.str() );
+}
+static void terminate( const std::string &message )
+{
     // Add the memory usage and call stack to the error message
+    std::stringstream msg;
     if ( abort_printMemory ) {
         size_t N_bytes = Utilities::getMemoryUsage();
         msg << "Bytes used = " << N_bytes << std::endl;
     }
     if ( abort_printStack ) {
-        std::vector<StackTrace::stack_info> stack = StackTrace::getCallStack();
+        auto stack = StackTrace::getAllCallStacks();
+        StackTrace::cleanupStackTrace( stack );
+        auto data = stack.print();
         msg << std::endl;
         msg << "Stack Trace:\n";
-        for ( size_t i = 0; i < stack.size(); i++ )
-            msg << "   " << stack[i].print() << std::endl;
+        for ( const auto &i : data )
+            msg << " " << i << std::endl;
     }
     msg << std::endl << message << std::endl;
     // Print the message and abort
@@ -88,7 +156,7 @@ void Utilities::abort( const std::string &message, const std::string &filename, 
     } else if ( !abort_throwException ) {
         // Use MPI_abort (will terminate all processes)
         force_exit = 2;
-        std::cerr << msg.str();
+        perr << msg.str();
 #if defined( USE_MPI ) || defined( HAVE_MPI )
         int initialized = 0, finalized = 0;
         MPI_Initialized( &initialized );
@@ -97,25 +165,23 @@ void Utilities::abort( const std::string &message, const std::string &filename, 
             MPI_Abort( MPI_COMM_WORLD, -1 );
 #endif
         exit( -1 );
-    } else if ( force_exit > 0 ) {
-        exit( -1 );
     } else {
-        // Throw and standard exception (allows the use of try, catch)
-        throw std::logic_error( msg.str() );
+        perr << msg.str();
+        exit( -1 );
     }
 }
 
 
 /****************************************************************************
-*  Function to handle MPI errors                                            *
-****************************************************************************/
+ *  Function to handle MPI errors                                            *
+ ****************************************************************************/
 /*#if defined(USE_MPI) || defined(HAVE_MPI)
 MPI_Errhandler mpierr;
 void MPI_error_handler_fun( MPI_Comm *comm, int *err, ... )
 {
     if ( *err==MPI_ERR_COMM && *comm==MPI_COMM_WORLD ) {
         // Special error handling for an invalid MPI_COMM_WORLD
-        std::cerr << "Error invalid MPI_COMM_WORLD";
+        perr << "Error invalid MPI_COMM_WORLD";
         exit(-1);
     }
     int msg_len=0;
@@ -129,24 +195,18 @@ void MPI_error_handler_fun( MPI_Comm *comm, int *err, ... )
 
 
 /****************************************************************************
-*  Functions to set the error handler                                       *
-****************************************************************************/
-static void abort_fun( std::string msg, StackTrace::terminateType type )
-{
-    if ( type == StackTrace::terminateType::exception )
-        force_exit = std::max(force_exit,1);
-    Utilities::abort( msg, __FILE__, __LINE__ );
-}
+ *  Functions to set the error handler                                       *
+ ****************************************************************************/
+static void abort_fun( const std::string &msg, StackTrace::terminateType ) { terminate( msg ); }
 static void setTerminateErrorHandler()
 {
     // Set the terminate routine for runtime errors
     StackTrace::setErrorHandlers( abort_fun );
-
 }
 /*#ifdef USE_MPI
     static void setMPIErrorHandler( MPI_Comm mpi )
     {
-        if ( mpierr.get()==NULL ) {
+        if ( mpierr.get()==nullptr ) {
             mpierr = boost::shared_ptr<MPI_Errhandler>( new MPI_Errhandler );
             MPI_Comm_create_errhandler( MPI_error_handler_fun, mpierr.get() );
         }
@@ -155,7 +215,7 @@ static void setTerminateErrorHandler()
     }
     static void clearMPIErrorHandler(  )
     {
-        if ( mpierr.get()!=NULL )
+        if ( mpierr.get()!=nullptr )
             MPI_Errhandler_free( mpierr.get() );    // Delete the error handler
         mpierr.reset();
         MPI_Comm_set_errhandler( MPI_COMM_SELF, MPI_ERRORS_ARE_FATAL );
@@ -173,8 +233,8 @@ void Utilities::setErrorHandlers()
 
 
 /****************************************************************************
-*  Function to set an environemental variable                               *
-****************************************************************************/
+ *  Function to set an environemental variable                               *
+ ****************************************************************************/
 void Utilities::setenv( const char *name, const char *value )
 {
 #if defined( USE_LINUX ) || defined( USE_MAC )
@@ -186,7 +246,7 @@ void Utilities::setenv( const char *name, const char *value )
     else
         pass = ::unsetenv( name ) == 0;
 #elif defined( USE_WINDOWS )
-    bool pass = SetEnvironmentVariable( name, value ) != 0;
+    bool pass     = SetEnvironmentVariable( name, value ) != 0;
 #else
 #error Unknown OS
 #endif
@@ -202,67 +262,71 @@ void Utilities::setenv( const char *name, const char *value )
 
 
 /****************************************************************************
-*  Function to get the memory usage                                         *
-*  Note: this function should be thread-safe                                *
-****************************************************************************/
+ *  Function to get the memory usage                                         *
+ *  Note: this function should be thread-safe                                *
+ ****************************************************************************/
+// clang-format off
 #if defined( USE_MAC ) || defined( USE_LINUX )
-// Get the page size on mac or linux
-static size_t page_size = static_cast<size_t>( sysconf( _SC_PAGESIZE ) );
+    // Get the page size on mac or linux
+    static size_t page_size = static_cast<size_t>( sysconf( _SC_PAGESIZE ) );
 #endif
-static size_t N_bytes_initialization = Utilities::getMemoryUsage();
 size_t Utilities::getSystemMemory()
 {
-    size_t N_bytes = 0;
-#if defined( USE_LINUX )
-    static long pages = sysconf( _SC_PHYS_PAGES );
-    N_bytes           = pages * page_size;
-#elif defined( USE_MAC )
-    int mib[2]    = { CTL_HW, HW_MEMSIZE };
-    u_int namelen = sizeof( mib ) / sizeof( mib[0] );
-    uint64_t size;
-    size_t len = sizeof( size );
-    if ( sysctl( mib, namelen, &size, &len, nullptr, 0 ) == 0 )
-        N_bytes = size;
-#elif defined( USE_WINDOWS )
-    MEMORYSTATUSEX status;
-    status.dwLength = sizeof( status );
-    GlobalMemoryStatusEx( &status );
-    N_bytes = status.ullTotalPhys;
-#else
-#error Unknown OS
-#endif
+    #if defined( USE_LINUX )
+        static long pages = sysconf( _SC_PHYS_PAGES );
+        size_t N_bytes    = pages * page_size;
+    #elif defined( USE_MAC )
+        int mib[2]    = { CTL_HW, HW_MEMSIZE };
+        u_int namelen = sizeof( mib ) / sizeof( mib[0] );
+        uint64_t size;
+        size_t len = sizeof( size );
+        size_t N_bytes = 0;
+        if ( sysctl( mib, namelen, &size, &len, nullptr, 0 ) == 0 )
+            N_bytes = size;
+    #elif defined( USE_WINDOWS )
+        MEMORYSTATUSEX status;
+        status.dwLength = sizeof( status );
+        GlobalMemoryStatusEx( &status );
+        size_t N_bytes = status.ullTotalPhys;
+    #else
+        #error Unknown OS
+    #endif
     return N_bytes;
 }
 size_t Utilities::getMemoryUsage()
 {
-    size_t N_bytes = 0;
-#if defined( USE_LINUX )
-    struct mallinfo meminfo = mallinfo();
-    size_t size_hblkhd      = static_cast<unsigned int>( meminfo.hblkhd );
-    size_t size_uordblks    = static_cast<unsigned int>( meminfo.uordblks );
-    N_bytes                 = size_hblkhd + size_uordblks;
-#elif defined( USE_MAC )
-    struct task_basic_info t_info;
-    mach_msg_type_number_t t_info_count = TASK_BASIC_INFO_COUNT;
-    if ( KERN_SUCCESS !=
-         task_info( mach_task_self(), TASK_BASIC_INFO, (task_info_t) &t_info, &t_info_count ) ) {
-        return 0;
-    }
-    N_bytes = t_info.virtual_size;
-#elif defined( USE_WINDOWS )
-    PROCESS_MEMORY_COUNTERS memCounter;
-    GetProcessMemoryInfo( GetCurrentProcess(), &memCounter, sizeof( memCounter ) );
-    N_bytes = memCounter.WorkingSetSize;
-#else
-#error Unknown OS
-#endif
+    #ifdef USE_TIMER
+        size_t N_bytes = MemoryApp::getTotalMemoryUsage();
+    #else
+        #if defined( USE_LINUX )
+            struct mallinfo meminfo = mallinfo();
+            size_t size_hblkhd      = static_cast<unsigned int>( meminfo.hblkhd );
+            size_t size_uordblks    = static_cast<unsigned int>( meminfo.uordblks );
+            size_t N_bytes          = size_hblkhd + size_uordblks;
+        #elif defined( USE_MAC )
+            struct task_basic_info t_info;
+            mach_msg_type_number_t t_info_count = TASK_BASIC_INFO_COUNT;
+            if ( KERN_SUCCESS !=
+                 task_info( mach_task_self(), TASK_BASIC_INFO, (task_info_t) &t_info, &t_info_count ) ) {
+                return 0;
+            }
+            size_t N_bytes = t_info.virtual_size;
+        #elif defined( USE_WINDOWS )
+            PROCESS_MEMORY_COUNTERS memCounter;
+            GetProcessMemoryInfo( GetCurrentProcess(), &memCounter, sizeof( memCounter ) );
+            size_t N_bytes = memCounter.WorkingSetSize;
+        #else
+            #error Unknown OS
+        #endif
+    #endif
     return N_bytes;
 }
+// clang-format on
 
 
 /****************************************************************************
-*  Functions to get the time and timer resolution                           *
-****************************************************************************/
+ *  Functions to get the time and timer resolution                           *
+ ****************************************************************************/
 #if defined( USE_WINDOWS )
 double Utilities::time()
 {
@@ -304,34 +368,20 @@ double Utilities::tick()
 
 
 /****************************************************************************
-*  Functions to sleep for x ms                                              *
-****************************************************************************/
-void Utilities::sleep_ms( int milliseconds )
+ *  Cause a segfault                                                         *
+ ****************************************************************************/
+void Utilities::cause_segfault()
 {
-#ifdef USE_WINDOWS
-    Sleep( milliseconds );
-#else
-    struct timespec ts;
-    ts.tv_sec  = milliseconds / 1000;
-    ts.tv_nsec = ( milliseconds % 1000 ) * 1000000;
-    nanosleep( &ts, nullptr );
-#endif
-}
-void Utilities::sleep_s( int seconds )
-{
-#ifdef USE_WINDOWS
-    Sleep( 1000 * seconds );
-#else
-    sleep( seconds );
-#endif
+    int *ptr = nullptr;
+    ptr[0]   = 0;
 }
 
 
 /****************************************************************************
-*  Cause a segfault                                                         *
-****************************************************************************/
-void Utilities::cause_segfault()
+ *  Call system command                                                      *
+ ****************************************************************************/
+std::string Utilities::exec( const std::string &cmd, int &exit_code )
 {
-    int *ptr = NULL;
-    ptr[0]   = 0;
+    return StackTrace::exec( cmd, exit_code );
 }
+

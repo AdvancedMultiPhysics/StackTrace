@@ -1,6 +1,7 @@
 #ifndef included_UnitTest
 #define included_UnitTest
 
+#include <mutex>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -34,19 +35,16 @@ public:
     UnitTest();
 
     //! Destructor
-    ~UnitTest();
+    virtual ~UnitTest();
 
-    //! Indicate a passed test
-    virtual void passes( const std::string &in ) { pass_messages.push_back( in ); }
+    //! Indicate a passed test (thread-safe)
+    virtual void passes( const std::string &in );
 
-    //! Indicate a failed test
-    virtual void failure( const std::string &in ) { fail_messages.push_back( in ); }
+    //! Indicate a failed test (thread-safe)
+    virtual void failure( const std::string &in );
 
-    //! Indicate an expected failed test
-    virtual void expected_failure( const std::string &in )
-    {
-        expected_fail_messages.push_back( in );
-    }
+    //! Indicate an expected failed test (thread-safe)
+    virtual void expected_failure( const std::string &in );
 
     //! Return the number of passed tests locally
     virtual size_t NumPassLocal() const { return pass_messages.size(); }
@@ -95,6 +93,7 @@ protected:
     std::vector<std::string> pass_messages;
     std::vector<std::string> fail_messages;
     std::vector<std::string> expected_fail_messages;
+    mutable std::mutex mutex;
 #ifdef USE_MPI
     MPI_Comm comm;
 #endif
@@ -105,13 +104,18 @@ private:
 
     // Function to pack the messages into a single data stream and send to the given processor
     // Note: This function does not return until the message stream has been sent
-    void pack_message_stream( const std::vector<std::string> &messages,
-                              const int rank,
-                              const int tag ) const;
+    void pack_message_stream(
+        const std::vector<std::string> &messages, const int rank, const int tag ) const;
 
     // Function to unpack the messages from a single data stream
     // Note: This function does not return until the message stream has been received
     std::vector<std::string> unpack_message_stream( const int rank, const int tag ) const;
+
+    // Helper functions
+    inline void barrier() const;
+    inline std::vector<int> allGather( int value ) const;
+    inline std::vector<std::vector<std::string>> gatherMessages(
+        const std::vector<std::string> &local_messages, int tag ) const;
 };
 
 
