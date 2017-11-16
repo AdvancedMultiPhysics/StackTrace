@@ -25,7 +25,7 @@
 #elif defined( __APPLE__ )
     #define USE_MAC
     #define USE_NM
-#elif defined( __linux ) || defined( __unix ) || defined( __posix )
+#elif defined( __linux ) || defined( __linux__ ) || defined( __unix ) || defined( __posix )
     #define USE_LINUX
     #define USE_NM
 #else
@@ -1842,6 +1842,7 @@ void StackTrace::cleanupStackTrace( multi_stack_info &stack )
                 "::sleep_for(std::chrono::hours" );
         }
         // Replace std::basic_string with abbriviated version
+        strrep( function, "std::__cxx11::basic_string<", "std::basic_string<" );
         size_t pos = 0;
         while ( pos < function.size() ) {
             // Find next instance of std::basic_string
