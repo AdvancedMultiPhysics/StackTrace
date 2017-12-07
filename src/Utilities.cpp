@@ -1,6 +1,6 @@
 #define NOMINMAX
-#include "Utilities.h"
-#include "StackTrace.h"
+#include "StackTrace/Utilities.h"
+#include "StackTrace/StackTrace.h"
 
 #include <algorithm>
 #include <csignal>
@@ -13,7 +13,6 @@
 #ifdef USE_MPI
 #include "mpi.h"
 #endif
-
 
 
 #define perr std::cerr
@@ -61,10 +60,13 @@
 // clang-format on
 
 
+namespace StackTrace {
+
+
 /****************************************************************************
  *  Function to find an entry                                                *
  ****************************************************************************/
-template<class TYPE>
+template <class TYPE>
 inline size_t findfirst( const std::vector<TYPE> &X, TYPE Y )
 {
     if ( X.empty() )
@@ -95,7 +97,8 @@ static bool abort_throwException = false;
 static bool abort_printOnAbort   = false;
 static int abort_stackType       = 2;
 static int force_exit            = 0;
-void Utilities::setAbortBehavior( bool printMemory, bool printStack, bool throwException, bool printOnAbort, int stackType )
+void Utilities::setAbortBehavior(
+    bool printMemory, bool printStack, bool throwException, bool printOnAbort, int stackType )
 {
     abort_printMemory    = printMemory;
     abort_printStack     = printStack;
@@ -232,34 +235,6 @@ void Utilities::setErrorHandlers()
 }
 
 
-/****************************************************************************
- *  Function to set an environemental variable                               *
- ****************************************************************************/
-void Utilities::setenv( const char *name, const char *value )
-{
-#if defined( USE_LINUX ) || defined( USE_MAC )
-    char env[100];
-    sprintf( env, "%s=%s", name, value );
-    bool pass = false;
-    if ( value != nullptr )
-        pass = ::setenv( name, value, 1 ) == 0;
-    else
-        pass = ::unsetenv( name ) == 0;
-#elif defined( USE_WINDOWS )
-    bool pass     = SetEnvironmentVariable( name, value ) != 0;
-#else
-#error Unknown OS
-#endif
-    if ( !pass ) {
-        char msg[100];
-        if ( value != nullptr )
-            sprintf( msg, "Error setting enviornmental variable: %s=%s\n", name, value );
-        else
-            sprintf( msg, "Error clearing enviornmental variable: %s\n", name );
-        ERROR( msg );
-    }
-}
-
 
 /****************************************************************************
  *  Function to get the memory usage                                         *
@@ -385,3 +360,5 @@ std::string Utilities::exec( const std::string &cmd, int &exit_code )
     return StackTrace::exec( cmd, exit_code );
 }
 
+
+} // namespace StackTrace

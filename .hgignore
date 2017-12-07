@@ -8,6 +8,11 @@ build/TestStack
 build/cmake_install.cmake
 build/install_manifest.txt
 build/lib/*
+build/bin/*
 build/include/*
 build/libstacktrace.a
+build/FindStackTrace.cmake
+build/DartConfiguration.tcl
+build/CTestTestfile.cmake
+build/Testing
 

@@ -1,17 +1,17 @@
-#ifndef included_Utilities
-#define included_Utilities
+#ifndef included_StackTrace_Utilities
+#define included_StackTrace_Utilities
 
 
 #include <iostream>
-#include <mutex>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <thread>
 #include <vector>
 
 
+namespace StackTrace {
 namespace Utilities {
+
 
 /*!
  * Aborts the run after printing an error message with file and
@@ -28,19 +28,16 @@ void abort( const std::string &message, const std::string &filename, const int l
  * @param printOnAbort      Print the call stack when abort is called (default is false)
  * @param stackType         Type of stack to get (1: thread local stack, 2: all threads, 3: global)
  */
-void setAbortBehavior( bool printMemory, bool printStack, bool throwException, bool printOnAbort=false, int stackType=2 );
+void setAbortBehavior( bool printMemory,
+                       bool printStack,
+                       bool throwException,
+                       bool printOnAbort = false,
+                       int stackType     = 2 );
 
 
 //! Function to set the error handlers
 void setErrorHandlers();
 
-
-/*!
- * Set an environmental variable
- * @param name              The name of the environmental variable
- * @param value             The value to set
- */
-void setenv( const char *name, const char *value );
 
 
 /*!
@@ -101,9 +98,8 @@ std::string exec( const std::string &cmd, int &exit_code );
 
 
 } // namespace Utilities
+} // namespace StackTrace
 
-
-#include "UtilityMacros.h"
 
 
 #endif

@@ -40,7 +40,7 @@ struct stack_info {
     //! Default constructor
     stack_info() : address( nullptr ), address2( nullptr ), line( 0 ) {}
     //! Reset the stack
-    void clear( );
+    void clear();
     //! Operator==
     bool operator==( const stack_info &rhs ) const;
     //! Operator!=
@@ -63,17 +63,17 @@ struct stack_info {
 
 
 struct multi_stack_info {
-    int N;                                      // Number of threads/processes
-    stack_info stack;                           // Current stack item
-    std::vector<multi_stack_info> children;     // Children
+    int N;                                  // Number of threads/processes
+    stack_info stack;                       // Current stack item
+    std::vector<multi_stack_info> children; // Children
     //! Default constructor
     multi_stack_info() : N( 0 ) {}
     //! Construct from a simple call stack
-    explicit multi_stack_info( const std::vector<stack_info>& );
+    explicit multi_stack_info( const std::vector<stack_info> & );
     //! Copy constructor from a simple call stack
-    multi_stack_info& operator=( const std::vector<stack_info>& );
+    multi_stack_info &operator=( const std::vector<stack_info> & );
     //! Reset the stack
-    void clear( );
+    void clear();
     //! Add the given stack to the multistack
     void add( size_t len, const stack_info *stack );
     //! Print the stack info
@@ -162,8 +162,9 @@ std::string signalName( int signal );
  * Return the symbols from the current executable (not availible for all platforms)
  * @return      Returns 0 if sucessful
  */
-int getSymbols(
-    std::vector<void *> &address, std::vector<char> &type, std::vector<std::string> &obj );
+int getSymbols( std::vector<void *> &address,
+                std::vector<char> &type,
+                std::vector<std::string> &obj );
 
 
 /*!

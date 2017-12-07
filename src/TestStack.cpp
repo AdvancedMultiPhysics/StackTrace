@@ -11,55 +11,48 @@
 #include <vector>
 
 
-#include "StackTrace.h"
-#include "UnitTest.h"
-#include "Utilities.h"
+#include "StackTrace/StackTrace.h"
+#include "StackTrace/Utilities.h"
 
 
+using StackTrace::Utilities::time;
+
+
+// Include MPI
+// clang-format off
 #ifdef USE_MPI
-#include "mpi.h"
-int getRank()
-{
-    int rank = 0;
-    MPI_Comm_rank( MPI_COMM_WORLD, &rank );
-    return rank;
-}
-void barrier() { MPI_Barrier( MPI_COMM_WORLD ); }
+    #include "mpi.h"
+    int getRank() {
+        int rank = 0;
+        MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+        return rank;
+    }
+    void barrier() { MPI_Barrier( MPI_COMM_WORLD ); }
+    int sumReduce( int x ) {
+        int y;
+        MPI_Allreduce( &x, &y, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD );
+        return y;
+    }
+    int startup( int argc, char *argv[] ) {
+        int provided_thread_support;
+        MPI_Init_thread( &argc, &argv, MPI_THREAD_MULTIPLE, &provided_thread_support );
+        return getRank();
+    }
 #else
-#define MPI_COMM_WORLD 0
-#define MPI_THREAD_MULTIPLE 4
-void MPI_Init_thread( int *argc, char **argv[], int, int * )
-{
-    NULL_USE( argc );
-    NULL_USE( argv );
-}
-void MPI_Finalize() {}
-void barrier() {}
-int getRank() { return 0; };
+    void MPI_Finalize() {}
+    void barrier() {}
+    int sumReduce( int x ) { return x; }
+    int startup( int, char*[] ) { return 0; }
 #endif
+// clang-format on
 
 
-// Detect the OS (defines which tests we allow to fail)
-#if defined( WIN32 ) || defined( _WIN32 ) || defined( WIN64 ) || defined( _WIN64 ) || \
-    defined( _MSC_VER )
-#define USE_WINDOWS
-#elif defined( __APPLE__ )
-#define USE_MAC
-#elif defined( __linux ) || defined( __linux__ ) || defined( __unix ) || defined( __posix )
-#define USE_LINUX
-#else
-#error Unknown OS
-#endif
-
-
-#define pout std::cout
-
-
+// Function to get the time in ms
 #define to_ms( x ) std::chrono::duration_cast<std::chrono::milliseconds>( x ).count()
 
 
 // Function to return the call stack
-std::vector<StackTrace::stack_info> get_call_stack( )
+std::vector<StackTrace::stack_info> get_call_stack()
 {
     auto stack = StackTrace::getCallStack();
     // Trick compiler to skip inline for this function with fake recursion
@@ -97,19 +90,15 @@ void sleep_s( int N )
 
 // Function to perform various signal tests
 int global_signal_helper[1024] = { 0 };
-void handleSignal( int s )
-{
-    global_signal_helper[s] = 1;
-    // pout << "caught " << s << std::endl;
-}
-void testSignal( UnitTest &ut )
+void handleSignal( int s ) { global_signal_helper[s] = 1; }
+void testSignal( std::vector<std::string> &passes, std::vector<std::string> &failure )
 {
     int rank = getRank();
     if ( rank == 0 ) {
         // Identify the signals
-        pout << "\nIdentifying signals\n";
+        std::cout << "\nIdentifying signals\n";
         for ( int i = 1; i <= 64; i++ )
-            pout << "  " << i << ": " << StackTrace::signalName( i ) << std::endl;
+            std::cout << "  " << i << ": " << StackTrace::signalName( i ) << std::endl;
         // Test setting/catching different signals
         bool pass    = true;
         auto signals = StackTrace::allSignalsToCatch();
@@ -121,74 +110,78 @@ void testSignal( UnitTest &ut )
             if ( global_signal_helper[sig] != 1 )
                 pass = false;
         }
-        pout << std::endl;
+        std::cout << std::endl;
         if ( pass )
-            ut.passes( "Signals" );
+            passes.push_back( "Signals" );
         else
-            ut.failure( "Signals" );
+            failure.push_back( "Signals" );
     }
 }
 
 
 // Test current stack trace
-void testCurrentStack( UnitTest &ut, bool &decoded_symbols )
+void testCurrentStack( std::vector<std::string> &passes,
+                       std::vector<std::string> &failure,
+                       bool &decoded_symbols )
 {
     barrier();
     const int rank  = getRank();
-    double ts1      = Utilities::time();
+    double ts1      = time();
     auto call_stack = get_call_stack();
-    double ts2      = Utilities::time();
+    double ts2      = time();
     if ( rank == 0 ) {
-        pout << "Call stack:" << std::endl;
+        std::cout << "Call stack:" << std::endl;
         for ( auto &elem : call_stack )
-            pout << "   " << elem.print() << std::endl;
-        pout << "Time to get call stack: " << ts2 - ts1 << std::endl;
+            std::cout << "   " << elem.print() << std::endl;
+        std::cout << "Time to get call stack: " << ts2 - ts1 << std::endl;
     }
     decoded_symbols = false;
     if ( !call_stack.empty() ) {
-        ut.passes( "non empty call stack" );
+        passes.push_back( "non empty call stack" );
         for ( auto &i : call_stack ) {
             if ( i.print().find( "get_call_stack" ) != std::string::npos )
                 decoded_symbols = true;
         }
         if ( decoded_symbols )
-            ut.passes( "call stack decoded function symbols" );
+            passes.push_back( "call stack decoded function symbols" );
         else
-            ut.expected_failure( "call stack was unable to decode function symbols" );
+            failure.push_back( "call stack was unable to decode function symbols" );
     } else {
-        ut.failure( "non empty call stack" );
+        failure.push_back( "non empty call stack" );
     }
     if ( rank == 0 ) {
-        ts1        = Utilities::time();
+        ts1        = time();
         auto trace = StackTrace::backtrace();
-        ts2        = Utilities::time();
-        pout << "Time to get backtrace: " << ts2 - ts1 << std::endl << std::endl;
+        ts2        = time();
+        std::cout << "Time to get backtrace: " << ts2 - ts1 << std::endl << std::endl;
     }
 }
 
 
 // Test stack trace of another thread
-void testThreadStack( UnitTest &ut, bool decoded_symbols )
+void testThreadStack( std::vector<std::string> &passes,
+                      std::vector<std::string> &failure,
+                      bool decoded_symbols )
 {
     barrier();
     const int rank = getRank();
-    double t1      = Utilities::time();
+    double t1      = time();
     std::thread thread( sleep_ms, 1000 );
     sleep_ms( 50 ); // Give thread time to start
-    double t2       = Utilities::time();
+    double t2       = time();
     auto call_stack = StackTrace::getCallStack( thread.native_handle() );
-    double t3       = Utilities::time();
+    double t3       = time();
     thread.join();
-    double t4 = Utilities::time();
+    double t4 = time();
     if ( rank == 0 ) {
-        pout << "Call stack (thread):" << std::endl;
+        std::cout << "Call stack (thread):" << std::endl;
         for ( auto &elem : call_stack )
-            pout << "   " << elem.print() << std::endl;
-        pout << "Time to get call stack (thread): " << t3 - t2 << std::endl;
-        pout << std::endl;
+            std::cout << "   " << elem.print() << std::endl;
+        std::cout << "Time to get call stack (thread): " << t3 - t2 << std::endl;
+        std::cout << std::endl;
     }
     if ( !call_stack.empty() ) {
-        ut.passes( "non empty call stack (thread)" );
+        passes.push_back( "non empty call stack (thread)" );
         bool pass = false;
         for ( auto &elem : call_stack ) {
             if ( elem.print().find( "sleep_ms" ) != std::string::npos )
@@ -196,19 +189,19 @@ void testThreadStack( UnitTest &ut, bool decoded_symbols )
         }
         pass = pass && fabs( t4 - t1 ) > 0.9;
         if ( pass )
-            ut.passes( "call stack (thread)" );
+            passes.push_back( "call stack (thread)" );
         else if ( !decoded_symbols )
-            ut.expected_failure( "call stack (thread) failed to decode symbols" );
+            std::cout << "call stack (thread) failed to decode symbols";
         else
-            ut.failure( "call stack (thread)" );
+            failure.push_back( "call stack (thread)" );
     } else {
-        ut.failure( "non empty call stack (thread)" );
+        failure.push_back( "non empty call stack (thread)" );
     }
 }
 
 
 // Test stack trace of another thread
-void testFullStack( UnitTest &ut )
+void testFullStack( std::vector<std::string> &, std::vector<std::string> & )
 {
     barrier();
     const int rank = getRank();
@@ -216,48 +209,29 @@ void testFullStack( UnitTest &ut )
     std::thread thread2( sleep_ms, 2000 );
     std::thread thread3( sleep_s, 2 );
     sleep_ms( 50 ); // Give thread time to start
-    double t1       = Utilities::time();
+    double t1       = time();
     auto call_stack = StackTrace::getAllCallStacks();
     cleanupStackTrace( call_stack );
-    double t2 = Utilities::time();
+    double t2 = time();
     thread1.join();
     thread2.join();
     thread3.join();
     if ( rank == 0 ) {
-        pout << "Call stack (all threads):" << std::endl;
+        std::cout << "Call stack (all threads):" << std::endl;
         auto text = call_stack.print( "   " );
         for ( auto &line : text )
-            pout << line << std::endl;
-        pout << "Time to get call stack (all threads): " << t2 - t1 << std::endl;
-        pout << std::endl;
+            std::cout << line << std::endl;
+        std::cout << "Time to get call stack (all threads): " << t2 - t1 << std::endl;
+        std::cout << std::endl;
     }
-    NULL_USE( ut );
-    /*    if ( !call_stack.empty() ) {
-            ut.passes( "non empty call stack (thread)" );
-
-            bool pass = false;
-            for ( auto &elem : call_stack ) {
-                if ( elem.print().find( "sleep_ms" ) != std::string::npos )
-
-                    pass = true;
-            }
-            pass = pass && fabs(t4-t1)>1.9;
-            if ( pass )
-                ut.passes( "call stack (thread)" );
-
-            else if ( !decoded_symbols )
-                ut.expected_failure( "call stack (thread) failed to decode symbols" );
-            else
-                ut.failure( "call stack (thread)" );
-        } else {
-
-            ut.failure( "non empty call stack (thread)" );
-        }*/
 }
 
 
 // Test stack trace of another thread
-void testGlobalStack( UnitTest &ut, bool all, const std::basic_string<wchar_t>& = std::basic_string<wchar_t>() )
+void testGlobalStack( std::vector<std::string> &,
+                      std::vector<std::string> &,
+                      bool all,
+                      const std::basic_string<wchar_t> & = std::basic_string<wchar_t>() )
 {
     barrier();
     const int rank = getRank();
@@ -265,12 +239,12 @@ void testGlobalStack( UnitTest &ut, bool all, const std::basic_string<wchar_t>& 
     std::thread thread2( sleep_ms, 2000 );
     std::thread thread3( sleep_s, 2 );
     sleep_ms( 50 ); // Give threads time to start
-    double t1 = Utilities::time();
+    double t1 = time();
     StackTrace::multi_stack_info call_stack;
     if ( rank == 0 || all )
         call_stack = StackTrace::getGlobalCallStacks();
     cleanupStackTrace( call_stack );
-    double t2 = Utilities::time();
+    double t2 = time();
     thread1.join();
     thread2.join();
     thread3.join();
@@ -278,43 +252,39 @@ void testGlobalStack( UnitTest &ut, bool all, const std::basic_string<wchar_t>& 
     if ( !all && rank != 0 )
         return;
     if ( rank == 0 && !all ) {
-        pout << "Call stack (global):" << std::endl;
+        std::cout << "Call stack (global):" << std::endl;
         auto text = call_stack.print( "   " );
         for ( auto &line : text )
-            pout << line << std::endl;
-        pout << "Time to get call stack (global): " << t2 - t1 << std::endl;
-        pout << std::endl;
+            std::cout << line << std::endl;
+        std::cout << "Time to get call stack (global): " << t2 - t1 << std::endl;
+        std::cout << std::endl;
     }
-    NULL_USE( ut );
 }
 
 
 // The main function
 int main( int argc, char *argv[] )
 {
-    int provided_thread_support;
-    MPI_Init_thread( &argc, &argv, MPI_THREAD_MULTIPLE, &provided_thread_support );
-    int rank = getRank();
-    Utilities::setAbortBehavior( true, true, true );
+    int rank = startup( argc, argv );
+    StackTrace::Utilities::setAbortBehavior( true, true, true );
     StackTrace::globalCallStackInitialize( MPI_COMM_WORLD );
-    UnitTest ut;
-    barrier();
+    std::vector<std::string> passes, failure;
 
     // Limit the scope of variables
     {
         // Test getting the current call stack
         bool decoded_symbols = false;
-        testCurrentStack( ut, decoded_symbols );
+        testCurrentStack( passes, failure, decoded_symbols );
 
         // Test getting the stacktrace of another thread
-        testThreadStack( ut, decoded_symbols );
+        testThreadStack( passes, failure, decoded_symbols );
 
         // Test getting the full stacktrace of all thread
-        testFullStack( ut );
+        testFullStack( passes, failure );
 
         // Test getting the global stack trace of all threads/processes
-        testGlobalStack( ut, false );
-        testGlobalStack( ut, true );
+        testGlobalStack( passes, failure, false );
+        testGlobalStack( passes, failure, true );
 
         // Test getting a list of all active threads
         std::thread thread1( sleep_ms, 1000 );
@@ -328,9 +298,9 @@ int main( int argc, char *argv[] )
         thread1.join();
         thread2.join();
         if ( thread_ids == thread_ids_test )
-            ut.passes( "StackTrace::activeThreads" );
+            passes.push_back( "StackTrace::activeThreads" );
         else
-            ut.expected_failure( "StackTrace::activeThreads" );
+            failure.push_back( "StackTrace::activeThreads" );
 
         // Test getting the symbols
         std::vector<void *> address;
@@ -338,42 +308,50 @@ int main( int argc, char *argv[] )
         std::vector<std::string> obj;
         int rtn = StackTrace::getSymbols( address, type, obj );
         if ( rtn == 0 && !address.empty() )
-            ut.passes( "Read symbols from executable" );
+            passes.push_back( "Read symbols from executable" );
 
         // Test getting the executable
-        std::string exe = StackTrace::getExecutable();
+        auto exe = StackTrace::getExecutable();
         if ( rank == 0 )
-            pout << "\nExecutable: " << exe << std::endl;
+            std::cout << "\nExecutable: " << exe << std::endl;
         if ( exe.find( "TestStack" ) != std::string::npos )
-            ut.passes( "getExecutable" );
+            passes.push_back( "getExecutable" );
         else
-            ut.failure( "getExecutable" );
+            failure.push_back( "getExecutable" );
 
         // Test identifying signals
-        testSignal( ut );
+        testSignal( passes, failure );
 
         // Test catching an error
         try {
-            ERROR( "Test" );
-            ut.failure( "Failed to catch ERROR" );
+            throw std::logic_error( "Test" );
+            failure.push_back( "Failed to catch ERROR" );
         } catch ( ... ) {
-            ut.passes( "Caught ERROR" );
+            passes.push_back( "Caught ERROR" );
         }
         try {
             throw std::logic_error( "test" );
-            ut.failure( "Failed to catch exception" );
+            failure.push_back( "Failed to catch exception" );
         } catch ( ... ) {
-            ut.passes( "Caught exception" );
+            passes.push_back( "Caught exception" );
         }
-
     }
 
-    int N_errors = ut.NumFailGlobal();
-    ut.report();
-    ut.reset();
-    if ( N_errors == 0 )
-        pout << "All tests passed\n";
+    // Print the test results
     StackTrace::globalCallStackFinalize();
+    int N_errors = sumReduce( failure.size() );
+    if ( rank == 0 ) {
+        std::cout << "Tests passed:" << std::endl;
+        for ( const auto &msg : passes )
+            std::cout << "   " << msg << std::endl;
+        std::cout << std::endl << "Tests failed:" << std::endl;
+    }
+    barrier();
+    for ( const auto &msg : failure )
+        std::cout << "   Rank " << rank << ": " << msg << std::endl;
+    barrier();
+    if ( N_errors == 0 && rank == 0 )
+        std::cout << "\nAll tests passed\n";
     barrier();
     MPI_Finalize();
     return N_errors;

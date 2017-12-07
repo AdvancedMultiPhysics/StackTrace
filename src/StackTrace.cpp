@@ -1,4 +1,4 @@
-#include "StackTrace.h"
+#include "StackTrace/StackTrace.h"
 
 #include <algorithm>
 #include <csignal>
@@ -165,8 +165,11 @@ static inline void *subtractAddress( void *a, void *b )
 
 
 #ifdef USE_WINDOWS
-static BOOL __stdcall readProcMem( HANDLE hProcess, DWORD64 qwBaseAddress, PVOID lpBuffer,
-    DWORD nSize, LPDWORD lpNumberOfBytesRead )
+static BOOL __stdcall readProcMem( HANDLE hProcess,
+                                   DWORD64 qwBaseAddress,
+                                   PVOID lpBuffer,
+                                   DWORD nSize,
+                                   LPDWORD lpNumberOfBytesRead )
 {
     SIZE_T st;
     BOOL bRet = ReadProcessMemory( hProcess, (LPVOID) qwBaseAddress, lpBuffer, nSize, &st );
@@ -231,9 +234,9 @@ std::string StackTrace::exec( const std::string &cmd, int &code )
 /****************************************************************************
  *  stack_info                                                               *
  ****************************************************************************/
-void StackTrace::stack_info::clear(  )
+void StackTrace::stack_info::clear()
 {
-    address = nullptr;
+    address  = nullptr;
     address2 = nullptr;
     object.clear();
     function.clear();
@@ -263,8 +266,8 @@ int StackTrace::stack_info::getAddressWidth() const
         return 12;
     return 16;
 }
-std::string StackTrace::stack_info::print(
-    int widthAddress, int widthObject, int widthFunction ) const
+std::string
+StackTrace::stack_info::print( int widthAddress, int widthObject, int widthFunction ) const
 {
     char tmp1[64], tmp2[64];
     sprintf( tmp1, "0x%%0%illx:  ", widthAddress );
@@ -390,29 +393,31 @@ static std::vector<std::vector<StackTrace::stack_info>> unpack( const std::vecto
 /****************************************************************************
  *  multi_stack_info                                                         *
  ****************************************************************************/
-StackTrace::multi_stack_info::multi_stack_info( const std::vector<stack_info>& rhs )
+StackTrace::multi_stack_info::multi_stack_info( const std::vector<stack_info> &rhs )
 {
     operator=( rhs );
 }
-StackTrace::multi_stack_info& StackTrace::multi_stack_info::operator=( const std::vector<stack_info>& rhs )
+StackTrace::multi_stack_info &StackTrace::multi_stack_info::
+operator=( const std::vector<stack_info> &rhs )
 {
     clear();
     if ( rhs.empty() )
         return *this;
-    N = 1;
+    N     = 1;
     stack = rhs[0];
     if ( rhs.size() > 1 )
-        add( rhs.size()-1, &rhs[1] );
+        add( rhs.size() - 1, &rhs[1] );
     return *this;
 }
-void StackTrace::multi_stack_info::clear( )
+void StackTrace::multi_stack_info::clear()
 {
     N = 0;
     stack.clear();
     children.clear();
 }
-void StackTrace::multi_stack_info::print2(
-    const std::string &prefix, int w[3], std::vector<std::string> &text ) const
+void StackTrace::multi_stack_info::print2( const std::string &prefix,
+                                           int w[3],
+                                           std::vector<std::string> &text ) const
 {
     if ( stack == stack_info() ) {
         for ( const auto &child : children )
@@ -489,7 +494,7 @@ void StackTrace::multi_stack_info::add( size_t len, const stack_info *stack )
 /****************************************************************************
  *  Function to find an entry                                                *
  ****************************************************************************/
-template<class TYPE>
+template <class TYPE>
 inline size_t findfirst( const std::vector<TYPE> &X, TYPE Y )
 {
     if ( X.empty() )
@@ -624,8 +629,9 @@ static const global_symbols_struct &getSymbols2()
     }
     return data;
 }
-int StackTrace::getSymbols(
-    std::vector<void *> &address, std::vector<char> &type, std::vector<std::string> &obj )
+int StackTrace::getSymbols( std::vector<void *> &address,
+                            std::vector<char> &type,
+                            std::vector<std::string> &obj )
 {
     const global_symbols_struct &data = getSymbols2();
     address                           = data.address;
@@ -702,8 +708,11 @@ using uint_p = uint64_t;
 typedef unsigned long uint_p;
 #endif
 #if defined( USE_LINUX ) || defined( USE_MAC )
-static inline std::string generateCmd( const std::string &s1, const std::string &s2,
-    const std::string &s3, std::vector<void *> addresses, const std::string &s4 )
+static inline std::string generateCmd( const std::string &s1,
+                                       const std::string &s2,
+                                       const std::string &s3,
+                                       std::vector<void *> addresses,
+                                       const std::string &s4 )
 {
     std::string cmd = s1 + s2 + s3;
     for ( auto &addresse : addresses ) {
@@ -1171,8 +1180,8 @@ std::vector<StackTrace::stack_info> StackTrace::getCallStack( std::thread::nativ
     auto info  = getStackInfo( trace );
     return info;
 }
-static StackTrace::multi_stack_info generateMultiStack(
-    const std::vector<std::vector<void *>> &thread_backtrace )
+static StackTrace::multi_stack_info
+generateMultiStack( const std::vector<std::vector<void *>> &thread_backtrace )
 {
     // Get the stack data for all pointers
     std::set<void *> addresses_set;
@@ -1658,8 +1667,13 @@ StackTrace::multi_stack_info StackTrace::getGlobalCallStacks()
             int count;
             MPI_Get_count( &status, MPI_CHAR, &count );
             std::vector<char> data( count, 0 );
-            MPI_Recv( data.data(), count, MPI_CHAR, src_rank, tag, globalCommForGlobalCommStack,
-                &status );
+            MPI_Recv( data.data(),
+                      count,
+                      MPI_CHAR,
+                      src_rank,
+                      tag,
+                      globalCommForGlobalCommStack,
+                      &status );
             auto stack_list = unpack( data );
             for ( const auto &stack : stack_list )
                 multistack.add( stack.size(), stack.data() );
@@ -1687,7 +1701,7 @@ StackTrace::multi_stack_info StackTrace::getGlobalCallStacks() { return getAllCa
 /****************************************************************************
  *  Cleanup the call stack                                                   *
  ****************************************************************************/
-static inline size_t findMatching( const std::string& str, size_t pos )
+static inline size_t findMatching( const std::string &str, size_t pos )
 {
     if ( str[pos] != '<' ) {
         perr << "Internal error string matching\n";
@@ -1695,9 +1709,9 @@ static inline size_t findMatching( const std::string& str, size_t pos )
         perr << "   " << pos << std::endl;
         return pos;
     }
-    size_t pos2 = pos+1;
-    int count = 1;
-    while ( count!=0 && pos2<str.size() ) {
+    size_t pos2 = pos + 1;
+    int count   = 1;
+    while ( count != 0 && pos2 < str.size() ) {
         if ( str[pos2] == '<' )
             count++;
         if ( str[pos2] == '>' )
@@ -1716,7 +1730,7 @@ void StackTrace::cleanupStackTrace( multi_stack_info &stack )
         auto &filename    = it->stack.filename;
         bool remove_entry = false;
         // Cleanup object and filename
-        object = stripPath( object );
+        object   = stripPath( object );
         filename = stripPath( filename );
         // Remove callstack (and all children) for threads that are just contributing
         if ( function.find( "_callstack_signal_handler" ) != npos &&
@@ -1756,7 +1770,8 @@ void StackTrace::cleanupStackTrace( multi_stack_info &stack )
         if ( function.find( "std::thread::_Impl<" ) != npos && filename == "thread" )
             remove_entry = true;
         // Remove MATLAB internal routines
-        if ( object == "libmwmcr.so" || object == "libmwm_lxe.so" || object == "libmwbridge.so" || object == "libmwiqm.so" )
+        if ( object == "libmwmcr.so" || object == "libmwm_lxe.so" || object == "libmwbridge.so" ||
+             object == "libmwiqm.so" )
             remove_entry = true;
         // Remove the desired entry
         if ( remove_entry ) {
@@ -1774,8 +1789,9 @@ void StackTrace::cleanupStackTrace( multi_stack_info &stack )
         // Replace std::chrono::duration with abbriviated version
         if ( function.find( "std::chrono::duration<" ) != npos ) {
             strrep( function, "std::chrono::duration<long, std::ratio<1l, 1l> >", "ticks" );
-            strrep( function, "std::chrono::duration<long, std::ratio<1l, 1000000000l> >",
-                "nanoseconds" );
+            strrep( function,
+                    "std::chrono::duration<long, std::ratio<1l, 1000000000l> >",
+                    "nanoseconds" );
         }
         // Replace std::ratio with abbriviated version.
         if ( function.find( "std::ratio<" ) != npos ) {
@@ -1828,26 +1844,31 @@ void StackTrace::cleanupStackTrace( multi_stack_info &stack )
             strrep( function, "::sleep_for<long,>", "::sleep_for<seconds>" );
             strrep( function, "::sleep_for<long, std::ratio<60>>", "::sleep_for<minutes>" );
             strrep( function, "::sleep_for<long, std::ratio<3600>>", "::sleep_for<hours>" );
-            strrep( function, "::sleep_for<nanoseconds>(std::chrono::nanoseconds",
-                "::sleep_for(std::chrono::nanoseconds" );
-            strrep( function, "::sleep_for<microseconds>(std::chrono::microseconds",
-                "::sleep_for(std::chrono::microseconds" );
-            strrep( function, "::sleep_for<milliseconds>(std::chrono::milliseconds",
-                "::sleep_for(std::chrono::milliseconds" );
-            strrep( function, "::sleep_for<seconds>(std::chrono::seconds",
-                "::sleep_for(std::chrono::seconds" );
-            strrep( function, "::sleep_for<milliseconds>(std::chrono::minutes",
-                "::sleep_for(std::chrono::milliseconds" );
-            strrep( function, "::sleep_for<milliseconds>(std::chrono::hours",
-                "::sleep_for(std::chrono::hours" );
+            strrep( function,
+                    "::sleep_for<nanoseconds>(std::chrono::nanoseconds",
+                    "::sleep_for(std::chrono::nanoseconds" );
+            strrep( function,
+                    "::sleep_for<microseconds>(std::chrono::microseconds",
+                    "::sleep_for(std::chrono::microseconds" );
+            strrep( function,
+                    "::sleep_for<milliseconds>(std::chrono::milliseconds",
+                    "::sleep_for(std::chrono::milliseconds" );
+            strrep( function,
+                    "::sleep_for<seconds>(std::chrono::seconds",
+                    "::sleep_for(std::chrono::seconds" );
+            strrep( function,
+                    "::sleep_for<milliseconds>(std::chrono::minutes",
+                    "::sleep_for(std::chrono::milliseconds" );
+            strrep( function,
+                    "::sleep_for<milliseconds>(std::chrono::hours",
+                    "::sleep_for(std::chrono::hours" );
         }
         // Replace std::basic_string with abbriviated version
-        strrep( function, "std::__cxx11::basic_string<", "std::basic_string<" );
         size_t pos = 0;
         while ( pos < function.size() ) {
             // Find next instance of std::basic_string
             const std::string match = "std::basic_string<";
-            pos = function.find( match, pos );
+            pos                     = function.find( match, pos );
             if ( pos == npos )
                 break;
             // Find the matching >
@@ -1855,14 +1876,14 @@ void StackTrace::cleanupStackTrace( multi_stack_info &stack )
             size_t pos2 = findMatching( function, pos1 );
             if ( pos2 == pos1 )
                 break;
-            if ( function.substr( pos1+1, 4 ) == "char" )
-                function.replace( pos, pos2-pos, "std::string" );
-            else if ( function.substr( pos1+1, 7 ) == "wchar_t" )
-                function.replace( pos, pos2-pos, "std::wstring" );
-            else if ( function.substr( pos1+1, 8 ) == "char16_t" )
-                function.replace( pos, pos2-pos, "std::u16string" );
-            else if ( function.substr( pos1+1, 8 ) == "char32_t" )
-                function.replace( pos, pos2-pos, "std::u32string" );
+            if ( function.substr( pos1 + 1, 4 ) == "char" )
+                function.replace( pos, pos2 - pos, "std::string" );
+            else if ( function.substr( pos1 + 1, 7 ) == "wchar_t" )
+                function.replace( pos, pos2 - pos, "std::wstring" );
+            else if ( function.substr( pos1 + 1, 8 ) == "char16_t" )
+                function.replace( pos, pos2 - pos, "std::u16string" );
+            else if ( function.substr( pos1 + 1, 8 ) == "char32_t" )
+                function.replace( pos, pos2 - pos, "std::u32string" );
             pos++;
         }
         // Cleanup the children
