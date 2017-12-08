@@ -39,10 +39,12 @@ using StackTrace::Utilities::time;
         return getRank();
     }
 #else
+    #define MPI_COMM_WORLD 0
     void MPI_Finalize() {}
     void barrier() {}
     int sumReduce( int x ) { return x; }
     int startup( int, char*[] ) { return 0; }
+    int getRank() { return 0; }
 #endif
 // clang-format on
 
