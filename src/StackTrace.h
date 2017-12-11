@@ -3,28 +3,13 @@
 
 #include <functional>
 #include <iostream>
-#include <memory>
 #include <set>
-#include <stdio.h>
-#include <stdlib.h>
 #include <thread>
 #include <vector>
 
 
-// Check for and include MPI
-// clang-format off
-#if defined(USE_MPI) || defined(USE_EXT_MPI)
-    #include "mpi.h"
-#elif defined(__has_include)
-    #if __has_include("mpi.h")
-        #include "mpi.h"
-    #else
-        typedef int MPI_Comm;
-    #endif
-#else
-    typedef int MPI_Comm;
-#endif
-// clang-format on
+// Define MPI_Comm
+@MPI_COMM@
 
 
 namespace StackTrace {

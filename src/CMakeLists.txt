@@ -47,6 +47,9 @@ INCLUDE_DIRECTORIES( "${CMAKE_INSTALL_PREFIX}/include" )
 IF ( USE_MPI )
     FIND_PACKAGE( MPI )
     ADD_DEFINITIONS( -DUSE_MPI )
+    SET( MPI_COMM "#include \"mpi.h\"" )
+ELSE()
+    SET( MPI_COMM "typedef int MPI_Comm;" )
 ENDIF()
 
 
@@ -64,11 +67,7 @@ FILE( GLOB hfiles RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" ${headers} )
 FOREACH( tmp ${hfiles} )
     SET( SRC_FILE "${CMAKE_CURRENT_SOURCE_DIR}/${tmp}" )
     SET( DST_FILE "${CMAKE_INSTALL_PREFIX}/include/StackTrace/${tmp}" )
-    ADD_CUSTOM_COMMAND(TARGET StackTrace-include
-        PRE_BUILD 
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${SRC_FILE}" "${DST_FILE}"
-        DEPENDS "${SRC_FILE}"
-    )
+    CONFIGURE_FILE( "${SRC_FILE}" "${DST_FILE}" @ONLY )
 ENDFOREACH()
 
 

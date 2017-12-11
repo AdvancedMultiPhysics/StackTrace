@@ -34,23 +34,6 @@
 // clang-format on
 
 
-// Include/detect MPI
-// clang-format off
-#ifndef USE_MPI
-    #ifdef USE_EXT_MPI
-        #define USE_MPI
-    #elif defined(__has_include)
-        #if __has_include("mpi.h")
-            #define USE_MPI
-        #endif
-    #endif
-#endif
-#ifdef USE_MPI
-    #include "mpi.h"
-#endif
-// clang-format on
-
-
 // Include system dependent headers
 // clang-format off
 // Detect the OS and include system dependent headers

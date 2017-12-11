@@ -1,12 +1,8 @@
 #ifndef included_StackTrace_Utilities
 #define included_StackTrace_Utilities
 
-
-#include <iostream>
-#include <stdio.h>
-#include <stdlib.h>
+#include <string>
 #include <thread>
-#include <vector>
 
 
 namespace StackTrace {
