@@ -1,4 +1,5 @@
 #include "StackTrace/StackTrace.h"
+#include "StackTrace/Utilities.h"
 
 #include <algorithm>
 #include <csignal>
@@ -62,6 +63,8 @@
     #include <sys/sysctl.h>
     #include <sys/types.h>
     #include <sys/syscall.h>
+    #define SIGRTMIN SIGUSR1
+    #define SIGRTMAX SIGUSR2
 #endif
 // clang-format on
 
@@ -80,16 +83,6 @@
             temp++;                          \
         }                                    \
     } while ( 0 )
-#endif
-
-
-// Set the callstack signal
-#ifdef SIGRTMIN
-#define CALLSTACK_SIG SIGRTMIN + 4
-#else
-#define CALLSTACK_SIG SIGUSR1
-#define SIGRTMIN SIGUSR1
-#define SIGRTMAX SIGUSR1
 #endif
 
 
@@ -916,6 +909,13 @@ static void _callstack_signal_handler( int, siginfo_t*, void* )
 {
     thread_backtrace_count = backtrace_thread( StackTrace::thisThread(), thread_backtrace, 1000 );
 }
+static int get_thread_callstack_signal()
+{
+    if ( 39 >= SIGRTMIN && 39 <= SIGRTMAX )
+        return 39;
+    return std::min<int>( SIGRTMIN+4, SIGRTMAX );
+}
+static int thread_callstack_signal = get_thread_callstack_signal();
 #endif
 static int backtrace_thread( const std::thread::native_handle_type& tid, void **buffer, size_t size )
 {
@@ -931,9 +931,9 @@ static int backtrace_thread( const std::thread::native_handle_type& tid, void **
             sigfillset(&sa.sa_mask);
             sa.sa_flags = SA_SIGINFO;
             sa.sa_sigaction = _callstack_signal_handler;
-            sigaction(CALLSTACK_SIG, &sa, nullptr);
+            sigaction(thread_callstack_signal, &sa, nullptr);
             thread_backtrace_count = -1;
-            pthread_kill( tid, CALLSTACK_SIG );
+            pthread_kill( tid, thread_callstack_signal );
             auto t1 = std::chrono::high_resolution_clock::now();
             auto t2 = std::chrono::high_resolution_clock::now();
             while ( thread_backtrace_count==-1 && std::chrono::duration<double>(t2-t1).count()<0.15 ) {
@@ -1110,12 +1110,12 @@ std::set<std::thread::native_handle_type> StackTrace::activeThreads( )
                 tid.insert( tid2 );
         }
         tid.erase( syscall(SYS_gettid) );
-        signal( CALLSTACK_SIG, _activeThreads_signal_handler );
+        signal( thread_callstack_signal, _activeThreads_signal_handler );
         for ( auto tid2 : tid ) {
             thread_backtrace_mutex.lock();
             thread_id_finished = false;
             thread_handle = thisThread();
-            syscall( SYS_tgkill, pid, tid2, CALLSTACK_SIG );
+            syscall( SYS_tgkill, pid, tid2, thread_callstack_signal );
             auto t1 = std::chrono::high_resolution_clock::now();
             auto t2 = std::chrono::high_resolution_clock::now();
             while ( !thread_id_finished && std::chrono::duration<double>(t2-t1).count()<0.1 ) {
@@ -1129,7 +1129,7 @@ std::set<std::thread::native_handle_type> StackTrace::activeThreads( )
         thread_act_port_array_t thread_list;
         mach_msg_type_number_t thread_count = 0;
         task_threads(mach_task_self(), &thread_list, &thread_count);
-        signal( CALLSTACK_SIG, _activeThreads_signal_handler );
+        signal( thread_callstack_signal, _activeThreads_signal_handler );
         for ( int i=0; i<thread_count; i++) {
             if ( thread_list[i] == mach_thread_self() )
                 continue;
@@ -1207,13 +1207,13 @@ std::vector<StackTrace::stack_info> StackTrace::getCallStack( std::thread::nativ
     auto info  = getStackInfo( trace );
     return info;
 }
-static StackTrace::multi_stack_info
-generateMultiStack( const std::vector<std::vector<void *>> &thread_backtrace )
+static std::vector<std::vector<StackTrace::stack_info>> generateStacks(
+    const std::vector<std::vector<void *>> &trace )
 {
     // Get the stack data for all pointers
     std::set<void *> addresses_set;
-    for ( const auto &trace : thread_backtrace ) {
-        for ( auto ptr : trace )
+    for ( const auto &tmp : trace ) {
+        for ( auto ptr : tmp )
             addresses_set.insert( ptr );
     }
     std::vector<void *> addresses( addresses_set.begin(), addresses_set.end() );
@@ -1221,18 +1221,25 @@ generateMultiStack( const std::vector<std::vector<void *>> &thread_backtrace )
     std::map<void *, StackTrace::stack_info> map_data;
     for ( size_t i = 0; i < addresses.size(); i++ )
         map_data.insert( std::make_pair( addresses[i], stack_data[i] ) );
+    // Create the stack traces
+    std::vector<std::vector<StackTrace::stack_info>> stack( trace.size() );
+    for ( size_t i=0; i<trace.size(); i++ ) {
+        // Create the stack for the given thread trace
+        stack[i].resize( trace[i].size() );
+        for ( size_t j = 0; j < trace[i].size(); j++ )
+            stack[i][j] = map_data[trace[i][j]];
+    }
+    return stack;
+}
+static StackTrace::multi_stack_info
+generateMultiStack( const std::vector<std::vector<void *>> &trace )
+{
+    // Get the stack data for all pointers
+    auto stack = generateStacks( trace );
     // Create the multi-stack trace
     StackTrace::multi_stack_info multistack;
-    for ( const auto &trace : thread_backtrace ) {
-        if ( trace.empty() )
-            continue;
-        // Create the stack for the given thread trace
-        std::vector<StackTrace::stack_info> stack( trace.size() );
-        for ( size_t i = 0; i < trace.size(); i++ )
-            stack[i] = map_data[trace[i]];
-        // Add the data to the multistack
-        multistack.add( stack.size(), stack.data() );
-    }
+    for ( const auto &tmp : stack )
+        multistack.add( tmp.size(), tmp.data() );
     return multistack;
 }
 StackTrace::multi_stack_info StackTrace::getAllCallStacks()
@@ -1572,14 +1579,14 @@ void StackTrace::setErrorHandlers(
  ****************************************************************************/
 #ifdef USE_MPI
 static MPI_Comm globalCommForGlobalCommStack = MPI_COMM_NULL;
-static bool stopGlobalMonitorThread          = false;
+static volatile int globalMonitorThreadStatus = -1;
 static void runGlobalMonitorThread()
 {
     int rank = 0;
     int size = 1;
     MPI_Comm_size( globalCommForGlobalCommStack, &size );
     MPI_Comm_rank( globalCommForGlobalCommStack, &rank );
-    while ( !stopGlobalMonitorThread ) {
+    while ( globalMonitorThreadStatus == 1 ) {
         // Check for any messages
         int flag = 0;
         MPI_Status status;
@@ -1592,15 +1599,21 @@ static void runGlobalMonitorThread()
             int src_rank = status.MPI_SOURCE;
             int tag;
             MPI_Recv( &tag, 1, MPI_INT, src_rank, 1, globalCommForGlobalCommStack, &status );
-            // Get a trace of all threads (except this)
+            // Get the list of threads (except this)
             auto threads = StackTrace::activeThreads();
             threads.erase( StackTrace::thisThread() );
             if ( threads.empty() )
                 continue;
-            // Get the stack trace of each thread
-            std::vector<std::vector<StackTrace::stack_info>> stack;
-            for ( auto thread : threads )
-                stack.push_back( StackTrace::getCallStack( thread ) );
+            // Get the trace of each thread
+            std::vector<std::vector<void*>> trace(threads.size());
+            auto it = threads.begin();
+            for ( size_t i=0; i<threads.size(); i++, ++it ) {
+                trace[i].resize( 1000, nullptr );
+                size_t count = backtrace_thread( *it, trace[i].data(), trace[i].size() );
+                trace[i].resize( count );
+            }
+            // Get the stack info for the threads
+            auto stack = generateStacks( trace );
             // Pack and send the data
             auto data = pack( stack );
             int count = data.size();
@@ -1613,45 +1626,49 @@ static void runGlobalMonitorThread()
 }
 void StackTrace::globalCallStackInitialize( MPI_Comm comm )
 {
-#ifdef USE_MPI
-    MPI_Comm_dup( comm, &globalCommForGlobalCommStack );
-#endif
-    stopGlobalMonitorThread = false;
-    globalMonitorThread.reset( new std::thread( runGlobalMonitorThread ) );
-}
-void StackTrace::globalCallStackFinalize()
-{
-    stopGlobalMonitorThread = true;
-    globalMonitorThread->join();
-    globalMonitorThread.reset();
-#ifdef USE_MPI
-    if ( globalCommForGlobalCommStack != MPI_COMM_NULL )
-        MPI_Comm_free( &globalCommForGlobalCommStack );
-    globalCommForGlobalCommStack = MPI_COMM_NULL;
-#endif
-}
-StackTrace::multi_stack_info StackTrace::getGlobalCallStacks()
-{
-    // Check if we properly initialized the comm
-    if ( globalMonitorThread == nullptr ) {
-        printf( "Warning: getGlobalCallStacks called without call to globalCallStackInitialize\n" );
-        return getAllCallStacks();
-    }
-    if ( globalMonitorThread == nullptr ) {
-        printf( "Warning: getGlobalCallStacks called without call to globalCallStackInitialize\n" );
-        return getAllCallStacks();
-    }
-#ifdef USE_MPI
+    // Check that we have the necessary MPI thread support
     int provided;
     MPI_Query_thread( &provided );
     if ( provided != MPI_THREAD_MULTIPLE ) {
         printf( "Warning: getGlobalCallStacks requires support for MPI_THREAD_MULTIPLE\n" );
-        return getAllCallStacks();
+        globalMonitorThreadStatus = 3;
+        return;
     }
-#endif
-    if ( activeThreads().size() == 1 ) {
-        printf( "Warning: getAllCallStacks not supported on this OS, defaulting to basic call "
-                "stack\n" );
+    // Check that we have support to get call stacks from threads
+    std::thread thread( StackTrace::Utilities::sleep_ms, 100 );
+    auto thread_ids = activeThreads();
+    thread.detach();
+    if ( thread_ids.size() == 1 ) {
+        printf( "Warning: getAllCallStacks not supported on this OS\n" );
+        globalCallStackFinalize();
+        globalMonitorThreadStatus = 3;
+        return;
+    }
+    // Create the communicator and initialize the helper thread
+    MPI_Comm_dup( comm, &globalCommForGlobalCommStack );
+    globalMonitorThreadStatus = 1;
+    globalMonitorThread.reset( new std::thread( runGlobalMonitorThread ) );
+    std::this_thread::sleep_for( std::chrono::milliseconds( 50 ) );
+}
+void StackTrace::globalCallStackFinalize()
+{
+    if ( globalMonitorThread ) {
+        globalMonitorThreadStatus = 2;
+        globalMonitorThread->join();
+        globalMonitorThread.reset();
+    }
+    if ( globalCommForGlobalCommStack != MPI_COMM_NULL )
+        MPI_Comm_free( &globalCommForGlobalCommStack );
+    globalCommForGlobalCommStack = MPI_COMM_NULL;
+}
+StackTrace::multi_stack_info StackTrace::getGlobalCallStacks()
+{
+    if ( globalMonitorThreadStatus == -1 ) {
+        // User did not call globalCallStackInitialize
+        printf( "Warning: getGlobalCallStacks called without call to globalCallStackInitialize\n" );
+        return getAllCallStacks();
+    } else if ( globalMonitorThreadStatus != 1 ) {
+        // globalCallStackInitialize is not supported
         return getAllCallStacks();
     }
     // Signal all processes that we want their stack for all threads
@@ -1671,16 +1688,16 @@ StackTrace::multi_stack_info StackTrace::getGlobalCallStacks()
     }
     // Get the trace for the current process
     auto threads = StackTrace::activeThreads();
-    StackTrace::multi_stack_info multistack;
-    for ( auto thread : threads ) {
-        auto stack = StackTrace::getCallStack( thread );
-        multistack.add( stack.size(), stack.data() );
-    }
+    std::vector<std::vector<void*>> trace( threads.size() );
+    auto it = threads.begin();
+    for ( size_t i=0; i<threads.size(); i++, ++it )
+        trace[i] = StackTrace::backtrace( *it );
+    auto multistack = generateMultiStack( trace );
     // Recieve the backtrace for all processes/threads
     int N_finished        = 1;
     auto start            = std::chrono::steady_clock::now();
     double time           = 0;
-    const double max_time = 2.0 + size * 20e-3;
+    const double max_time = 10.0 + size * 20e-3;
     while ( N_finished < size && time < max_time ) {
         int flag = 0;
         MPI_Status status;
@@ -1760,10 +1777,13 @@ void StackTrace::cleanupStackTrace( multi_stack_info &stack )
         object   = stripPath( object );
         filename = stripPath( filename );
         // Remove callstack (and all children) for threads that are just contributing
-        if ( function.find( "_callstack_signal_handler" ) != npos &&
-             filename.find( "StackTrace.cpp" ) != npos ) {
-            it = stack.children.erase( it );
-            continue;
+        if ( filename.find( "StackTrace.cpp" ) != npos ) {
+            bool test = function.find( "_callstack_signal_handler" ) != npos ||
+                        function.find( "getGlobalCallStacks" ) != npos;
+            if ( test ) {
+                it = stack.children.erase( it );
+                continue;
+            }
         }
         // Remove __libc_start_main
         if ( function.find( "__libc_start_main" ) != npos &&
@@ -1780,14 +1800,11 @@ void StackTrace::cleanupStackTrace( multi_stack_info &stack )
         if ( function.find( "std::condition_variable::__wait_until_impl" ) != npos &&
              filename == "condition_variable" )
             remove_entry = true;
-        // Remove std::_Function_handler<
-        if ( function.find( "std::_Function_handler<" ) != npos && filename == "functional" )
-            remove_entry = true;
-        // Remove std::_Bind_simple<
-        if ( function.find( "std::_Bind_simple<" ) != npos && filename == "functional" ) {
-            auto pos     = function.find( "std::_Bind_simple<" );
-            function     = function.substr( 0, pos ) + "std::_Bind_simple<...>(...)";
-            remove_entry = true;
+        // Remove std::function references
+        if ( filename == "functional" ) {
+            remove_entry = remove_entry || function.find( "std::_Function_handler<" ) != npos;
+            remove_entry = remove_entry || function.find( "std::_Bind_simple<" ) != npos;
+            remove_entry = remove_entry || function.find( "_M_invoke" ) != npos;
         }
         // Remove std::this_thread::__sleep_for
         if ( function.find( "std::this_thread::__sleep_for(" ) != npos &&

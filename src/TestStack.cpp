@@ -97,13 +97,14 @@ void testSignal( std::vector<std::string> &passes, std::vector<std::string> &fai
 {
     int rank = getRank();
     if ( rank == 0 ) {
+        // Get a list of signals that can be caught
+        auto signals = StackTrace::allSignalsToCatch();
         // Identify the signals
         std::cout << "\nIdentifying signals\n";
-        for ( int i = 1; i <= 64; i++ )
+        for ( int i = 1; i <= std::max(64,signals.back()); i++ )
             std::cout << "  " << i << ": " << StackTrace::signalName( i ) << std::endl;
         // Test setting/catching different signals
         bool pass    = true;
-        auto signals = StackTrace::allSignalsToCatch();
         StackTrace::setSignals( signals, handleSignal );
         for ( auto sig : signals ) {
             raise( sig );
@@ -270,7 +271,7 @@ int main( int argc, char *argv[] )
     int rank = startup( argc, argv );
     StackTrace::Utilities::setAbortBehavior( true, true, true );
     StackTrace::globalCallStackInitialize( MPI_COMM_WORLD );
-    std::vector<std::string> passes, expected, failure;
+    std::vector<std::string> passes, failure, expected_failure;
 
     // Limit the scope of variables
     {
@@ -303,7 +304,7 @@ int main( int argc, char *argv[] )
         if ( thread_ids == thread_ids_test )
             passes.push_back( "StackTrace::activeThreads" );
         else if ( thread_ids_test == self )
-            expected.push_back( "StackTrace::activeThreads only is able to return self" );
+            expected_failure.push_back( "StackTrace::activeThreads only is able to return self" );
         else
             failure.push_back( "StackTrace::activeThreads" );
 
@@ -349,18 +350,16 @@ int main( int argc, char *argv[] )
         std::cout << "Tests passed:" << std::endl;
         for ( const auto &msg : passes )
             std::cout << "   " << msg << std::endl;
+        std::cout << std::endl << "Tests expected failed:" << std::endl;
     }
+    barrier();
+    for ( const auto &msg : expected_failure )
+        std::cout << "   Rank " << rank << ": " << msg << std::endl;
     barrier();
     if ( rank == 0 )
         std::cout << std::endl << "Tests failed:" << std::endl;
     barrier();
     for ( const auto &msg : failure )
-        std::cout << "   Rank " << rank << ": " << msg << std::endl;
-    barrier();
-    if ( rank == 0 )
-        std::cout << std::endl << "Tests expected failed:" << std::endl;
-    barrier();
-    for ( const auto &msg : expected )
         std::cout << "   Rank " << rank << ": " << msg << std::endl;
     barrier();
     if ( N_errors == 0 && rank == 0 )
