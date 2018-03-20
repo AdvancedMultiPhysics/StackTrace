@@ -270,7 +270,7 @@ int main( int argc, char *argv[] )
     int rank = startup( argc, argv );
     StackTrace::Utilities::setAbortBehavior( true, true, true );
     StackTrace::globalCallStackInitialize( MPI_COMM_WORLD );
-    std::vector<std::string> passes, failure;
+    std::vector<std::string> passes, expected, failure;
 
     // Limit the scope of variables
     {
@@ -293,7 +293,8 @@ int main( int argc, char *argv[] )
         std::thread thread2( sleep_ms, 1000 );
         sleep_ms( 50 ); // Give threads time to start
         auto thread_ids_test = StackTrace::activeThreads();
-        std::set<std::thread::native_handle_type> thread_ids;
+        std::set<std::thread::native_handle_type> self, thread_ids;
+        self.insert( StackTrace::thisThread() );
         thread_ids.insert( StackTrace::thisThread() );
         thread_ids.insert( thread1.native_handle() );
         thread_ids.insert( thread2.native_handle() );
@@ -301,6 +302,8 @@ int main( int argc, char *argv[] )
         thread2.join();
         if ( thread_ids == thread_ids_test )
             passes.push_back( "StackTrace::activeThreads" );
+        else if ( thread_ids_test == self )
+            expected.push_back( "StackTrace::activeThreads only is able to return self" );
         else
             failure.push_back( "StackTrace::activeThreads" );
 
@@ -346,10 +349,18 @@ int main( int argc, char *argv[] )
         std::cout << "Tests passed:" << std::endl;
         for ( const auto &msg : passes )
             std::cout << "   " << msg << std::endl;
-        std::cout << std::endl << "Tests failed:" << std::endl;
     }
     barrier();
+    if ( rank == 0 )
+        std::cout << std::endl << "Tests failed:" << std::endl;
+    barrier();
     for ( const auto &msg : failure )
+        std::cout << "   Rank " << rank << ": " << msg << std::endl;
+    barrier();
+    if ( rank == 0 )
+        std::cout << std::endl << "Tests expected failed:" << std::endl;
+    barrier();
+    for ( const auto &msg : expected )
         std::cout << "   Rank " << rank << ": " << msg << std::endl;
     barrier();
     if ( N_errors == 0 && rank == 0 )

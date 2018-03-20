@@ -61,6 +61,7 @@
     #include <mach/mach.h>
     #include <sys/sysctl.h>
     #include <sys/types.h>
+    #include <sys/syscall.h>
 #endif
 // clang-format on
 
@@ -1042,7 +1043,7 @@ std::vector<std::vector<void *>> StackTrace::backtraceAll()
 /****************************************************************************
 *  Function to get the list of all active threads                           *
 ****************************************************************************/
-#if defined( USE_LINUX )
+#if defined( USE_LINUX ) || defined( USE_MAC )
 static std::thread::native_handle_type thread_handle;
 static bool thread_id_finished;
 static void _activeThreads_signal_handler( int )
@@ -1051,6 +1052,14 @@ static void _activeThreads_signal_handler( int )
     thread_handle = handle;
     thread_id_finished = true;
 }
+/*static void _activeThreads2( void )
+{
+    auto handle = StackTrace::thisThread( );
+    thread_handle = handle;
+    thread_id_finished = true;
+}*/
+#endif
+#ifdef USE_LINUX
 static inline int get_tid( int pid, const std::string& line )
 {
     char buf2[128]={0};
@@ -1117,7 +1126,42 @@ std::set<std::thread::native_handle_type> StackTrace::activeThreads( )
             thread_backtrace_mutex.unlock();
         }
     #elif defined( USE_MAC )
-        printf("activeThreads not finished\n");
+        thread_act_port_array_t thread_list;
+        mach_msg_type_number_t thread_count = 0;
+        task_threads(mach_task_self(), &thread_list, &thread_count);
+        signal( CALLSTACK_SIG, _activeThreads_signal_handler );
+        for ( int i=0; i<thread_count; i++) {
+            if ( thread_list[i] == mach_thread_self() )
+                continue;
+            static bool called = false;
+            if ( !called ) {
+                called = true;
+                std::cerr << "activeThreads not finished for MAC\n";
+            }
+            /*
+            thread_backtrace_mutex.lock();
+            thread_id_finished = false;
+            thread_handle = thisThread();
+            x86_thread_state64_t state;
+            unsigned int count = MACHINE_THREAD_STATE_COUNT;
+            thread_abort( thread_list[i] );  // Abort system calls
+            thread_suspend( thread_list[i] );
+            thread_get_state( thread_list[i], MACHINE_THREAD_STATE, (thread_state_t) &state, &count );
+            state.__rip = (uint64_t) _activeThreads2;
+            thread_set_state( thread_list[i], MACHINE_THREAD_STATE, (thread_state_t) &state, MACHINE_THREAD_STATE_COUNT );
+            thread_resume( thread_list[i] );
+            //pthread_kill( thread_list[i], CALLSTACK_SIG );
+            //syscall( SYS___pthread_kill, getpid(), thread_list[i], CALLSTACK_SIG );
+            //syscall( SYS_kill, thread_list[i], CALLSTACK_SIG );
+            auto t1 = std::chrono::high_resolution_clock::now();
+            auto t2 = std::chrono::high_resolution_clock::now();
+            while ( !thread_id_finished && std::chrono::duration<double>(t2-t1).count()<0.1 ) {
+                std::this_thread::yield();
+                t2 = std::chrono::high_resolution_clock::now();
+            }
+            threads.insert( thread_handle );
+            thread_backtrace_mutex.unlock();*/
+        }
     #elif defined( USE_WINDOWS )
         HANDLE hThreadSnap = CreateToolhelp32Snapshot( TH32CS_SNAPTHREAD, 0 ); 
         if( hThreadSnap != INVALID_HANDLE_VALUE ) {
