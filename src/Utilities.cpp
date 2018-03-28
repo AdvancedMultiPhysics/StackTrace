@@ -14,6 +14,10 @@
 #include "mpi.h"
 #endif
 
+#ifdef USE_TIMER
+#include "MemoryApp.h"
+#endif
+
 
 #define perr std::cerr
 
@@ -91,149 +95,82 @@ inline size_t findfirst( const std::vector<TYPE> &X, TYPE Y )
 /****************************************************************************
  *  Function to terminate the program                                        *
  ****************************************************************************/
-static bool abort_printMemory    = true;
-static bool abort_printStack     = true;
 static bool abort_throwException = false;
-static bool abort_printOnAbort   = false;
 static int abort_stackType       = 2;
 static int force_exit            = 0;
-void Utilities::setAbortBehavior(
-    bool printMemory, bool printStack, bool throwException, bool printOnAbort, int stackType )
+void Utilities::setAbortBehavior( bool throwException, int stackType )
 {
-    abort_printMemory    = printMemory;
-    abort_printStack     = printStack;
     abort_throwException = throwException;
-    abort_printOnAbort   = printOnAbort;
     abort_stackType      = stackType;
 }
 void Utilities::abort( const std::string &message, const std::string &filename, const int line )
 {
-    std::stringstream msg;
-    msg << "Program abort called in file `" << filename << "' at line " << line << std::endl;
-    if ( abort_printOnAbort ) {
-        if ( abort_printMemory ) {
-            size_t N_bytes = Utilities::getMemoryUsage();
-            msg << "Bytes used = " << N_bytes << std::endl;
-        }
-        if ( abort_printStack ) {
-            StackTrace::multi_stack_info stack;
-            if ( abort_stackType == 1 ) {
-                stack = StackTrace::getCallStack();
-            } else if ( abort_stackType == 2 ) {
-                stack = StackTrace::getAllCallStacks();
-            } else if ( abort_stackType == 3 ) {
-                stack = StackTrace::getGlobalCallStacks();
-            }
-            StackTrace::cleanupStackTrace( stack );
-            auto data = stack.print();
-            msg << std::endl;
-            msg << "Stack Trace:\n";
-            for ( const auto &i : data )
-                msg << " " << i << std::endl;
-        }
+    abort_error err;
+    err.message = message;
+    err.filename = filename;
+    err.type = terminateType::abort;
+    err.line = line;
+    err.bytes = Utilities::getMemoryUsage();
+    if ( abort_stackType == 1 ) {
+        err.stack = StackTrace::getCallStack();
+    } else if ( abort_stackType == 2 ) {
+        err.stack = StackTrace::getAllCallStacks();
+    } else if ( abort_stackType == 3 ) {
+        err.stack = StackTrace::getGlobalCallStacks();
     }
-    msg << std::endl << message << std::endl;
-    throw std::logic_error( msg.str() );
+    StackTrace::cleanupStackTrace( err.stack );
+    throw err;
 }
-static void terminate( const std::string &message )
+static void terminate( const StackTrace::abort_error& err )
 {
-    // Add the memory usage and call stack to the error message
-    std::stringstream msg;
-    if ( abort_printMemory ) {
-        size_t N_bytes = Utilities::getMemoryUsage();
-        msg << "Bytes used = " << N_bytes << std::endl;
-    }
-    if ( abort_printStack ) {
-        auto stack = StackTrace::getAllCallStacks();
-        StackTrace::cleanupStackTrace( stack );
-        auto data = stack.print();
-        msg << std::endl;
-        msg << "Stack Trace:\n";
-        for ( const auto &i : data )
-            msg << " " << i << std::endl;
-    }
-    msg << std::endl << message << std::endl;
+    clearErrorHandler();
     // Print the message and abort
     if ( force_exit > 1 ) {
-        exit( -1 );
+        std::abort();
     } else if ( !abort_throwException ) {
         // Use MPI_abort (will terminate all processes)
         force_exit = 2;
-        perr << msg.str();
+        perr << err.what();
 #if defined( USE_MPI ) || defined( HAVE_MPI )
         int initialized = 0, finalized = 0;
         MPI_Initialized( &initialized );
         MPI_Finalized( &finalized );
-        if ( initialized != 0 && finalized == 0 )
+        if ( initialized != 0 && finalized == 0 ) {
+            clearMPIErrorHandler( MPI_COMM_WORLD );
             MPI_Abort( MPI_COMM_WORLD, -1 );
+        }
 #endif
-        exit( -1 );
+        std::abort();
     } else {
-        perr << msg.str();
-        exit( -1 );
+        perr << err.what();
+        std::abort();
     }
 }
-
-
-/****************************************************************************
- *  Function to handle MPI errors                                            *
- ****************************************************************************/
-/*#if defined(USE_MPI) || defined(HAVE_MPI)
-MPI_Errhandler mpierr;
-void MPI_error_handler_fun( MPI_Comm *comm, int *err, ... )
-{
-    if ( *err==MPI_ERR_COMM && *comm==MPI_COMM_WORLD ) {
-        // Special error handling for an invalid MPI_COMM_WORLD
-        perr << "Error invalid MPI_COMM_WORLD";
-        exit(-1);
-    }
-    int msg_len=0;
-    char message[1000];
-    MPI_Error_string( *err, message, &msg_len );
-    if ( msg_len <= 0 )
-         abort("Unkown error in MPI");
-    abort( "Error calling MPI routine:\n" + std::string(message) );
-}
-#endif*/
 
 
 /****************************************************************************
  *  Functions to set the error handler                                       *
  ****************************************************************************/
-static void abort_fun( const std::string &msg, StackTrace::terminateType ) { terminate( msg ); }
 static void setTerminateErrorHandler()
 {
     // Set the terminate routine for runtime errors
-    StackTrace::setErrorHandlers( abort_fun );
+    StackTrace::setErrorHandler( terminate );
 }
-/*#ifdef USE_MPI
-    static void setMPIErrorHandler( MPI_Comm mpi )
-    {
-        if ( mpierr.get()==nullptr ) {
-            mpierr = boost::shared_ptr<MPI_Errhandler>( new MPI_Errhandler );
-            MPI_Comm_create_errhandler( MPI_error_handler_fun, mpierr.get() );
-        }
-        MPI_Comm_set_errhandler( mpi.getCommunicator(), *mpierr );
-        MPI_Comm_set_errhandler( MPI_COMM_WORLD, *mpierr );
-    }
-    static void clearMPIErrorHandler(  )
-    {
-        if ( mpierr.get()!=nullptr )
-            MPI_Errhandler_free( mpierr.get() );    // Delete the error handler
-        mpierr.reset();
-        MPI_Comm_set_errhandler( MPI_COMM_SELF, MPI_ERRORS_ARE_FATAL );
-        MPI_Comm_set_errhandler( MPI_COMM_WORLD, MPI_ERRORS_ARE_FATAL );
-}
-#endif*/
 void Utilities::setErrorHandlers()
 {
-    // d_use_MPI_Abort = use_MPI_Abort;
-    //#ifdef USE_MPI
-    //   setMPIErrorHandler( SAMRAI::tbox::SAMRAI_MPI::getSAMRAIWorld() );
-    // #endif
+    #ifdef USE_MPI
+        setMPIErrorHandler( MPI_COMM_WORLD );
+        setMPIErrorHandler( MPI_COMM_SELF );
+    #endif
     setTerminateErrorHandler();
 }
-
+void Utilities::clearErrorHandlers()
+{
+    #ifdef USE_MPI
+        clearMPIErrorHandler( MPI_COMM_WORLD );
+        clearMPIErrorHandler( MPI_COMM_SELF );
+    #endif
+}
 
 
 /****************************************************************************

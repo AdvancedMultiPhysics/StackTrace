@@ -14,7 +14,7 @@
 
 namespace StackTrace {
 
-
+//! Class to contain stack trace info for a single thread/process
 struct stack_info {
     void *address;
     void *address2;
@@ -47,6 +47,7 @@ struct stack_info {
 };
 
 
+//! Class to contain stack trace info for multiple threads/processes
 struct multi_stack_info {
     int N;                                  // Number of threads/processes
     stack_info stack;                       // Current stack item
@@ -59,6 +60,8 @@ struct multi_stack_info {
     multi_stack_info &operator=( const std::vector<stack_info> & );
     //! Reset the stack
     void clear();
+    //! Is the stack empty
+    bool empty() const { return N==0; }
     //! Add the given stack to the multistack
     void add( size_t len, const stack_info *stack );
     //! Print the stack info
@@ -69,6 +72,31 @@ private:
     int getAddressWidth() const;
     int getObjectWidth() const;
     int getFunctionWidth() const;
+};
+
+
+
+//!< Terminate type
+enum class terminateType : uint8_t { signal, exception, abort, MPI, unknown };
+
+
+//!< Class to contain exception info from abort
+class abort_error : public std::exception
+{
+public:
+    std::string message;                //!< Abort message
+    std::string filename;               //!< File where abort was called
+    terminateType type;                 //!< What caused the termination
+    uint8_t signal;                     //!< Signal number
+    int line;                           //!< Line number where abort was called
+    size_t bytes;                       //!< Memory in use during abort
+    StackTrace::multi_stack_info stack; //!< Stack for abort
+public:
+    virtual const char* what() const noexcept override;
+    abort_error( );
+    virtual ~abort_error( ) {}
+private:
+    mutable std::string d_msg;
 };
 
 
@@ -166,20 +194,27 @@ std::string getExecutable();
 std::string getSymPaths();
 
 
-//!< Terminate type
-enum class terminateType { signal, exception };
-
 /*!
- * Set the error handlers
+ * Set the error handler
  * @param[in] abort     Function to terminate the program: abort(msg,type)
  */
-void setErrorHandlers( std::function<void( std::string, terminateType )> abort );
+void setErrorHandler( std::function<void( const StackTrace::abort_error& )> abort );
+
+//! Clear the error handler
+void clearErrorHandler( );
+
+
+//! Set an error handler for MPI
+void setMPIErrorHandler( MPI_Comm comm );
+
+//! Clear an error handler for MPI
+void clearMPIErrorHandler( MPI_Comm comm );
 
 
 /*!
  * Set the given signals to the handler
  * @param[in] signals   Signals to handle
- * @param[in] handler   Function to terminate the program: abort(msg,type)
+ * @param[in] handler   Function to terminate the program: abort(signal)
  */
 void setSignals( const std::vector<int> &signals, void ( *handler )( int ) );
 

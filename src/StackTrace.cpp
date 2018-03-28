@@ -469,6 +469,48 @@ void StackTrace::multi_stack_info::add( size_t len, const stack_info *stack )
 
 
 /****************************************************************************
+ *  abort_error                                                              *
+ ****************************************************************************/
+StackTrace::abort_error::abort_error( ):
+    type(terminateType::unknown), line(-1), bytes(0)
+{
+}
+const char* StackTrace::abort_error::what() const noexcept
+{
+    d_msg.clear();
+    if ( type == terminateType::abort ) {
+        d_msg += "Program abort called";
+    } else if ( type == terminateType::signal ) {
+        d_msg += "Unhandled signal (" + std::to_string( signal ) + ") caught";
+    } else if ( type == terminateType::exception ) {
+        d_msg += "Unhandled exception caught";
+    } else if ( type == terminateType::MPI ) {
+        d_msg += "Error calling MPI routine";
+    } else {
+        d_msg += "Unknown error called";
+    }
+    if ( !filename.empty() ) {
+        d_msg += " in file '" + filename + "'";
+        if ( line > 0 ) {
+            d_msg += " at line " + std::to_string( line );
+        }
+    }
+    d_msg += ":\n";
+    d_msg += "   " + message + "\n";
+    if ( bytes > 0 ) {
+        d_msg += "Bytes used = " + std::to_string( bytes ) + "\n";
+    }
+    if ( !stack.empty() ) {
+        d_msg += "Stack Trace:\n";
+        auto data = stack.print();
+        for ( const auto &tmp : data )
+            d_msg += " " + tmp + "\n";
+    }
+    return d_msg.c_str();
+}
+
+
+/****************************************************************************
  *  Function to find an entry                                                *
  ****************************************************************************/
 template <class TYPE>
@@ -800,7 +842,7 @@ static void getDataFromGlobalSymbols( StackTrace::stack_info &info )
 static void signal_handler( int sig )
 {
     printf("Signal caught acquiring stack (%i)\n",sig);
-    StackTrace::setErrorHandlers( [](std::string,StackTrace::terminateType) { exit( -1 ); } );
+    StackTrace::setErrorHandler( [](const StackTrace::abort_error &err) { std::cerr << err.what(); exit( -1 ); } );
 }
 StackTrace::stack_info StackTrace::getStackInfo( void *address )
 {
@@ -1238,6 +1280,7 @@ generateMultiStack( const std::vector<std::vector<void *>> &trace )
     auto stack = generateStacks( trace );
     // Create the multi-stack trace
     StackTrace::multi_stack_info multistack;
+    multistack.N = stack.size();
     for ( const auto &tmp : stack )
         multistack.add( tmp.size(), tmp.data() );
     return multistack;
@@ -1509,10 +1552,10 @@ std::vector<int> StackTrace::defaultSignalsToCatch()
 /****************************************************************************
  *  Set the signal handlers                                                  *
  ****************************************************************************/
-static std::function<void( std::string, StackTrace::terminateType )> abort_fun;
-static std::string rethrow()
+static std::function<void( const StackTrace::abort_error &err )> abort_fun;
+static StackTrace::abort_error rethrow()
 {
-    std::string last_message;
+    StackTrace::abort_error error;
 #ifdef USE_LINUX
     try {
         static int tried_throw = 0;
@@ -1521,57 +1564,134 @@ static std::string rethrow()
             throw;
         }
         // No active exception
+    } catch ( const StackTrace::abort_error &err ) {
+        // Caught a std::runtime_error
+        error = err;
     } catch ( const std::exception &err ) {
         // Caught a std::runtime_error
-        last_message = err.what();
+        error.message = err.what();
     } catch ( ... ) {
         // Caught an unknown exception
-        last_message = "unknown exception occurred.";
+        error.message = "Unknown exception";
     }
+#else
+    error.message = "Unknown exception";
 #endif
-    return last_message;
+    if ( error.type == StackTrace::terminateType::unknown )
+        error.type = StackTrace::terminateType::exception;
+    if ( error.bytes == 0 )
+        error.bytes = StackTrace::Utilities::getMemoryUsage();
+    if ( error.stack.empty() ) {
+        error.stack = StackTrace::getCallStack();
+        StackTrace::cleanupStackTrace( error.stack );
+    }
+    return error;
 }
 static void term_func_abort( int sig )
 {
-    std::string msg( "Caught signal: " );
-    msg += StackTrace::signalName( sig );
-    abort_fun( msg, StackTrace::terminateType::signal );
+    StackTrace::abort_error err;
+    err.type = StackTrace::terminateType::signal;
+    err.signal = sig;
+    err.bytes = StackTrace::Utilities::getMemoryUsage();
+    err.stack = StackTrace::getGlobalCallStacks();
+    StackTrace::cleanupStackTrace( err.stack );
+    abort_fun( err );
 }
-static std::set<int> signals_set = std::set<int>();
+static bool signals_set[256] = { false };
 static void term_func()
 {
-    std::string last_message = rethrow();
+    auto err = rethrow();
     StackTrace::clearSignals();
-    abort_fun( "Unhandled exception:\n" + last_message, StackTrace::terminateType::exception );
+    abort_fun( err );
+}
+static void null_term_func()
+{
 }
 void StackTrace::clearSignal( int sig )
 {
-    if ( signals_set.find( sig ) != signals_set.end() ) {
+    if ( signals_set[sig] ) {
         signal( sig, SIG_DFL );
-        signals_set.erase( sig );
+        signals_set[sig] = false;
     }
 }
 void StackTrace::clearSignals()
 {
-    for ( auto sig : signals_set )
-        signal( sig, SIG_DFL );
-    signals_set.clear();
+    for (size_t i=0; i<sizeof(signals_set); i++) {
+        if ( signals_set[i] ) {
+            signal( i, SIG_DFL );
+            signals_set[i] = false;
+        }
+    }
 }
 void StackTrace::setSignals( const std::vector<int> &signals, void ( *handler )( int ) )
 {
     for ( auto sig : signals ) {
         signal( sig, handler );
-        signals_set.insert( sig );
+        signals_set[sig] = true;
     }
 }
-void StackTrace::setErrorHandlers(
-    std::function<void( std::string, StackTrace::terminateType )> abort )
+void StackTrace::setErrorHandler( std::function<void( const StackTrace::abort_error& )> abort )
 {
     abort_fun = abort;
     std::set_terminate( term_func );
     setSignals( defaultSignalsToCatch(), &term_func_abort );
     std::set_unexpected( term_func );
 }
+void StackTrace::clearErrorHandler( )
+{
+    abort_fun = [](const StackTrace::abort_error&) {};
+    std::set_terminate( null_term_func );
+    clearSignals();
+    std::set_unexpected( null_term_func );
+}
+
+
+/****************************************************************************
+*  Functions to handle MPI errors                                           *
+****************************************************************************/
+#ifdef USE_MPI
+static std::shared_ptr<MPI_Errhandler> mpierr;
+static void MPI_error_handler_fun( MPI_Comm *comm, int *err, ... )
+{
+    if ( *err == MPI_ERR_COMM && *comm == MPI_COMM_WORLD ) {
+        // Special error handling for an invalid MPI_COMM_WORLD
+        std::cerr << "Error invalid MPI_COMM_WORLD";
+        exit( -1 );
+    }
+    int msg_len = 0;
+    char message[1000] = { 0 };
+    MPI_Error_string( *err, message, &msg_len );
+    StackTrace::abort_error error;
+    error.message = std::string( message );
+    error.type = StackTrace::terminateType::MPI;
+    error.bytes = StackTrace::Utilities::getMemoryUsage();
+    error.stack = StackTrace::getGlobalCallStacks();
+    StackTrace::cleanupStackTrace( error.stack );
+    throw error;
+}
+void StackTrace::setMPIErrorHandler( MPI_Comm comm )
+{
+    if ( mpierr.get() == nullptr ) {
+        mpierr = std::make_shared<MPI_Errhandler>( );
+        MPI_Comm_create_errhandler( MPI_error_handler_fun, mpierr.get() );
+    }
+    MPI_Comm_set_errhandler( comm, *mpierr );
+}
+void StackTrace::clearMPIErrorHandler( MPI_Comm comm )
+{
+    if ( mpierr.get() != nullptr )
+        MPI_Errhandler_free( mpierr.get() ); // Delete the error handler
+    mpierr.reset();
+    MPI_Comm_set_errhandler( comm, MPI_ERRORS_ARE_FATAL );
+}
+#else
+void StackTrace::setMPIErrorHandler( MPI_Comm )
+{
+}
+void StackTrace::clearMPIErrorHandler( MPI_Comm )
+{
+}
+#endif
 
 
 /****************************************************************************
@@ -1812,6 +1932,9 @@ void StackTrace::cleanupStackTrace( multi_stack_info &stack )
             remove_entry = true;
         // Remove std::thread::_Impl
         if ( function.find( "std::thread::_Impl<" ) != npos && filename == "thread" )
+            remove_entry = true;
+        // Remove MPI internal routines
+        if ( function == "MPIR_Barrier_impl" || function == "MPIR_Barrier_intra" || function == "MPIC_Sendrecv" )
             remove_entry = true;
         // Remove MATLAB internal routines
         if ( object == "libmwmcr.so" || object == "libmwm_lxe.so" || object == "libmwbridge.so" ||

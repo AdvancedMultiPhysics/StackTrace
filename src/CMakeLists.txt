@@ -60,6 +60,15 @@ ENDIF()
 SET_COMPILER_FLAGS()
 
 
+# Check if we are using the timer (allows a more accurace memory usage)
+IF ( TIMER_DIRECTORY )
+    ADD_DEFINITIONS( -DUSE_TIMER )
+    INCLUDE_DIRECTORIES( "${TIMER_DIRECTORY}/include" )
+    FIND_LIBRARY( TIMER_LIB timerutility PATHS "${TIMER_DIRECTORY}/lib" NO_DEFAULT_PATH )
+ENDIF()
+SET_COMPILER_FLAGS()
+
+
 # Create a target to copy headers
 ADD_CUSTOM_TARGET( StackTrace-include ALL )
 FILE(GLOB headers "${CMAKE_CURRENT_SOURCE_DIR}/*.h")
@@ -80,7 +89,7 @@ INSTALL( TARGETS stacktrace DESTINATION "${CMAKE_INSTALL_PREFIX}/lib" )
 # Add an executable
 ADD_EXECUTABLE( TestStack TestStack.cpp )
 TARGET_LINK_LIBRARIES( TestStack stacktrace )
-TARGET_LINK_LIBRARIES( TestStack "${SYSTEM_LIBS}" )
+TARGET_LINK_LIBRARIES( TestStack ${TIMER_LIB} "${SYSTEM_LIBS}" )
 INSTALL( TARGETS TestStack DESTINATION "${CMAKE_INSTALL_PREFIX}/bin" )
 IF ( USE_MPI )
     ADD_TEST( NAME TestStack COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4 $<TARGET_FILE:TestStack> )

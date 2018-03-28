@@ -269,8 +269,8 @@ void testGlobalStack( std::vector<std::string> &,
 int main( int argc, char *argv[] )
 {
     int rank = startup( argc, argv );
-    StackTrace::Utilities::setAbortBehavior( true, true, true );
-    StackTrace::globalCallStackInitialize( MPI_COMM_WORLD );
+    StackTrace::Utilities::setAbortBehavior( true );
+    StackTrace::Utilities::setErrorHandlers();
     std::vector<std::string> passes, failure, expected_failure;
 
     // Limit the scope of variables
@@ -364,7 +364,5 @@ int main( int argc, char *argv[] )
     barrier();
     if ( N_errors == 0 && rank == 0 )
         std::cout << "\nAll tests passed\n";
-    barrier();
-    MPI_Finalize();
     return N_errors;
 }

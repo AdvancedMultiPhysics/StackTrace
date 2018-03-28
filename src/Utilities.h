@@ -1,8 +1,11 @@
 #ifndef included_StackTrace_Utilities
 #define included_StackTrace_Utilities
 
+#include <stdexcept>
 #include <string>
 #include <thread>
+
+#include "StackTrace/StackTrace.h"
 
 
 namespace StackTrace {
@@ -18,22 +21,17 @@ void abort( const std::string &message, const std::string &filename, const int l
 
 /*!
  * Set the behavior of abort
- * @param printMemory       Print the current memory usage (default is true)
- * @param printStack        Print the current call stack (default is true)
  * @param throwException    Throw an exception instead of MPI_Abort (default is false)
- * @param printOnAbort      Print the call stack when abort is called (default is false)
  * @param stackType         Type of stack to get (1: thread local stack, 2: all threads, 3: global)
  */
-void setAbortBehavior( bool printMemory,
-                       bool printStack,
-                       bool throwException,
-                       bool printOnAbort = false,
-                       int stackType     = 2 );
+void setAbortBehavior( bool throwException, int stackType = 2 );
 
 
 //! Function to set the error handlers
 void setErrorHandlers();
 
+//! Function to clear the error handlers
+void clearErrorHandlers();
 
 
 /*!
