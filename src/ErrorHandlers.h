@@ -12,7 +12,7 @@
 #include <functional>
 
 
-namespace StackTrace
+    namespace StackTrace
 {
 
 

@@ -1561,6 +1561,7 @@ std::vector<int> StackTrace::defaultSignalsToCatch()
     auto signals = allSignalsToCatch();
     erase( signals, SIGWINCH ); // Don't catch window changed by default
     erase( signals, SIGCONT );  // Don't catch continue by default
+    erase( signals, SIGCHLD );  // Don't catch child exited by default
     return signals;
 }
 
@@ -1960,11 +1961,21 @@ void StackTrace::cleanupStackTrace( multi_stack_info &stack )
              object.find( "libstdc++" ) != npos )
             remove_entry = true;
         // Remove std::thread::_Impl
-        if ( function.find( "std::thread::_Impl<" ) != npos && filename == "thread" )
+        if ( filename == "thread" ) {
+            if ( function.find( "std::thread::_Impl<" ) != npos ||
+                 function.find( "std::thread::_Invoker<" ) != npos )
+                remove_entry = true;
+        }
+        // Remove pthread internals
+        if ( function == "__GI___pthread_timedjoin_ex" )
             remove_entry = true;
         // Remove MPI internal routines
         if ( function == "MPIR_Barrier_impl" || function == "MPIR_Barrier_intra" ||
              function == "MPIC_Sendrecv" )
+            remove_entry = true;
+        // Remove OpenMPI specific internal routines
+        if ( function == "opal_libevent2022_event_set_log_callback" ||
+             function == "opal_libevent2022_event_base_loop" )
             remove_entry = true;
         // Remove MATLAB internal routines
         if ( object == "libmwmcr.so" || object == "libmwm_lxe.so" || object == "libmwbridge.so" ||
@@ -2055,6 +2066,7 @@ void StackTrace::cleanupStackTrace( multi_stack_info &stack )
         }
         // Replace std::basic_string with abbriviated version
         size_t pos = 0;
+        strrep( function, "std::__cxx11::basic_string<", "std::basic_string<" );
         while ( pos < function.size() ) {
             // Find next instance of std::basic_string
             const std::string match = "std::basic_string<";
