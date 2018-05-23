@@ -75,7 +75,7 @@ MACRO( SET_WARNINGS )
     # Note: adding -Wlogical-op causes a wierd linking error on Titan using the nvcc wrapper:
     #    /usr/bin/ld: cannot find gical-op: No such file or directory
     SET(CMAKE_C_FLAGS     "${CMAKE_C_FLAGS} -Wall -Wextra") 
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Woverloaded-virtual -Wsign-compare")
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Woverloaded-virtual -Wsign-compare -pedantic")
   ELSEIF ( USING_MSVC )
     # Add Microsoft specifc compiler options
     SET(CMAKE_C_FLAGS     "${CMAKE_C_FLAGS} /D _SCL_SECURE_NO_WARNINGS /D _CRT_SECURE_NO_WARNINGS /D _ITERATOR_DEBUG_LEVEL=0 /wd4267" )
@@ -118,76 +118,6 @@ MACRO( ADD_USER_FLAGS )
 ENDMACRO()
 
 
-# Macro to add user c++ std 
-MACRO( ADD_CXX_STD )
-    IF ( NOT CXX_STD )
-        MESSAGE( FATAL_ERROR "The desired c++ standard must be specified: CXX_STD=(98,11,14,NONE)")
-    ENDIF()
-    IF ( ${CXX_STD} STREQUAL "NONE" )
-        # Do nothing
-        return()
-    ELSEIF ( (NOT ${CXX_STD} STREQUAL "98") AND (NOT ${CXX_STD} STREQUAL "11") AND (NOT ${CXX_STD} STREQUAL "14") )
-        MESSAGE( FATAL_ERROR "Unknown c++ standard (98,11,14,NONE)" )
-    ENDIF()
-    # Add the flags
-    SET( CMAKE_CXX_STANDARD ${CXX_STD} )
-    MESSAGE( "C++ standard: ${CXX_STD}" )
-    SET( CXX_STD_FLAG )
-    IF ( USING_GCC )
-        # GNU: -std=
-        IF ( ${CXX_STD} STREQUAL "98" )
-            SET( CXX_STD_FLAG -std=c++98 )
-        ELSEIF ( ${CXX_STD} STREQUAL "11" )
-            SET( CXX_STD_FLAG -std=c++11 )
-        ELSEIF ( ${CXX_STD} STREQUAL "14" )
-            SET( CXX_STD_FLAG -std=c++1y )
-        ELSE()
-            MESSAGE(FATAL_ERROR "Unknown standard")
-        ENDIF()
-    ELSEIF ( USING_MSVC )
-        # Microsoft: Does not support this level of control
-    ELSEIF ( USING_ICC )
-        # ICC: -std=
-        SET( CXX_STD_FLAG -std=c++${CXX_STD} )
-    ELSEIF ( USING_CRAY )
-        # Cray: Does not seem to support controlling the std?
-    ELSEIF ( USING_PGCC )
-        # PGI: -std=
-        IF ( ${CXX_STD} STREQUAL "98" )
-            SET( CXX_STD_FLAG --c++0x )
-        ELSEIF ( ${CXX_STD} STREQUAL "11" )
-            SET( CXX_STD_FLAG --c++11 )
-        ELSEIF ( ${CXX_STD} STREQUAL "14" )
-            MESSAGE( FATAL_ERROR "C++14 features are not availible yet for PGI" )
-        ELSE()
-            MESSAGE(FATAL_ERROR "Unknown standard")
-        ENDIF()
-    ELSEIF ( USING_CLANG )
-        # Clang: -std=
-        IF ( ( ${CXX_STD} STREQUAL "98") OR ( ${CXX_STD} STREQUAL "11" ) )
-            SET( CXX_STD_FLAG -std=c++${CXX_STD} )
-        ELSEIF ( ${CXX_STD} STREQUAL "14" )
-            SET( CXX_STD_FLAG -std=c++1y )
-        ELSE()
-            MESSAGE(FATAL_ERROR "Unknown standard")
-        ENDIF()
-    ELSEIF ( USING_XL )
-        # XL: -std=
-        IF ( ( ${CXX_STD} STREQUAL "98") OR ( ${CXX_STD} STREQUAL "11" ) )
-            SET( CXX_STD_FLAG -std=c++${CXX_STD} )
-        ELSEIF ( ${CXX_STD} STREQUAL "14" )
-            SET( CXX_STD_FLAG -std=c++1y )
-        ELSE()
-            MESSAGE(FATAL_ERROR "Unknown standard")
-        ENDIF()
-    ELSEIF ( USING_DEFAULT )
-        # Default: do nothing
-    ENDIF()
-    ADD_DEFINITIONS( -DCXX_STD=${CXX_STD} )
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CXX_STD_FLAG}")
-ENDMACRO()
-
-
 # Macro to set the compile/link flags
 MACRO( SET_COMPILER_FLAGS )
     # Initilaize the compiler
@@ -226,8 +156,6 @@ MACRO( SET_COMPILER_FLAGS )
     SET( CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}" CACHE STRING "Release flags" FORCE)
     # Add the user flags
     ADD_USER_FLAGS()
-    # Add the c++ standard flags
-    ADD_CXX_STD()
     # Set the warnings to use
     SET_WARNINGS()
     # Test the compile flags

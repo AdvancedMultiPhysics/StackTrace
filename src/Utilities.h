@@ -95,5 +95,4 @@ std::string exec( const std::string &cmd, int &exit_code );
 } // namespace StackTrace
 
 
-
 #endif

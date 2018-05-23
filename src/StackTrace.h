@@ -8,10 +8,6 @@
 #include <vector>
 
 
-// Define MPI_Comm
-@MPI_COMM@
-
-
 namespace StackTrace {
 
 //! Class to contain stack trace info for a single thread/process
@@ -61,7 +57,7 @@ struct multi_stack_info {
     //! Reset the stack
     void clear();
     //! Is the stack empty
-    bool empty() const { return N==0; }
+    bool empty() const { return N == 0; }
     //! Add the given stack to the multistack
     void add( size_t len, const stack_info *stack );
     //! Print the stack info
@@ -73,7 +69,6 @@ private:
     int getObjectWidth() const;
     int getFunctionWidth() const;
 };
-
 
 
 //!< Terminate type
@@ -92,9 +87,10 @@ public:
     size_t bytes;                       //!< Memory in use during abort
     StackTrace::multi_stack_info stack; //!< Stack for abort
 public:
-    virtual const char* what() const noexcept override;
-    abort_error( );
-    virtual ~abort_error( ) {}
+    virtual const char *what() const noexcept override;
+    abort_error();
+    virtual ~abort_error() {}
+
 private:
     mutable std::string d_msg;
 };
@@ -175,9 +171,8 @@ std::string signalName( int signal );
  * Return the symbols from the current executable (not availible for all platforms)
  * @return      Returns 0 if sucessful
  */
-int getSymbols( std::vector<void *> &address,
-                std::vector<char> &type,
-                std::vector<std::string> &obj );
+int getSymbols(
+    std::vector<void *> &address, std::vector<char> &type, std::vector<std::string> &obj );
 
 
 /*!
@@ -192,23 +187,6 @@ std::string getExecutable();
  * @return      Returns the search path for the symbols
  */
 std::string getSymPaths();
-
-
-/*!
- * Set the error handler
- * @param[in] abort     Function to terminate the program: abort(msg,type)
- */
-void setErrorHandler( std::function<void( const StackTrace::abort_error& )> abort );
-
-//! Clear the error handler
-void clearErrorHandler( );
-
-
-//! Set an error handler for MPI
-void setMPIErrorHandler( MPI_Comm comm );
-
-//! Clear an error handler for MPI
-void clearMPIErrorHandler( MPI_Comm comm );
 
 
 /*!
@@ -239,13 +217,6 @@ std::set<std::thread::native_handle_type> activeThreads();
 
 //! Get a handle to this thread
 std::thread::native_handle_type thisThread();
-
-
-//! Initialize globalCallStack functionallity
-void globalCallStackInitialize( MPI_Comm comm );
-
-//! Clean up globalCallStack functionallity
-void globalCallStackFinalize();
 
 
 /*!

@@ -1,5 +1,6 @@
 #define NOMINMAX
 #include "StackTrace/Utilities.h"
+#include "StackTrace/ErrorHandlers.h"
 #include "StackTrace/StackTrace.h"
 
 #include <algorithm>
@@ -70,7 +71,7 @@ namespace StackTrace {
 /****************************************************************************
  *  Function to find an entry                                                *
  ****************************************************************************/
-template <class TYPE>
+template<class TYPE>
 inline size_t findfirst( const std::vector<TYPE> &X, TYPE Y )
 {
     if ( X.empty() )
@@ -106,11 +107,11 @@ void Utilities::setAbortBehavior( bool throwException, int stackType )
 void Utilities::abort( const std::string &message, const std::string &filename, const int line )
 {
     abort_error err;
-    err.message = message;
+    err.message  = message;
     err.filename = filename;
-    err.type = terminateType::abort;
-    err.line = line;
-    err.bytes = Utilities::getMemoryUsage();
+    err.type     = terminateType::abort;
+    err.line     = line;
+    err.bytes    = Utilities::getMemoryUsage();
     if ( abort_stackType == 1 ) {
         err.stack = StackTrace::getCallStack();
     } else if ( abort_stackType == 2 ) {
@@ -121,7 +122,7 @@ void Utilities::abort( const std::string &message, const std::string &filename, 
     StackTrace::cleanupStackTrace( err.stack );
     throw err;
 }
-static void terminate( const StackTrace::abort_error& err )
+static void terminate( const StackTrace::abort_error &err )
 {
     clearErrorHandler();
     // Print the message and abort
@@ -158,18 +159,18 @@ static void setTerminateErrorHandler()
 }
 void Utilities::setErrorHandlers()
 {
-    #ifdef USE_MPI
-        setMPIErrorHandler( MPI_COMM_WORLD );
-        setMPIErrorHandler( MPI_COMM_SELF );
-    #endif
+#ifdef USE_MPI
+    setMPIErrorHandler( MPI_COMM_WORLD );
+    setMPIErrorHandler( MPI_COMM_SELF );
+#endif
     setTerminateErrorHandler();
 }
 void Utilities::clearErrorHandlers()
 {
-    #ifdef USE_MPI
-        clearMPIErrorHandler( MPI_COMM_WORLD );
-        clearMPIErrorHandler( MPI_COMM_SELF );
-    #endif
+#ifdef USE_MPI
+    clearMPIErrorHandler( MPI_COMM_WORLD );
+    clearMPIErrorHandler( MPI_COMM_SELF );
+#endif
 }
 
 

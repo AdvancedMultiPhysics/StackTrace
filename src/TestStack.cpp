@@ -11,6 +11,7 @@
 #include <vector>
 
 
+#include "StackTrace/ErrorHandlers.h"
 #include "StackTrace/StackTrace.h"
 #include "StackTrace/Utilities.h"
 
@@ -38,12 +39,17 @@ using StackTrace::Utilities::time;
         MPI_Init_thread( &argc, &argv, MPI_THREAD_MULTIPLE, &provided_thread_support );
         return getRank();
     }
+    void shutdown( ) {
+        MPI_Barrier( MPI_COMM_WORLD );
+        MPI_Finalize( );
+    }
 #else
     #define MPI_COMM_WORLD 0
     void MPI_Finalize() {}
     void barrier() {}
     int sumReduce( int x ) { return x; }
     int startup( int, char*[] ) { return 0; }
+    void shutdown( ) { }
     int getRank() { return 0; }
 #endif
 // clang-format on
@@ -95,16 +101,17 @@ int global_signal_helper[1024] = { 0 };
 void handleSignal( int s ) { global_signal_helper[s] = 1; }
 void testSignal( std::vector<std::string> &passes, std::vector<std::string> &failure )
 {
+    barrier();
     int rank = getRank();
     if ( rank == 0 ) {
         // Get a list of signals that can be caught
         auto signals = StackTrace::allSignalsToCatch();
         // Identify the signals
         std::cout << "\nIdentifying signals\n";
-        for ( int i = 1; i <= std::max(64,signals.back()); i++ )
+        for ( int i = 1; i <= std::max( 64, signals.back() ); i++ )
             std::cout << "  " << i << ": " << StackTrace::signalName( i ) << std::endl;
         // Test setting/catching different signals
-        bool pass    = true;
+        bool pass = true;
         StackTrace::setSignals( signals, handleSignal );
         for ( auto sig : signals ) {
             raise( sig );
@@ -123,9 +130,8 @@ void testSignal( std::vector<std::string> &passes, std::vector<std::string> &fai
 
 
 // Test current stack trace
-void testCurrentStack( std::vector<std::string> &passes,
-                       std::vector<std::string> &failure,
-                       bool &decoded_symbols )
+void testCurrentStack(
+    std::vector<std::string> &passes, std::vector<std::string> &failure, bool &decoded_symbols )
 {
     barrier();
     const int rank  = getRank();
@@ -162,9 +168,8 @@ void testCurrentStack( std::vector<std::string> &passes,
 
 
 // Test stack trace of another thread
-void testThreadStack( std::vector<std::string> &passes,
-                      std::vector<std::string> &failure,
-                      bool decoded_symbols )
+void testThreadStack(
+    std::vector<std::string> &passes, std::vector<std::string> &failure, bool decoded_symbols )
 {
     barrier();
     const int rank = getRank();
@@ -231,10 +236,8 @@ void testFullStack( std::vector<std::string> &, std::vector<std::string> & )
 
 
 // Test stack trace of another thread
-void testGlobalStack( std::vector<std::string> &,
-                      std::vector<std::string> &,
-                      bool all,
-                      const std::basic_string<wchar_t> & = std::basic_string<wchar_t>() )
+void testGlobalStack( std::vector<std::string> &, std::vector<std::string> &, bool all,
+    const std::basic_string<wchar_t> & = std::basic_string<wchar_t>() )
 {
     barrier();
     const int rank = getRank();
@@ -265,16 +268,47 @@ void testGlobalStack( std::vector<std::string> &,
 }
 
 
+void testActivethreads( std::vector<std::string> &passes, std::vector<std::string> &failure,
+    std::vector<std::string> &expected_failure )
+{
+    // Test getting a list of all active threads
+    std::thread thread1( sleep_ms, 1000 );
+    std::thread thread2( sleep_ms, 1000 );
+    sleep_ms( 50 ); // Give threads time to start
+    auto thread_ids_test = StackTrace::activeThreads();
+    std::set<std::thread::native_handle_type> self, thread_ids;
+    self.insert( StackTrace::thisThread() );
+    thread_ids.insert( StackTrace::thisThread() );
+    thread_ids.insert( thread1.native_handle() );
+    thread_ids.insert( thread2.native_handle() );
+    thread1.join();
+    thread2.join();
+    bool pass = true;
+    for ( auto id : thread_ids )
+        pass = pass && thread_ids_test.find( id ) != thread_ids_test.end();
+    if ( pass )
+        passes.push_back( "StackTrace::activeThreads" );
+    else if ( thread_ids_test == self )
+        expected_failure.push_back( "StackTrace::activeThreads only is able to return self" );
+    else
+        failure.push_back( "StackTrace::activeThreads" );
+}
+
+
 // The main function
 int main( int argc, char *argv[] )
 {
     int rank = startup( argc, argv );
     StackTrace::Utilities::setAbortBehavior( true );
     StackTrace::Utilities::setErrorHandlers();
+    StackTrace::globalCallStackInitialize( MPI_COMM_WORLD );
     std::vector<std::string> passes, failure, expected_failure;
 
     // Limit the scope of variables
     {
+        // Test getting a list of all active threads
+        testActivethreads( passes, failure, expected_failure );
+
         // Test getting the current call stack
         bool decoded_symbols = false;
         testCurrentStack( passes, failure, decoded_symbols );
@@ -288,25 +322,6 @@ int main( int argc, char *argv[] )
         // Test getting the global stack trace of all threads/processes
         testGlobalStack( passes, failure, false );
         testGlobalStack( passes, failure, true );
-
-        // Test getting a list of all active threads
-        std::thread thread1( sleep_ms, 1000 );
-        std::thread thread2( sleep_ms, 1000 );
-        sleep_ms( 50 ); // Give threads time to start
-        auto thread_ids_test = StackTrace::activeThreads();
-        std::set<std::thread::native_handle_type> self, thread_ids;
-        self.insert( StackTrace::thisThread() );
-        thread_ids.insert( StackTrace::thisThread() );
-        thread_ids.insert( thread1.native_handle() );
-        thread_ids.insert( thread2.native_handle() );
-        thread1.join();
-        thread2.join();
-        if ( thread_ids == thread_ids_test )
-            passes.push_back( "StackTrace::activeThreads" );
-        else if ( thread_ids_test == self )
-            expected_failure.push_back( "StackTrace::activeThreads only is able to return self" );
-        else
-            failure.push_back( "StackTrace::activeThreads" );
 
         // Test getting the symbols
         std::vector<void *> address;
@@ -364,5 +379,7 @@ int main( int argc, char *argv[] )
     barrier();
     if ( N_errors == 0 && rank == 0 )
         std::cout << "\nAll tests passed\n";
+    StackTrace::globalCallStackFinalize();
+    shutdown();
     return N_errors;
 }
