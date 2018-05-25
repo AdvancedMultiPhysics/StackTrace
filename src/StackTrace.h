@@ -175,6 +175,10 @@ int getSymbols(
     std::vector<void *> &address, std::vector<char> &type, std::vector<std::string> &obj );
 
 
+//! Clear internal symbol data
+void clearSymbols();
+
+
 /*!
  * Return the name of the executable
  * @return      Returns the name of the executable (usually the full path)

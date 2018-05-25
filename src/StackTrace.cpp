@@ -87,6 +87,10 @@
 #endif
 
 
+// Mutex for StackTrace opertions that need blocking
+static std::mutex StackTrace_mutex;
+
+
 // Helper thread
 static std::shared_ptr<std::thread> globalMonitorThread;
 
@@ -604,75 +608,84 @@ std::string StackTrace::getExecutable()
  *    exccessive calls to nm.  This function also uses a lock to ensure      *
  *    thread safety.                                                         *
  ****************************************************************************/
-std::mutex getSymbols_mutex;
 struct global_symbols_struct {
     std::vector<void *> address;
     std::vector<char> type;
     std::vector<std::string> obj;
     int error;
 } global_symbols;
-static const global_symbols_struct &getSymbols2()
+static bool global_symbols_loaded = false;
+static global_symbols_struct global_symbols_data;
+static global_symbols_struct getSymbols2()
 {
-    static bool loaded = false;
-    static global_symbols_struct data;
-    // Load the symbol tables if they have not been loaded
-    if ( !loaded ) {
-        getSymbols_mutex.lock();
-        loaded = true;
+    global_symbols_struct data;
 #ifdef USE_NM
-        try {
-            char cmd[1024];
+    try {
+        char cmd[1024];
 #ifdef USE_LINUX
-            sprintf( cmd, "nm -n --demangle %s", global_exe_name );
+        sprintf( cmd, "nm -n --demangle %s", global_exe_name );
 #elif defined( USE_MAC )
-            sprintf( cmd, "nm -n %s | c++filt", global_exe_name );
+        sprintf( cmd, "nm -n %s | c++filt", global_exe_name );
 #else
 #error Unknown OS using nm
 #endif
-            int code;
-            auto cmd_output = StackTrace::exec( cmd, code );
-            auto output     = breakString( (char *) cmd_output.data() );
-            for ( const auto &line : output ) {
-                if ( line[0] == ' ' )
-                    continue;
-                auto *a = const_cast<char *>( line );
-                char *b = strchr( a, ' ' );
-                if ( b == nullptr )
-                    continue;
-                b[0] = 0;
-                b++;
-                char *c = strchr( b, ' ' );
-                if ( c == nullptr )
-                    continue;
-                c[0] = 0;
-                c++;
-                char *d = strchr( c, '\n' );
-                if ( d )
-                    d[0] = 0;
-                size_t add = strtoul( a, nullptr, 16 );
-                data.address.push_back( reinterpret_cast<void *>( add ) );
-                data.type.push_back( b[0] );
-                data.obj.emplace_back( c );
-            }
-        } catch ( ... ) {
-            data.error = -3;
+        int code;
+        auto cmd_output = StackTrace::exec( cmd, code );
+        auto output     = breakString( (char *) cmd_output.data() );
+        for ( const auto &line : output ) {
+            if ( line[0] == ' ' )
+                continue;
+            auto *a = const_cast<char *>( line );
+            char *b = strchr( a, ' ' );
+            if ( b == nullptr )
+                continue;
+            b[0] = 0;
+            b++;
+            char *c = strchr( b, ' ' );
+            if ( c == nullptr )
+                continue;
+            c[0] = 0;
+            c++;
+            char *d = strchr( c, '\n' );
+            if ( d )
+                d[0] = 0;
+            size_t add = strtoul( a, nullptr, 16 );
+            data.address.push_back( reinterpret_cast<void *>( add ) );
+            data.type.push_back( b[0] );
+            data.obj.emplace_back( c );
         }
-        data.error = 0;
-#else
-        data.error = -1;
-#endif
-        getSymbols_mutex.unlock();
+    } catch ( ... ) {
+        data.error = -3;
     }
+    data.error = 0;
+#else
+    data.error = -1;
+#endif
     return data;
 }
 int StackTrace::getSymbols(
     std::vector<void *> &address, std::vector<char> &type, std::vector<std::string> &obj )
 {
-    const global_symbols_struct &data = getSymbols2();
-    address                           = data.address;
-    type                              = data.type;
-    obj                               = data.obj;
-    return data.error;
+    StackTrace_mutex.lock();
+    if ( !global_symbols_loaded ) {
+        global_symbols_data = getSymbols2();
+        global_symbols_loaded = true;
+    }
+    address = global_symbols_data.address;
+    type    = global_symbols_data.type;
+    obj     = global_symbols_data.obj;
+    int err = global_symbols_data.error;
+    StackTrace_mutex.unlock();
+    return err;
+}
+void StackTrace::clearSymbols( )
+{
+    StackTrace_mutex.lock();
+    if ( global_symbols_loaded ) {
+        global_symbols_data = global_symbols_struct();
+        global_symbols_loaded = true;
+    }
+    StackTrace_mutex.unlock();
 }
 
 
@@ -955,7 +968,6 @@ static int backtrace_thread( const std::thread::native_handle_type&, void**, siz
 #if defined( USE_LINUX ) || defined( USE_MAC )
 static int thread_backtrace_count;
 static void* thread_backtrace[1000];
-static std::mutex thread_backtrace_mutex;
 static void _callstack_signal_handler( int, siginfo_t*, void* )
 {
     thread_backtrace_count = backtrace_thread( StackTrace::thisThread(), thread_backtrace, 1000 );
@@ -977,7 +989,7 @@ static int backtrace_thread( const std::thread::native_handle_type& tid, void **
             count = ::backtrace( buffer, size );
         } else {
             // Note: this will get the backtrace, but terminates the thread in the process!!!
-            thread_backtrace_mutex.lock();
+            StackTrace_mutex.lock();
             struct sigaction sa;
             sigfillset(&sa.sa_mask);
             sa.sa_flags = SA_SIGINFO;
@@ -994,7 +1006,7 @@ static int backtrace_thread( const std::thread::native_handle_type& tid, void **
             count = std::max(thread_backtrace_count,0);
             memcpy( buffer, thread_backtrace, count*sizeof(void*) );
             thread_backtrace_count = -1;
-            thread_backtrace_mutex.unlock();
+            StackTrace_mutex.unlock();
         }
     #elif defined( USE_WINDOWS )
         #if defined(DBGHELP)
@@ -1164,7 +1176,7 @@ std::set<std::thread::native_handle_type> StackTrace::activeThreads( )
         erase<int>( tid, syscall(SYS_gettid) );
         auto old = signal( thread_callstack_signal, _activeThreads_signal_handler );
         for ( auto tid2 : tid ) {
-            thread_backtrace_mutex.lock();
+            StackTrace_mutex.lock();
             thread_id_finished = false;
             thread_handle = thisThread();
             syscall( SYS_tgkill, pid, tid2, thread_callstack_signal );
@@ -1175,7 +1187,7 @@ std::set<std::thread::native_handle_type> StackTrace::activeThreads( )
                 t2 = std::chrono::high_resolution_clock::now();
             }
             threads.insert( thread_handle );
-            thread_backtrace_mutex.unlock();
+            StackTrace_mutex.unlock();
         }
         signal( thread_callstack_signal, old );
     #elif defined( USE_MAC )
@@ -1192,7 +1204,7 @@ std::set<std::thread::native_handle_type> StackTrace::activeThreads( )
                 std::cerr << "activeThreads not finished for MAC\n";
             }
             /*
-            thread_backtrace_mutex.lock();
+            StackTrace_mutex.lock();
             thread_id_finished = false;
             thread_handle = thisThread();
             x86_thread_state64_t state;
@@ -1213,7 +1225,7 @@ std::set<std::thread::native_handle_type> StackTrace::activeThreads( )
                 t2 = std::chrono::high_resolution_clock::now();
             }
             threads.insert( thread_handle );
-            thread_backtrace_mutex.unlock();*/
+            StackTrace_mutex.unlock();*/
         }
         signal( thread_callstack_signal, old );
     #elif defined( USE_WINDOWS )
