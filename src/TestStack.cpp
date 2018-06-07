@@ -115,7 +115,7 @@ void testSignal( std::vector<std::string> &passes, std::vector<std::string> &fai
         StackTrace::setSignals( signals, handleSignal );
         for ( auto sig : signals ) {
             raise( sig );
-            sleep_ms( 10 );
+            sleep_ms( 30 );
             signal( sig, SIG_DFL );
             if ( global_signal_helper[sig] != 1 )
                 pass = false;
@@ -126,6 +126,7 @@ void testSignal( std::vector<std::string> &passes, std::vector<std::string> &fai
         else
             failure.push_back( "Signals" );
     }
+    barrier();
 }
 
 
