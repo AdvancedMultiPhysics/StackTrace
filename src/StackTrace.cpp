@@ -721,8 +721,9 @@ static void *loadAddress( const std::array<char, 128> &object )
             const char *name                 = _dyld_get_image_name( i );
             const char *p                    = strrchr( name, '/' );
             struct mach_header *address      = const_cast<struct mach_header *>( header );
-            obj_map.insert( std::pair<std::array<char, 128>, void *>( p + 1, address ) );
-            // printf("   module=%s, address=%p\n", p + 1, header);
+            std::array<char,128> obj;
+            copy( p+1, obj, true );
+            obj_map.insert( std::make_pair( obj, address ) );
         }
     }
     auto it       = obj_map.find( object );
@@ -737,35 +738,38 @@ static void *loadAddress( const std::array<char, 128> &object )
     // printf("%s: 0x%016llx\n",object.c_str(),address);
     return address;
 }
-static std::tuple<std::string, std::string, std::string, int> split_atos( const std::string &buf )
+static std::tuple<std::array<char,512>, std::array<char,128>, std::array<char,128>, int>
+split_atos( const std::string &buf )
 {
+    int line = 0;
+    std::array<char,512> fun;
+    std::array<char,128> obj, file;
     if ( buf.empty() )
-        return std::tuple<std::string, std::string, std::string, int>();
+        return std::tie( fun, obj, file, line );
     // Get the function
     size_t index = buf.find( " (in " );
-    if ( index == std::string::npos )
-        return std::make_tuple(
-            buf.substr( 0, buf.length() - 1 ), std::string(), std::string(), 0 );
-    std::string fun = buf.substr( 0, index );
+    if ( index == std::string::npos ) {
+        copy( buf.c_str(), fun, false );
+        return std::tie( fun, obj, file, line );
+    }
+    copy( buf.substr( 0, index ).c_str(), fun, false );
     std::string tmp = buf.substr( index + 5 );
     // Get the object
-    index           = tmp.find( ')' );
-    std::string obj = tmp.substr( 0, index );
-    tmp             = tmp.substr( index + 1 );
+    index = tmp.find( ')' );
+    copy( tmp.substr( 0, index ).c_str(), obj, true );
+    tmp = tmp.substr( index + 1 );
     // Get the filename and line number
     size_t p1 = tmp.find( '(' );
     size_t p2 = tmp.find( ')' );
     tmp       = tmp.substr( p1 + 1, p2 - p1 - 1 );
     index     = tmp.find( ':' );
-    std::string file;
-    int line = 0;
     if ( index != std::string::npos ) {
-        file = tmp.substr( 0, index );
+        copy( tmp.substr( 0, index ).c_str(), file, true );
         line = std::stoi( tmp.substr( index + 1 ) );
     } else if ( p1 != std::string::npos ) {
-        file = tmp;
+        copy( tmp.c_str(), file, true );
     }
-    return std::make_tuple( fun, obj, file, line );
+    return std::tie( fun, obj, file, line );
 }
 #endif
 // clang-format off
@@ -824,7 +828,7 @@ static void getFileAndLineObject( std::vector<StackTrace::stack_info*> &info )
         // Call atos to get the object info
         char cmd[1000];
         static_assert( sizeof(unsigned long) == sizeof(size_t), "Unxpected size for ul" );
-        int N = sprintf( cmd, "atos -o %s -f -l %lx", info[0]->object.c_str(),
+        int N = sprintf( cmd, "atos -o %s -f -l %lx", info[0]->object.data(),
             reinterpret_cast<unsigned long>( load_address ) );
         for (size_t i=0; i<info.size(); i++)
             N += sprintf( &cmd[N], " %lx", reinterpret_cast<unsigned long>( info[i]->address ) );
@@ -1658,6 +1662,13 @@ void StackTrace::clearSignal( int sig )
         signals_set[sig] = false;
     }
 }
+void StackTrace::clearSignals( const std::vector<int> &signals )
+{
+    for ( auto sig : signals ) {
+        signal( sig, SIG_DFL );
+        signals_set[sig] = false;
+    }
+}
 void StackTrace::clearSignals()
 {
     for ( size_t i = 0; i < sizeof( signals_set ); i++ ) {
@@ -2019,6 +2030,8 @@ void StackTrace::cleanupStackTrace( multi_stack_info &stack )
         // Cleanup template space
         strrep( function, " >", ">" );
         strrep( function, "< ", "<" );
+        // Remove std::__1::
+        strrep( function, "std::__1::", "std::" );
         // Replace std::chrono::duration with abbriviated version
         if ( find( function, "std::chrono::duration<" ) != npos ) {
             strrep( function, "std::chrono::duration<long, std::ratio<1l, 1l> >", "ticks" );

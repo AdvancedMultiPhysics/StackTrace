@@ -1,6 +1,7 @@
 #ifndef included_StackTrace
 #define included_StackTrace
 
+#include <array>
 #include <functional>
 #include <iostream>
 #include <set>
@@ -200,10 +201,14 @@ std::string getSymPaths();
  */
 void setSignals( const std::vector<int> &signals, void ( *handler )( int ) );
 
-
+    
 //! Clear a signal set by setSignals
 void clearSignal( int signal );
-
+    
+    
+//! Clear a signal set by setSignals
+void clearSignals( const std::vector<int> &signals );
+    
 
 //! Clear all signals set by setSignals
 void clearSignals();

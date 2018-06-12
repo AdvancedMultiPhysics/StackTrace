@@ -1,3 +1,4 @@
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
@@ -111,15 +112,14 @@ void testSignal( std::vector<std::string> &passes, std::vector<std::string> &fai
         for ( int i = 1; i <= std::max( 64, signals.back() ); i++ )
             std::cout << "  " << i << ": " << StackTrace::signalName( i ) << std::endl;
         // Test setting/catching different signals
-        bool pass = true;
         StackTrace::setSignals( signals, handleSignal );
-        for ( auto sig : signals ) {
+        for ( auto sig : signals )
             StackTrace::raiseSignal( sig );
-            sleep_ms( 30 );
-            StackTrace::clearSignal( sig );
-            if ( global_signal_helper[sig] != 1 )
-                pass = false;
-        }
+        sleep_ms( 50 );
+        StackTrace::clearSignals( signals );
+        bool pass = true;
+        for ( auto sig : signals )
+            pass = pass && global_signal_helper[sig] == 1;
         std::cout << std::endl;
         if ( pass )
             passes.push_back( "Signals" );

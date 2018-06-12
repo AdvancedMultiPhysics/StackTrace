@@ -3,4 +3,5 @@
 unusedFunction:*
 unreadVariable:*/src/TestStack.cpp
 unreachableCode:*/src/TestStack.cpp
+knownConditionTrueFalse:*/src/TestStack.cpp
 nullPointer:*/src/Utilities.cpp
