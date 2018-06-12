@@ -94,28 +94,6 @@ static std::mutex StackTrace_mutex;
 static std::shared_ptr<std::thread> globalMonitorThread;
 
 
-// Utility to break a string by a newline
-static inline std::vector<char *> breakString( char *str )
-{
-    if ( str == nullptr )
-        return std::vector<char *>();
-    std::vector<char *> strvec;
-    strvec.reserve( 128 );
-    size_t i = 0;
-    while ( str[i] != 0 ) {
-        while ( str[i] < 32 && str[i] != 0 ) {
-            str[i] = 0;
-            i++;
-        }
-        if ( str[i] >= 32 )
-            strvec.push_back( &str[i] );
-        while ( str[i] != '\n' && str[i] != 0 )
-            i++;
-    }
-    return strvec;
-}
-
-
 // Function to replace all instances of a string with another
 template<std::size_t N>
 bool operator==( std::array<char, N> &s1, const char *s2 ) noexcept
@@ -733,7 +711,7 @@ static void *loadAddress( const uint32_t &obj_hash )
     if ( it != obj_map.end() ) {
         address = it->second;
     } else {
-        it = obj_map.find( stripPath( obj_hash ) );
+        it = obj_map.find( obj_hash );
         if ( it != obj_map.end() )
             address = it->second;
     }
@@ -851,7 +829,7 @@ static void getFileAndLineObject( std::vector<StackTrace::stack_info*> &info )
                 info[i]->filenamePath = std::get<4>(data);
             }
             if ( info[i]->line==0 )
-                info[i]->line = std::get<3>(data);
+                info[i]->line = std::get<5>(data);
         }
     #endif
 }
