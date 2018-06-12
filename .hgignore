@@ -15,4 +15,8 @@ build/FindStackTrace.cmake
 build/DartConfiguration.tcl
 build/CTestTestfile.cmake
 build/Testing
+build/cppcheck
+build/cppclean
+build/compile_commands.json
+
 

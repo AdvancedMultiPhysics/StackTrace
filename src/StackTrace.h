@@ -12,14 +12,14 @@ namespace StackTrace {
 
 //! Class to contain stack trace info for a single thread/process
 struct stack_info {
+    uint8_t line;
     void *address;
     void *address2;
-    std::string object;
-    std::string function;
-    std::string filename;
-    int line;
+    std::array<char, 128> object;
+    std::array<char, 128> filename;
+    std::array<char, 512> function;
     //! Default constructor
-    stack_info() : address( nullptr ), address2( nullptr ), line( 0 ) {}
+    stack_info();
     //! Reset the stack
     void clear();
     //! Operator==
@@ -171,8 +171,8 @@ std::string signalName( int signal );
  * Return the symbols from the current executable (not availible for all platforms)
  * @return      Returns 0 if sucessful
  */
-int getSymbols(
-    std::vector<void *> &address, std::vector<char> &type, std::vector<std::string> &obj );
+int getSymbols( std::vector<void *> &address, std::vector<char> &type,
+    std::vector<std::array<char, 128>> &obj );
 
 
 //! Clear internal symbol data
@@ -207,6 +207,10 @@ void clearSignal( int signal );
 
 //! Clear all signals set by setSignals
 void clearSignals();
+
+
+//! Raise a signal
+void raiseSignal( int signal );
 
 
 //! Return a list of all signals that can be caught

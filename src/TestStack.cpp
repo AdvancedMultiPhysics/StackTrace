@@ -1,19 +1,19 @@
-#include <cmath>
-#include <csignal>
-#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
-#include <ctime>
 #include <iostream>
 #include <stdexcept>
-#include <sys/stat.h>
 #include <vector>
 
 
 #include "StackTrace/ErrorHandlers.h"
 #include "StackTrace/StackTrace.h"
 #include "StackTrace/Utilities.h"
+
+
+#ifdef USE_TIMER
+#include "MemoryApp.h"
+#include "ProfilerApp.h"
+#endif
 
 
 using StackTrace::Utilities::time;
@@ -114,9 +114,9 @@ void testSignal( std::vector<std::string> &passes, std::vector<std::string> &fai
         bool pass = true;
         StackTrace::setSignals( signals, handleSignal );
         for ( auto sig : signals ) {
-            raise( sig );
+            StackTrace::raiseSignal( sig );
             sleep_ms( 30 );
-            signal( sig, SIG_DFL );
+            StackTrace::clearSignal( sig );
             if ( global_signal_helper[sig] != 1 )
                 pass = false;
         }
@@ -196,7 +196,7 @@ void testThreadStack(
             if ( elem.print().find( "sleep_ms" ) != std::string::npos )
                 pass = true;
         }
-        pass = pass && fabs( t4 - t1 ) > 0.9;
+        pass = pass && std::abs( t4 - t1 ) > 0.9;
         if ( pass )
             passes.push_back( "call stack (thread)" );
         else if ( !decoded_symbols )
@@ -327,7 +327,7 @@ int main( int argc, char *argv[] )
         // Test getting the symbols
         std::vector<void *> address;
         std::vector<char> type;
-        std::vector<std::string> obj;
+        std::vector<std::array<char, 128>> obj;
         int rtn = StackTrace::getSymbols( address, type, obj );
         if ( rtn == 0 && !address.empty() )
             passes.push_back( "Read symbols from executable" );
@@ -380,7 +380,18 @@ int main( int argc, char *argv[] )
     barrier();
     if ( N_errors == 0 && rank == 0 )
         std::cout << "\nAll tests passed\n";
+
+    // Shutdown
     StackTrace::globalCallStackFinalize();
+    StackTrace::Utilities::clearErrorHandlers();
+    StackTrace::clearSignals();
+    StackTrace::clearSymbols();
     shutdown();
+    passes = failure = expected_failure = std::vector<std::string>();
+#ifdef USE_TIMER
+    PROFILE_DISABLE();
+    if ( rank == 0 )
+        MemoryApp::print( std::cout );
+#endif
     return N_errors;
 }
