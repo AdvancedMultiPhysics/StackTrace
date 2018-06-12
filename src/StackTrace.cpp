@@ -166,36 +166,53 @@ static constexpr inline const char *stripPath( const char *filename ) noexcept
     }
     return filename;
 }
-template<std::size_t N>
-static inline std::array<char, N> stripPath( const std::array<char, N> &str ) noexcept
+
+
+// Functions to hash strings
+constexpr inline uint32_t hashString( const char *s )
 {
-    auto ptr   = stripPath( str.data() );
-    size_t pos = ptr - str.data();
-    std::array<char, N> out;
-    out.fill( 0 );
-    memcpy( out.data(), ptr, N - pos );
-    return out;
+    uint32_t c    = 0;
+    uint32_t hash = 5381;
+    while ( ( c = *s++ ) )
+        hash = ( ( hash << 5 ) + hash ) ^ c;
+    return hash;
+}
+inline uint64_t objHash( const std::array<char, 64> &obj, const std::array<char, 64> &objPath )
+{
+    uint32_t v1  = hashString( obj.data() );
+    uint32_t v2  = hashString( objPath.data() );
+    uint64_t key = ( static_cast<uint64_t>( v1 ) << 32 ) + static_cast<uint64_t>( v1 ^ v2 );
+    return key;
 }
 
 
 //! Assign a string to a std::array
 template<std::size_t N2>
-static inline void copy( const char *in, std::array<char, N2> &out, bool hasPath ) noexcept
+static inline void copy( const char *in, std::array<char, N2> &out ) noexcept
 {
     size_t N1 = strlen( in );
     out.fill( 0 );
     if ( N1 < N2 ) {
         memcpy( out.data(), in, N1 );
     } else {
-        auto ptr = in;
-        if ( hasPath )
-            ptr = stripPath( in );
-        if ( N1 - ( ptr - in ) < N2 ) {
-            out[0] = out[1] = out[2] = '.';
-            memcpy( &out[3], &in[N1 - N2 - 1], N2 - 1 );
+        memcpy( out.data(), in, N2 - 4 );
+        out[N2 - 4] = out[N2 - 3] = out[N2 - 2] = '.';
+    }
+}
+template<std::size_t N2, std::size_t N3>
+static inline void copy(
+    const char *in, std::array<char, N2> &out, std::array<char, N3> &outPath ) noexcept
+{
+    auto ptr = stripPath( in );
+    copy( ptr, out );
+    outPath.fill( 0 );
+    if ( ptr != in ) {
+        size_t N = ptr - in - 1;
+        if ( N < N3 ) {
+            memcpy( outPath.data(), in, N );
         } else {
-            memcpy( out.data(), in, N2 - 4 );
-            out[N2 - 4] = out[N2 - 3] = out[N2 - 2] = '.';
+            memcpy( outPath.data(), in, N3 - 4 );
+            outPath[N3 - 4] = outPath[N3 - 3] = outPath[N3 - 2] = '.';
         }
     }
 }
@@ -271,6 +288,33 @@ static inline void insert( std::vector<TYPE> &x, TYPE y )
 #define popen _popen
 #define pclose _pclose
 #endif
+static std::vector<std::array<char, 1024>> exec2( const char *cmd )
+{
+    std::vector<std::array<char, 1024>> out;
+    auto old   = signal( SIGCHLD, SIG_DFL ); // Clear child exited
+    FILE *pipe = popen( cmd, "r" );
+    if ( pipe == nullptr )
+        return out;
+    out.reserve( 128 );
+    while ( !feof( pipe ) ) {
+        char buffer[0x2000];
+        buffer[0] = 0;
+        fgets( buffer, sizeof( buffer ), pipe );
+        size_t N2 = strlen( buffer );
+        if ( N2 > 0 ) {
+            size_t k = out.size();
+            out.resize( k + 1 );
+            out[k].fill( 0 );
+            memcpy( out[k].data(), buffer, N2 );
+            if ( out[k][N2 - 1] == '\n' )
+                out[k][N2 - 1] = 0;
+        }
+    }
+    pclose( pipe );
+    std::this_thread::yield(); // Allow any signals to process
+    signal( SIGCHLD, old );    // Reset child exited signal
+    return out;
+}
 std::string StackTrace::exec( const std::string &cmd, int &code )
 {
     auto old   = signal( SIGCHLD, SIG_DFL ); // Clear child exited
@@ -331,11 +375,11 @@ std::string StackTrace::stack_info::print( int w1, int w2, int w3 ) const
     pos += sprintf( &out[pos], tmp1, reinterpret_cast<unsigned long long int>( address ) );
     pos += sprintf( &out[pos], tmp2, stripPath( object.data() ), function.data() );
     if ( filename[0] != 0 && line > 0 ) {
-        pos += sprintf( &out[pos], "  %s:%i", stripPath( filename.data() ), line );
+        pos += sprintf( &out[pos], "  %s:%ui", stripPath( filename.data() ), line );
     } else if ( filename[0] != 0 ) {
         pos += sprintf( &out[pos], "  %s", stripPath( filename.data() ) );
     } else if ( line > 0 ) {
-        pos += sprintf( &out[pos], " : %i", line );
+        pos += sprintf( &out[pos], " : %ui", line );
     }
     return std::string( out );
 }
@@ -475,7 +519,7 @@ int StackTrace::multi_stack_info::getAddressWidth() const
 }
 int StackTrace::multi_stack_info::getObjectWidth() const
 {
-    int w = std::min<int>( stripPath( stack.object ).size() + 1, 20 );
+    int w = std::min<int>( stack.object.size() + 1, 20 );
     for ( const auto &child : children )
         w = std::max( w, child.getObjectWidth() );
     return w;
@@ -551,31 +595,6 @@ const char *StackTrace::abort_error::what() const noexcept
 
 
 /****************************************************************************
- *  Function to find an entry                                                *
- ****************************************************************************/
-template<class TYPE>
-inline size_t findfirst( const std::vector<TYPE> &X, TYPE Y )
-{
-    if ( X.empty() )
-        return 0;
-    size_t lower = 0;
-    size_t upper = X.size() - 1;
-    if ( X[lower] >= Y )
-        return lower;
-    if ( X[upper] < Y )
-        return upper;
-    while ( ( upper - lower ) != 1 ) {
-        size_t value = ( upper + lower ) / 2;
-        if ( X[value] >= Y )
-            upper = value;
-        else
-            lower = value;
-    }
-    return upper;
-}
-
-
-/****************************************************************************
  *  Function to get the executable name                                      *
  ****************************************************************************/
 static char global_exe_name[1000] = { 0 };
@@ -624,17 +643,11 @@ std::string StackTrace::getExecutable()
  *    exccessive calls to nm.  This function also uses a lock to ensure      *
  *    thread safety.                                                         *
  ****************************************************************************/
-struct global_symbols_struct {
-    std::vector<void *> address;
-    std::vector<char> type;
-    std::vector<std::array<char, 128>> obj;
-    int error;
-} global_symbols;
+std::vector<StackTrace::symbols_struct> global_symbols_data;
 static bool global_symbols_loaded = false;
-static global_symbols_struct global_symbols_data;
-static global_symbols_struct getSymbols2()
+static std::vector<StackTrace::symbols_struct> getSymbolData()
 {
-    global_symbols_struct data;
+    std::vector<StackTrace::symbols_struct> data;
 #ifdef USE_NM
     try {
         char cmd[1024];
@@ -645,13 +658,11 @@ static global_symbols_struct getSymbols2()
 #else
 #error Unknown OS using nm
 #endif
-        int code;
-        auto cmd_output = StackTrace::exec( cmd, code );
-        auto output     = breakString( (char *) cmd_output.data() );
-        for ( const auto &line : output ) {
+        auto output = exec2( cmd );
+        for ( auto &line : output ) {
             if ( line[0] == ' ' )
                 continue;
-            auto *a = const_cast<char *>( line );
+            auto *a = line.data();
             char *b = strchr( a, ' ' );
             if ( b == nullptr )
                 continue;
@@ -666,42 +677,34 @@ static global_symbols_struct getSymbols2()
             if ( d )
                 d[0] = 0;
             size_t add = strtoul( a, nullptr, 16 );
-            std::array<char, 128> obj;
-            copy( c, obj, true );
-            data.address.push_back( reinterpret_cast<void *>( add ) );
-            data.type.push_back( b[0] );
-            data.obj.emplace_back( obj );
+            size_t k   = data.size();
+            data.resize( k + 1 );
+            data[k].address = reinterpret_cast<void *>( add );
+            data[k].type    = b[0];
+            copy( c, data[k].obj, data[k].objPath );
         }
     } catch ( ... ) {
-        data.error = -3;
     }
-    data.error = 0;
-#else
-    data.error = -1;
 #endif
     return data;
 }
-int StackTrace::getSymbols(
-    std::vector<void *> &address, std::vector<char> &type, std::vector<std::array<char, 128>> &obj )
+std::vector<StackTrace::symbols_struct> StackTrace::getSymbols()
 {
     StackTrace_mutex.lock();
     if ( !global_symbols_loaded ) {
-        global_symbols_data   = getSymbols2();
+        global_symbols_data   = getSymbolData();
         global_symbols_loaded = true;
     }
-    address = global_symbols_data.address;
-    type    = global_symbols_data.type;
-    obj     = global_symbols_data.obj;
-    int err = global_symbols_data.error;
+    auto data = global_symbols_data;
     StackTrace_mutex.unlock();
-    return err;
+    return data;
 }
 void StackTrace::clearSymbols()
 {
     StackTrace_mutex.lock();
     if ( global_symbols_loaded ) {
-        global_symbols_data   = global_symbols_struct();
-        global_symbols_loaded = true;
+        global_symbols_data   = std::vector<StackTrace::symbols_struct>();
+        global_symbols_loaded = false;
     }
     StackTrace_mutex.unlock();
 }
@@ -711,52 +714,51 @@ void StackTrace::clearSymbols()
  *  Function to get call stack info                                          *
  ****************************************************************************/
 #ifdef USE_MAC
-static void *loadAddress( const std::array<char, 128> &object )
+static void *loadAddress( const uint32_t &obj_hash )
 {
-    static std::map<std::array<char, 128>, void *> obj_map;
+    static std::map<uint32_t, void *> obj_map;
     if ( obj_map.empty() ) {
         uint32_t numImages = _dyld_image_count();
         for ( uint32_t i = 0; i < numImages; i++ ) {
-            const struct mach_header *header = _dyld_get_image_header( i );
-            const char *name                 = _dyld_get_image_name( i );
-            const char *p                    = strrchr( name, '/' );
-            struct mach_header *address      = const_cast<struct mach_header *>( header );
-            std::array<char,128> obj;
-            copy( p+1, obj, true );
-            obj_map.insert( std::make_pair( obj, address ) );
+            auto header  = _dyld_get_image_header( i );
+            auto name    = _dyld_get_image_name( i );
+            auto p       = strrchr( name, '/' );
+            auto address = const_cast<struct mach_header *>( header );
+            auto hash    = hashString( p + 1 );
+            obj_map.insert( std::make_pair( hash, address ) );
         }
     }
-    auto it       = obj_map.find( object );
+    auto it       = obj_map.find( obj_hash );
     void *address = 0;
     if ( it != obj_map.end() ) {
         address = it->second;
     } else {
-        it = obj_map.find( stripPath( object ) );
+        it = obj_map.find( stripPath( obj_hash ) );
         if ( it != obj_map.end() )
             address = it->second;
     }
-    // printf("%s: 0x%016llx\n",object.c_str(),address);
     return address;
 }
-static std::tuple<std::array<char,512>, std::array<char,128>, std::array<char,128>, int>
+static std::tuple<std::array<char, 512>, std::array<char, 64>, std::array<char, 64>,
+    std::array<char, 64>, std::array<char, 64>, int>
 split_atos( const std::string &buf )
 {
     int line = 0;
-    std::array<char,512> fun;
-    std::array<char,128> obj, file;
+    std::array<char, 512> fun;
+    std::array<char, 64> obj, file, objPath, filePath;
     if ( buf.empty() )
-        return std::tie( fun, obj, file, line );
+        return std::tie( fun, obj, objPath, file, filePath, line );
     // Get the function
     size_t index = buf.find( " (in " );
     if ( index == std::string::npos ) {
-        copy( buf.c_str(), fun, false );
-        return std::tie( fun, obj, file, line );
+        copy( buf.c_str(), fun );
+        return std::tie( fun, obj, objPath, file, filePath, line );
     }
-    copy( buf.substr( 0, index ).c_str(), fun, false );
+    copy( buf.substr( 0, index ).c_str(), fun );
     std::string tmp = buf.substr( index + 5 );
     // Get the object
     index = tmp.find( ')' );
-    copy( tmp.substr( 0, index ).c_str(), obj, true );
+    copy( tmp.substr( 0, index ).c_str(), obj, objPath );
     tmp = tmp.substr( index + 1 );
     // Get the filename and line number
     size_t p1 = tmp.find( '(' );
@@ -764,12 +766,12 @@ split_atos( const std::string &buf )
     tmp       = tmp.substr( p1 + 1, p2 - p1 - 1 );
     index     = tmp.find( ':' );
     if ( index != std::string::npos ) {
-        copy( tmp.substr( 0, index ).c_str(), file, true );
+        copy( tmp.substr( 0, index ).c_str(), file, filePath );
         line = std::stoi( tmp.substr( index + 1 ) );
     } else if ( p1 != std::string::npos ) {
-        copy( tmp.c_str(), file, true );
+        copy( tmp.c_str(), file, filePath );
     }
-    return std::tie( fun, obj, file, line );
+    return std::tie( fun, obj, objPath, file, filePath, line );
 }
 #endif
 // clang-format off
@@ -790,25 +792,23 @@ static void getFileAndLineObject( std::vector<StackTrace::stack_info*> &info )
         }
         N += sprintf(&cmd[N]," 2> /dev/null");
         // Get the function/line/file
-        int code;
-        auto cmd_output = StackTrace::exec( cmd, code );
-        auto output = breakString( (char*) cmd_output.data() );
+        auto output = exec2( cmd );
         if ( output.size() != 4*info.size() )
             return;
         // Add the results to info
         for (size_t i=0; i<info.size(); i++) {
-            char *tmp1 = output[4*i+0];
-            char *tmp2 = output[4*i+1];
+            char *tmp1 = output[4*i+0].data();
+            char *tmp2 = output[4*i+1].data();
             if ( tmp1[0] == '?' && tmp1[1] == '?' ) {
-                tmp1 = output[4*i+2];
-                tmp2 = output[4*i+3];
+                tmp1 = output[4*i+2].data();
+                tmp2 = output[4*i+3].data();
             }
             if ( tmp1[0] == '?' && tmp1[1] == '?' ) {
                 continue;
             }
             // get function name
             if ( info[i]->function.empty() )
-                copy( tmp1, info[i]->function, false );
+                copy( tmp1, info[i]->function );
             // get file and line
             char *buf = tmp2;
             if ( buf[0] != '?' && buf[0] != 0 ) {
@@ -816,13 +816,13 @@ static void getFileAndLineObject( std::vector<StackTrace::stack_info*> &info )
                 for ( j = 0; j < 4095 && buf[j] != ':'; j++ ) {
                 }
                 buf[j] = 0;
-                copy( buf, info[i]->filename, true );
+                copy( buf, info[i]->filename, info[i]->filenamePath );
                 info[i]->line = atoi( &buf[j + 1] );
             }
         }
     #elif defined( USE_MAC )
         // Create the call command
-        void* load_address = loadAddress( info[0]->object );
+        void* load_address = loadAddress( hashString( info[0]->object.data() ) );
         if ( load_address == nullptr )
             return;
         // Call atos to get the object info
@@ -834,20 +834,22 @@ static void getFileAndLineObject( std::vector<StackTrace::stack_info*> &info )
             N += sprintf( &cmd[N], " %lx", reinterpret_cast<unsigned long>( info[i]->address ) );
         N += sprintf(&cmd[N]," 2> /dev/null");
         // Get the function/line/file
-        int code;
-        auto cmd_output = StackTrace::exec( cmd, code );
-        auto output = breakString( (char*) cmd_output.data() );
+        auto output = exec2( cmd );
         if ( output.size() != info.size() )
             return;
         // Parse the output for function, file and line info
         for ( size_t i=0; i<info.size(); i++) {
-            auto data = split_atos( output[2*i] );
+            auto data = split_atos( output[2*i].data() );
             if ( info[i]->function.empty() )
                 info[i]->function = std::get<0>(data);
-            if ( info[i]->object.empty() )
+            if ( info[i]->object.empty() ) {
                 info[i]->object = std::get<1>(data);
-            if ( info[i]->filename.empty() )
-                info[i]->filename = std::get<2>(data);
+                info[i]->objectPath = std::get<2>(data);
+            }
+            if ( info[i]->filename.empty() ) {
+                info[i]->filename = std::get<3>(data);
+                info[i]->filenamePath = std::get<4>(data);
+            }
             if ( info[i]->line==0 )
                 info[i]->line = std::get<3>(data);
         }
@@ -856,17 +858,17 @@ static void getFileAndLineObject( std::vector<StackTrace::stack_info*> &info )
 static void getFileAndLine( std::vector<StackTrace::stack_info> &info )
 {
     // Get a list of objects
-    std::vector<std::array<char, 128>> objects;
-    objects.reserve( 1024 );
+    std::vector<uint64_t> objectHash;
+    objectHash.reserve( 1024 );
     for ( const auto & tmp : info )
-        insert( objects, tmp.object );
+        insert( objectHash, objHash( tmp.object, tmp.objectPath ) );
     // For each object, get the file/line numbers for all entries
     std::vector<StackTrace::stack_info*> list;
     list.reserve( info.size() );
-    for ( const auto & object : objects ) {
+    for ( const auto & hash : objectHash ) {
         list.clear();
-        for (auto & tmp : info) {
-            if ( tmp.object == object )
+        for (auto & tmp : info ) {
+            if ( objHash( tmp.object, tmp.objectPath ) == hash )
                 list.push_back( &tmp );
         }
         getFileAndLineObject( list );
@@ -875,13 +877,28 @@ static void getFileAndLine( std::vector<StackTrace::stack_info> &info )
 // Try to use the global symbols to decode info about the stack
 static void getDataFromGlobalSymbols( StackTrace::stack_info &info )
 {
-    const global_symbols_struct &data = getSymbols2();
-    if ( data.error == 0 ) {
-        size_t index = findfirst( global_symbols.address, info.address );
-        if ( index > 0 )
-            info.object = global_symbols.obj[index - 1];
-        else
-            copy( global_exe_name, info.object, true );
+    if ( !global_symbols_loaded ) {
+        global_symbols_data   = getSymbolData();
+        global_symbols_loaded = true;
+    }
+    const auto &data = global_symbols_data;
+    if ( !data.empty() ) {
+        // Find the closest address
+        size_t lower = 0;
+        size_t upper = data.size() - 1;
+        while ( ( upper - lower ) != 1 ) {
+            size_t value = ( upper + lower ) / 2;
+            if ( data[value].address >= info.address )
+                upper = value;
+            else
+                lower = value;
+        }
+        if ( upper > 0 ) {
+            info.object = data[lower].obj;
+            info.objectPath = data[lower].objPath;
+        } else {
+            copy( global_exe_name, info.object, info.objectPath );
+        }
     }
 }
 static void signal_handler( int sig )
@@ -920,9 +937,9 @@ std::vector<StackTrace::stack_info> StackTrace::getStackInfo( const std::vector<
                     char name[8192]={0};
                     DWORD rtn = UnDecorateSymbolName( pSym->Name, name, sizeof(name)-1, UNDNAME_COMPLETE );
                     if ( rtn == 0 )
-                        copy( pSym->Name, info[i].function, false );
+                        copy( pSym->Name, info[i].function );
                     else
-                        copy( nullptr, info[i].function, false );
+                        copy( nullptr, info[i].function );
                 } else {
                     printf( "ERROR: SymGetSymFromAddr (%d,%p)\n", GetLastError(), address2 );
                 }
@@ -934,15 +951,15 @@ std::vector<StackTrace::stack_info> StackTrace::getStackInfo( const std::vector<
                 DWORD offsetFromLine;
                 if ( SymGetLineFromAddr64( pid, address2, &offsetFromLine, &Line ) != FALSE ) {
                     info[i].line     = Line.LineNumber;
-                    copy( Line.FileName, info[i].filename, true );
+                    copy( Line.FileName, info[i].filename, info[i].filenamePath );
                 } else {
                     info[i].line     = 0;
-                    copy( nullptr, info[i].filename, true );
+                    copy( nullptr, info[i].filename, info[i].filenamePath );
                 }
 
                 // Get the object
                 if ( SymGetModuleInfo64( pid, address2, &Module ) != FALSE ) {
-                    copy( Module.LoadedImageName, info[i].object, true );
+                    copy( Module.LoadedImageName, info[i].object, info[i].objectPath );
                 }
             }
         #else
@@ -955,19 +972,19 @@ std::vector<StackTrace::stack_info> StackTrace::getStackInfo( const std::vector<
                         continue;
                     }
                     info[i].address2 = subtractAddress( info[i].address, dlinfo.dli_fbase );
-                    copy( dlinfo.dli_fname, info[i].object, true );
+                    copy( dlinfo.dli_fname, info[i].object, info[i].objectPath );
                     #if defined( USE_ABI )
                         int status;
                         char *demangled = abi::__cxa_demangle( dlinfo.dli_sname, nullptr, nullptr, &status );
                         if ( status == 0 && demangled != nullptr ) {
-                            copy( demangled, info[i].function, false );
+                            copy( demangled, info[i].function );
                         } else if ( dlinfo.dli_sname != nullptr ) {
-                            copy( dlinfo.dli_sname, info[i].function, false );
+                            copy( dlinfo.dli_sname, info[i].function );
                         }
                         free( demangled );
                     #endif
                     if ( dlinfo.dli_sname != nullptr && info[i].function.empty() )
-                        copy( dlinfo.dli_sname, info[i].function, false );
+                        copy( dlinfo.dli_sname, info[i].function );
                 #else
                     getDataFromGlobalSymbols( info[i] );
                 #endif
@@ -983,7 +1000,7 @@ std::vector<StackTrace::stack_info> StackTrace::getStackInfo( const std::vector<
 
 
 /****************************************************************************
-*  Function to get the backtrace                                            *
+*  Helper functions for controlling interal signals                         *
 ****************************************************************************/
 static int backtrace_thread( const std::thread::native_handle_type&, void**, size_t );
 #if defined( USE_LINUX ) || defined( USE_MAC )
@@ -1001,127 +1018,6 @@ static int get_thread_callstack_signal()
 }
 static int thread_callstack_signal = get_thread_callstack_signal();
 #endif
-static int backtrace_thread( const std::thread::native_handle_type& tid, void **buffer, size_t size )
-{
-    int count = 0;
-    #if defined( USE_LINUX ) || defined( USE_MAC )
-        // Get the trace
-        if ( tid == pthread_self() ) {
-            count = ::backtrace( buffer, size );
-        } else {
-            // Note: this will get the backtrace, but terminates the thread in the process!!!
-            StackTrace_mutex.lock();
-            struct sigaction sa;
-            sigfillset(&sa.sa_mask);
-            sa.sa_flags = SA_SIGINFO;
-            sa.sa_sigaction = _callstack_signal_handler;
-            sigaction(thread_callstack_signal, &sa, nullptr);
-            thread_backtrace_count = -1;
-            pthread_kill( tid, thread_callstack_signal );
-            auto t1 = std::chrono::high_resolution_clock::now();
-            auto t2 = std::chrono::high_resolution_clock::now();
-            while ( thread_backtrace_count==-1 && std::chrono::duration<double>(t2-t1).count()<0.15 ) {
-                std::this_thread::yield();
-                t2 = std::chrono::high_resolution_clock::now();
-            }
-            count = std::max(thread_backtrace_count,0);
-            memcpy( buffer, thread_backtrace, count*sizeof(void*) );
-            thread_backtrace_count = -1;
-            StackTrace_mutex.unlock();
-        }
-    #elif defined( USE_WINDOWS )
-        #if defined(DBGHELP)
-
-            // Load the modules for the stack trace
-            LoadModules();
-
-            // Initialize stackframe for first call
-            ::CONTEXT context;
-            memset( &context, 0, sizeof( context ) );
-            context.ContextFlags = CONTEXT_FULL;
-            RtlCaptureContext( &context );
-            STACKFRAME64 frame; // in/out stackframe
-            memset( &frame, 0, sizeof( frame ) );
-            #ifdef _M_IX86
-                DWORD imageType = IMAGE_FILE_MACHINE_I386;
-                frame.AddrPC.Offset    = context.Eip;
-                frame.AddrPC.Mode      = AddrModeFlat;
-                frame.AddrFrame.Offset = context.Ebp;
-                frame.AddrFrame.Mode   = AddrModeFlat;
-                frame.AddrStack.Offset = context.Esp;
-                frame.AddrStack.Mode   = AddrModeFlat;
-            #elif _M_X64
-                DWORD imageType = IMAGE_FILE_MACHINE_AMD64;
-                frame.AddrPC.Offset    = context.Rip;
-                frame.AddrPC.Mode      = AddrModeFlat;
-                frame.AddrFrame.Offset = context.Rsp;
-                frame.AddrFrame.Mode   = AddrModeFlat;
-                frame.AddrStack.Offset = context.Rsp;
-                frame.AddrStack.Mode   = AddrModeFlat;
-            #elif _M_IA64
-                DWORD imageType = IMAGE_FILE_MACHINE_IA64;
-                frame.AddrPC.Offset     = context.StIIP;
-                frame.AddrPC.Mode       = AddrModeFlat;
-                frame.AddrFrame.Offset  = context.IntSp;
-                frame.AddrFrame.Mode    = AddrModeFlat;
-                frame.AddrBStore.Offset = context.RsBSP;
-                frame.AddrBStore.Mode   = AddrModeFlat;
-                frame.AddrStack.Offset  = context.IntSp;
-                frame.AddrStack.Mode    = AddrModeFlat;
-            #else
-                #error "Platform not supported!"
-            #endif
-
-            auto pid = GetCurrentProcess();
-            for ( int frameNum = 0; frameNum<1024; ++frameNum ) {
-                BOOL rtn = StackWalk64( imageType, pid, tid, &frame, &context, readProcMem,
-                                        SymFunctionTableAccess, SymGetModuleBase64, NULL );
-                if ( !rtn ) {
-                    printf( "ERROR: StackWalk64 (%p)\n", frame.AddrPC.Offset );
-                    break;
-                }
-                if ( frame.AddrPC.Offset != 0 ) {
-                    buffer[count] = reinterpret_cast<void*>( frame.AddrPC.Offset ) );
-                    count++;
-                }
-                if ( frame.AddrReturn.Offset == 0 )
-                    break;
-            }
-            SetLastError( ERROR_SUCCESS );
-        #endif
-    #else
-        #warning Stack trace is not supported on this compiler/OS
-    #endif
-    return count;
-}
-std::vector<void*> StackTrace::backtrace( std::thread::native_handle_type tid )
-{
-    std::vector<void*> trace( 1000, nullptr );
-    size_t count = backtrace_thread( tid, trace.data(), trace.size() );
-    trace.resize(count);
-    return trace;
-}
-std::vector<void*> StackTrace::backtrace()
-{
-    std::vector<void*> trace( 1000, nullptr );
-    size_t count = backtrace_thread( thisThread(), trace.data(), trace.size() );
-    trace.resize(count);
-    return trace;
-}
-std::vector<std::vector<void *>> StackTrace::backtraceAll()
-{
-    // Get the list of threads
-    auto threads = activeThreads( );
-    // Get the backtrace of each thread
-    std::vector<std::vector<void*>> trace(threads.size());
-    size_t i = 0;
-    for ( auto it=threads.begin(); i<threads.size(); i++, it++ ) {
-        trace[i].resize(1000);
-        size_t count = backtrace_thread( *it, trace[i].data(), trace[i].size() );
-        trace[i].resize(count);
-    }
-    return trace;
-}
 
 
 /****************************************************************************
@@ -1144,22 +1040,22 @@ static void _activeThreads_signal_handler( int )
 }*/
 #endif
 #ifdef USE_LINUX
-static inline int get_tid( int pid, const std::string& line )
+static inline int get_tid( int pid, const char *line )
 {
     char buf2[128]={0};
     int i1 = 0;
-    while ( line[i1]==' ' && line[i1]!=0 ) { i1++; }
+    while ( line[i1]==' ' ) { i1++; }
     int i2 = i1;
-    while ( line[i2]!=' ' && line[i2]!=0 ) { i2++; }
+    while ( line[i2]!=' ' ) { i2++; }
     memcpy(buf2,&line[i1],i2-i1);
     buf2[i2-i1+1] = 0;
     int pid2 = atoi(buf2);
     if ( pid2 != pid )
         return -1;
     i1 = i2;
-    while ( line[i1]==' ' && line[i1]!=0 ) { i1++; }
+    while ( line[i1]==' ' ) { i1++; }
     i2 = i1;
-    while ( line[i2]!=' ' && line[i2]!=0 ) { i2++; }
+    while ( line[i2]!=' ' ) { i2++; }
     memcpy(buf2,&line[i1],i2-i1);
     buf2[i2-i1+1] = 0;
     int tid = atoi(buf2);
@@ -1177,20 +1073,19 @@ std::thread::native_handle_type StackTrace::thisThread( )
         return std::thread::native_handle_type();
     #endif
 }
-std::set<std::thread::native_handle_type> StackTrace::activeThreads( )
+std::vector<std::thread::native_handle_type> getActiveThreads( )
 {
-    std::set<std::thread::native_handle_type> threads;
+    std::vector<std::thread::native_handle_type> threads;
+    threads.reserve( 128 );
     #if defined( USE_LINUX )
         std::vector<int> tid;
         tid.reserve( 128 );
         int pid = getpid();
         char cmd[128];
         sprintf( cmd, "ps -T -p %i", pid );
-        int code;
-        auto cmd_out = StackTrace::exec( cmd, code );
-        auto output = breakString( (char*) cmd_out.data() );
+        auto output = exec2( cmd );
         for ( const auto& line : output ) {
-            int tid2 = get_tid( pid, line );
+            int tid2 = get_tid( pid, line.data() );
             if ( tid2 != -1 )
                 insert( tid, tid2 );
         }
@@ -1199,7 +1094,7 @@ std::set<std::thread::native_handle_type> StackTrace::activeThreads( )
         for ( auto tid2 : tid ) {
             StackTrace_mutex.lock();
             thread_id_finished = false;
-            thread_handle = thisThread();
+            thread_handle = StackTrace::thisThread();
             syscall( SYS_tgkill, pid, tid2, thread_callstack_signal );
             auto t1 = std::chrono::high_resolution_clock::now();
             auto t2 = std::chrono::high_resolution_clock::now();
@@ -1207,7 +1102,7 @@ std::set<std::thread::native_handle_type> StackTrace::activeThreads( )
                 std::this_thread::yield();
                 t2 = std::chrono::high_resolution_clock::now();
             }
-            threads.insert( thread_handle );
+            threads.push_back( thread_handle );
             StackTrace_mutex.unlock();
         }
         signal( thread_callstack_signal, old );
@@ -1245,7 +1140,7 @@ std::set<std::thread::native_handle_type> StackTrace::activeThreads( )
                 std::this_thread::yield();
                 t2 = std::chrono::high_resolution_clock::now();
             }
-            threads.insert( thread_handle );
+            threads.push_back( thread_handle );
             StackTrace_mutex.unlock();*/
         }
         signal( thread_callstack_signal, old );
@@ -1264,19 +1159,163 @@ std::set<std::thread::native_handle_type> StackTrace::activeThreads( )
             // Now walk the thread list of the system
             do { 
                 if ( te32.th32OwnerProcessID == dwOwnerPID )
-                    threads.insert( te32.th32ThreadID );
+                    threads.push_back( te32.th32ThreadID );
             } while( Thread32Next(hThreadSnap, &te32 ) );
             CloseHandle( hThreadSnap );                 // Must clean up the snapshot object!
         }
     #else
         #warning activeThreads is not yet supported on this compiler/OS
     #endif
-    threads.insert( thisThread() );
-    if ( globalMonitorThread )
-        threads.erase( globalMonitorThread->native_handle() );
+    // Add the current thread
+    threads.push_back( StackTrace::thisThread() );
+    // Remove the globalMonitorThread
+    if ( globalMonitorThread ) {
+        auto globalThreadId = globalMonitorThread->native_handle();
+        for ( int i = threads.size() - 1; i >= 0; i-- ) {
+            if ( threads[i] == globalThreadId ) {
+                std::swap( threads[i], threads.back() );
+                threads.resize( threads.size() - 1 );
+            }
+        }
+    }
+    // Sort the threads, remove any duplicates and remove the globalMonitorThread
+    std::sort( threads.begin(), threads.end() );
     return threads;
 }
 // clang-format on
+std::set<std::thread::native_handle_type> StackTrace::activeThreads()
+{
+    auto threads = getActiveThreads();
+    return std::set<std::thread::native_handle_type>( threads.begin(), threads.end() );
+}
+
+
+/****************************************************************************
+ *  Function to get the backtrace                                            *
+ ****************************************************************************/
+static int backtrace_thread(
+    const std::thread::native_handle_type &tid, void **buffer, size_t size )
+{
+    int count = 0;
+#if defined( USE_LINUX ) || defined( USE_MAC )
+    // Get the trace
+    if ( tid == pthread_self() ) {
+        count = ::backtrace( buffer, size );
+    } else {
+        // Note: this will get the backtrace, but terminates the thread in the process!!!
+        StackTrace_mutex.lock();
+        struct sigaction sa;
+        sigfillset( &sa.sa_mask );
+        sa.sa_flags     = SA_SIGINFO;
+        sa.sa_sigaction = _callstack_signal_handler;
+        sigaction( thread_callstack_signal, &sa, nullptr );
+        thread_backtrace_count = -1;
+        pthread_kill( tid, thread_callstack_signal );
+        auto t1 = std::chrono::high_resolution_clock::now();
+        auto t2 = std::chrono::high_resolution_clock::now();
+        while ( thread_backtrace_count == -1 &&
+                std::chrono::duration<double>( t2 - t1 ).count() < 0.15 ) {
+            std::this_thread::yield();
+            t2 = std::chrono::high_resolution_clock::now();
+        }
+        count = std::max( thread_backtrace_count, 0 );
+        memcpy( buffer, thread_backtrace, count * sizeof( void * ) );
+        thread_backtrace_count = -1;
+        StackTrace_mutex.unlock();
+    }
+#elif defined( USE_WINDOWS )
+#if defined( DBGHELP )
+
+    // Load the modules for the stack trace
+    LoadModules();
+
+    // Initialize stackframe for first call
+    ::CONTEXT context;
+    memset( &context, 0, sizeof( context ) );
+    context.ContextFlags = CONTEXT_FULL;
+    RtlCaptureContext( &context );
+    STACKFRAME64 frame; // in/out stackframe
+    memset( &frame, 0, sizeof( frame ) );
+#ifdef _M_IX86
+    DWORD imageType = IMAGE_FILE_MACHINE_I386;
+    frame.AddrPC.Offset = context.Eip;
+    frame.AddrPC.Mode = AddrModeFlat;
+    frame.AddrFrame.Offset = context.Ebp;
+    frame.AddrFrame.Mode = AddrModeFlat;
+    frame.AddrStack.Offset = context.Esp;
+    frame.AddrStack.Mode = AddrModeFlat;
+#elif _M_X64
+    DWORD imageType        = IMAGE_FILE_MACHINE_AMD64;
+    frame.AddrPC.Offset    = context.Rip;
+    frame.AddrPC.Mode      = AddrModeFlat;
+    frame.AddrFrame.Offset = context.Rsp;
+    frame.AddrFrame.Mode   = AddrModeFlat;
+    frame.AddrStack.Offset = context.Rsp;
+    frame.AddrStack.Mode   = AddrModeFlat;
+#elif _M_IA64
+    DWORD imageType         = IMAGE_FILE_MACHINE_IA64;
+    frame.AddrPC.Offset     = context.StIIP;
+    frame.AddrPC.Mode       = AddrModeFlat;
+    frame.AddrFrame.Offset  = context.IntSp;
+    frame.AddrFrame.Mode    = AddrModeFlat;
+    frame.AddrBStore.Offset = context.RsBSP;
+    frame.AddrBStore.Mode   = AddrModeFlat;
+    frame.AddrStack.Offset  = context.IntSp;
+    frame.AddrStack.Mode    = AddrModeFlat;
+#else
+#error "Platform not supported!"
+#endif
+
+    auto pid = GetCurrentProcess();
+    for ( int frameNum = 0; frameNum < 1024; ++frameNum ) {
+        BOOL rtn = StackWalk64( imageType, pid, tid, &frame, &context, readProcMem,
+            SymFunctionTableAccess, SymGetModuleBase64, NULL );
+        if ( !rtn ) {
+            printf( "ERROR: StackWalk64 (%p)\n", frame.AddrPC.Offset );
+            break;
+        }
+        if ( frame.AddrPC.Offset != 0 ) {
+                    buffer[count] = reinterpret_cast<void*>( frame.AddrPC.Offset ) );
+                    count++;
+        }
+        if ( frame.AddrReturn.Offset == 0 )
+            break;
+    }
+    SetLastError( ERROR_SUCCESS );
+#endif
+#else
+#warning Stack trace is not supported on this compiler/OS
+#endif
+    return count;
+}
+std::vector<void *> StackTrace::backtrace( std::thread::native_handle_type tid )
+{
+    std::vector<void *> trace( 1000, nullptr );
+    size_t count = backtrace_thread( tid, trace.data(), trace.size() );
+    trace.resize( count );
+    return trace;
+}
+std::vector<void *> StackTrace::backtrace()
+{
+    std::vector<void *> trace( 1000, nullptr );
+    size_t count = backtrace_thread( thisThread(), trace.data(), trace.size() );
+    trace.resize( count );
+    return trace;
+}
+std::vector<std::vector<void *>> StackTrace::backtraceAll()
+{
+    // Get the list of threads
+    auto threads = getActiveThreads();
+    // Get the backtrace of each thread
+    std::vector<std::vector<void *>> trace( threads.size() );
+    size_t i = 0;
+    for ( auto it = threads.begin(); i < threads.size(); i++, it++ ) {
+        trace[i].resize( 1000 );
+        size_t count = backtrace_thread( *it, trace[i].data(), trace[i].size() );
+        trace[i].resize( count );
+    }
+    return trace;
+}
 
 
 /****************************************************************************
@@ -1830,7 +1869,7 @@ void StackTrace::globalCallStackInitialize( MPI_Comm comm )
     if ( rank == 0 ) {
         std::thread thread( StackTrace::Utilities::sleep_ms, 500 );
         std::this_thread::yield();
-        auto thread_ids = activeThreads();
+        auto thread_ids = getActiveThreads();
         N_threads       = thread_ids.size();
         thread.detach();
     }
@@ -1883,7 +1922,7 @@ StackTrace::multi_stack_info StackTrace::getGlobalCallStacks()
         MPI_Isend( &tag, 1, MPI_INT, i, 1, globalCommForGlobalCommStack, &sendRequest[i] );
     }
     // Get the trace for the current process
-    auto threads = StackTrace::activeThreads();
+    auto threads = getActiveThreads();
     std::vector<std::vector<void *>> trace( threads.size() );
     auto it = threads.begin();
     for ( size_t i = 0; i < threads.size(); i++, ++it )
@@ -1959,9 +1998,6 @@ void StackTrace::cleanupStackTrace( multi_stack_info &stack )
         auto &function    = it->stack.function;
         auto &filename    = it->stack.filename;
         bool remove_entry = false;
-        // Cleanup object and filename
-        object   = stripPath( object );
-        filename = stripPath( filename );
         // Remove callstack (and all children) for threads that are just contributing
         if ( find( filename, "StackTrace.cpp" ) != npos ) {
             bool test = find( function, "_callstack_signal_handler" ) != npos ||

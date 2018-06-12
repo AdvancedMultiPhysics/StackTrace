@@ -325,11 +325,8 @@ int main( int argc, char *argv[] )
         testGlobalStack( passes, failure, true );
 
         // Test getting the symbols
-        std::vector<void *> address;
-        std::vector<char> type;
-        std::vector<std::array<char, 128>> obj;
-        int rtn = StackTrace::getSymbols( address, type, obj );
-        if ( rtn == 0 && !address.empty() )
+        auto symbols = StackTrace::getSymbols();
+        if ( !symbols.empty() )
             passes.push_back( "Read symbols from executable" );
 
         // Test getting the executable
