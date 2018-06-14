@@ -353,11 +353,11 @@ std::string StackTrace::stack_info::print( int w1, int w2, int w3 ) const
     pos += sprintf( &out[pos], tmp1, reinterpret_cast<unsigned long long int>( address ) );
     pos += sprintf( &out[pos], tmp2, stripPath( object.data() ), function.data() );
     if ( filename[0] != 0 && line > 0 ) {
-        pos += sprintf( &out[pos], "  %s:%ui", stripPath( filename.data() ), line );
+        pos += sprintf( &out[pos], "  %s:%u", stripPath( filename.data() ), line );
     } else if ( filename[0] != 0 ) {
         pos += sprintf( &out[pos], "  %s", stripPath( filename.data() ) );
     } else if ( line > 0 ) {
-        pos += sprintf( &out[pos], " : %ui", line );
+        pos += sprintf( &out[pos], " : %u", line );
     }
     return std::string( out );
 }
@@ -1845,11 +1845,11 @@ void StackTrace::globalCallStackInitialize( MPI_Comm comm )
     // Check that we have support to get call stacks from threads
     int N_threads = 0;
     if ( rank == 0 ) {
-        std::thread thread( StackTrace::Utilities::sleep_ms, 500 );
+        std::thread thread( StackTrace::Utilities::sleep_ms, 200 );
         std::this_thread::yield();
         auto thread_ids = getActiveThreads();
         N_threads       = thread_ids.size();
-        thread.detach();
+        thread.join();
     }
     MPI_Bcast( &N_threads, 1, MPI_INT, 0, comm );
     if ( N_threads == 1 ) {

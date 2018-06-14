@@ -270,7 +270,7 @@ void testGlobalStack( std::vector<std::string> &, std::vector<std::string> &, bo
 
 
 void testActivethreads( std::vector<std::string> &passes, std::vector<std::string> &failure,
-    std::vector<std::string> &expected_failure )
+    std::vector<std::string> &expected )
 {
     // Test getting a list of all active threads
     std::thread thread1( sleep_ms, 1000 );
@@ -290,7 +290,7 @@ void testActivethreads( std::vector<std::string> &passes, std::vector<std::strin
     if ( pass )
         passes.push_back( "StackTrace::activeThreads" );
     else if ( thread_ids_test == self )
-        expected_failure.push_back( "StackTrace::activeThreads only is able to return self" );
+        expected.push_back( "StackTrace::activeThreads only is able to return self" );
     else
         failure.push_back( "StackTrace::activeThreads" );
 }
@@ -303,12 +303,12 @@ int main( int argc, char *argv[] )
     StackTrace::Utilities::setAbortBehavior( true );
     StackTrace::Utilities::setErrorHandlers();
     StackTrace::globalCallStackInitialize( MPI_COMM_WORLD );
-    std::vector<std::string> passes, failure, expected_failure;
+    std::vector<std::string> passes, failure, expected;
 
     // Limit the scope of variables
     {
         // Test getting a list of all active threads
-        testActivethreads( passes, failure, expected_failure );
+        testActivethreads( passes, failure, expected );
 
         // Test getting the current call stack
         bool decoded_symbols = false;
@@ -357,7 +357,6 @@ int main( int argc, char *argv[] )
     }
 
     // Print the test results
-    StackTrace::globalCallStackFinalize();
     int N_errors = sumReduce( failure.size() );
     if ( rank == 0 ) {
         std::cout << "Tests passed:" << std::endl;
@@ -366,7 +365,7 @@ int main( int argc, char *argv[] )
         std::cout << std::endl << "Tests expected failed:" << std::endl;
     }
     barrier();
-    for ( const auto &msg : expected_failure )
+    for ( const auto &msg : expected )
         std::cout << "   Rank " << rank << ": " << msg << std::endl;
     barrier();
     if ( rank == 0 )
@@ -377,6 +376,9 @@ int main( int argc, char *argv[] )
     barrier();
     if ( N_errors == 0 && rank == 0 )
         std::cout << "\nAll tests passed\n";
+    passes   = std::vector<std::string>();
+    failure  = std::vector<std::string>();
+    expected = std::vector<std::string>();
 
     // Shutdown
     StackTrace::globalCallStackFinalize();
@@ -384,7 +386,6 @@ int main( int argc, char *argv[] )
     StackTrace::clearSignals();
     StackTrace::clearSymbols();
     shutdown();
-    passes = failure = expected_failure = std::vector<std::string>();
 #ifdef USE_TIMER
     PROFILE_DISABLE();
     if ( rank == 0 )
