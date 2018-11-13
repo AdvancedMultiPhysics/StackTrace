@@ -269,8 +269,8 @@ static inline void insert( std::vector<TYPE> &x, TYPE y )
 static std::vector<std::array<char, 1024>> exec2( const char *cmd )
 {
     std::vector<std::array<char, 1024>> out;
-    auto old   = signal( SIGCHLD, SIG_DFL ); // Clear child exited
-    FILE *pipe = popen( cmd, "r" );
+    auto old  = signal( SIGCHLD, SIG_DFL ); // Clear child exited
+    auto pipe = popen( cmd, "r" );
     if ( pipe == nullptr )
         return out;
     out.reserve( 128 );
@@ -771,10 +771,10 @@ static void getFileAndLineObject( std::vector<StackTrace::stack_info*> &info )
     // This gets the file and line numbers for multiple stack lines in the same object
     #if defined( USE_LINUX )
         // Create the call command
-        char cmd[1000];
+        char cmd[4096];
         static_assert( sizeof(unsigned long) == sizeof(size_t), "Unxpected size for ul" );
-        int N = sprintf(cmd,"addr2line -C -e %s -f",info[0]->object.data());
-        for (size_t i=0; i<info.size(); i++) {
+        uint32_t N = sprintf(cmd,"addr2line -C -e %s -f",info[0]->object.data());
+        for (size_t i=0; i<info.size() && N < sizeof(cmd) - 32; i++) {
             N += sprintf(&cmd[N]," %lx %lx",
                 reinterpret_cast<unsigned long>( info[i]->address ),
                 reinterpret_cast<unsigned long>( info[i]->address2 ) );
@@ -809,17 +809,17 @@ static void getFileAndLineObject( std::vector<StackTrace::stack_info*> &info )
                 info[i]->line = atoi( &buf[j + 1] );
             }
         }
-    #elif defined( USE_MAC )
+    #elif defined( USE_MAC ) 
         // Create the call command
         void* load_address = loadAddress( hashString( info[0]->object.data() ) );
         if ( load_address == nullptr )
             return;
         // Call atos to get the object info
-        char cmd[1000];
+        char cmd[4096];
         static_assert( sizeof(unsigned long) == sizeof(size_t), "Unxpected size for ul" );
-        int N = sprintf( cmd, "atos -o %s -f -l %lx", info[0]->object.data(),
+        uint32_t N = sprintf( cmd, "atos -o %s -f -l %lx", info[0]->object.data(),
             reinterpret_cast<unsigned long>( load_address ) );
-        for (size_t i=0; i<info.size(); i++)
+        for (size_t i=0; i<info.size() && N < sizeof(cmd) - 32; i++)
             N += sprintf( &cmd[N], " %lx", reinterpret_cast<unsigned long>( info[i]->address ) );
         N += sprintf(&cmd[N]," 2> /dev/null");
         // Get the function/line/file
