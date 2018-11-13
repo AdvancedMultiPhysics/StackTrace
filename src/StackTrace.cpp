@@ -76,12 +76,12 @@
 
 
 #ifndef NULL_USE
-#define NULL_USE( variable )                 \
-    do {                                     \
-        if ( 0 ) {                           \
-            char *temp = (char *) &variable; \
-            temp++;                          \
-        }                                    \
+#define NULL_USE( variable )                       \
+    do {                                           \
+        if ( 0 ) {                                 \
+            auto static temp = (char *) &variable; \
+            temp++;                                \
+        }                                          \
     } while ( 0 )
 #endif
 
@@ -277,7 +277,8 @@ static std::vector<std::array<char, 1024>> exec2( const char *cmd )
     while ( !feof( pipe ) ) {
         char buffer[0x2000];
         buffer[0] = 0;
-        fgets( buffer, sizeof( buffer ), pipe );
+        auto ptr = fgets( buffer, sizeof( buffer ), pipe );
+        NULL_USE( ptr );
         size_t N2 = strlen( buffer );
         if ( N2 > 0 ) {
             size_t k = out.size();
@@ -318,8 +319,18 @@ std::string StackTrace::exec( const std::string &cmd, int &code )
 /****************************************************************************
  *  stack_info                                                               *
  ****************************************************************************/
-StackTrace::stack_info::stack_info() { memset( this, 0, sizeof( *this ) ); }
-void StackTrace::stack_info::clear() { memset( this, 0, sizeof( *this ) ); }
+StackTrace::stack_info::stack_info() { clear(); }
+void StackTrace::stack_info::clear()
+{
+    line = 0;
+    address = nullptr;
+    address2 = nullptr;
+    object.fill( 0 );
+    objectPath.fill( 0 );
+    filename.fill( 0 );
+    filenamePath.fill( 0 );
+    function.fill( 0 );
+}
 bool StackTrace::stack_info::operator==( const StackTrace::stack_info &rhs ) const
 {
     if ( address == rhs.address )
@@ -1152,7 +1163,7 @@ std::vector<std::thread::native_handle_type> getActiveThreads( )
         for ( int i = threads.size() - 1; i >= 0; i-- ) {
             if ( threads[i] == globalThreadId ) {
                 std::swap( threads[i], threads.back() );
-                threads.resize( threads.size() - 1 );
+                threads.pop_back();
             }
         }
     }
