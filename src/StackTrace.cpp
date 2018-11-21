@@ -96,13 +96,12 @@ static std::shared_ptr<std::thread> globalMonitorThread;
 
 // Function to replace all instances of a string with another
 template<std::size_t N>
-bool operator==( std::array<char, N> &s1, const char *s2 ) noexcept
+static constexpr bool operator==( std::array<char, N> &s1, const char *s2 ) noexcept
 {
     return strcmp( s1.data(), s2 ) == 0;
 }
-template<std::size_t N>
-static inline void replace(
-    std::array<char, N> &str, size_t pos, size_t len, const char *r ) noexcept
+static constexpr size_t replace(
+    char *str, size_t N, size_t pos, size_t len, const char *r ) noexcept
 {
     size_t Nr = strlen( r );
     auto tmp  = str;
@@ -111,30 +110,51 @@ static inline void replace(
         str[k] = r[i];
     for ( size_t i = pos + len; i < N && k < N; i++, k++ )
         str[k] = tmp[i];
-    for ( ; k < N; k++ )
+    for ( size_t m = k; m < N; m++ )
         str[k] = 0;
-    return;
+    return k;
 }
 template<std::size_t N>
-size_t find( std::array<char, N> &str, const char *match, size_t pos = 0 ) noexcept
+static constexpr size_t replace(
+    std::array<char, N> &str, size_t pos, size_t len, const char *r ) noexcept
 {
-    char *ptr = strstr( &str[pos], match );
+    return replace( str.data(), N, pos, len, r );
+}
+template<std::size_t N>
+static constexpr size_t find( std::array<char, N> &str, const char *match, size_t pos = 0 ) noexcept
+{
+    auto ptr = strstr( &str[pos], match );
     return ptr == nullptr ? std::string::npos : ptr - str.data();
 }
+static constexpr size_t find( const char *str, const char *match, size_t pos = 0 ) noexcept
+{
+    auto ptr = strstr( &str[pos], match );
+    return ptr == nullptr ? std::string::npos : ptr - str;
+}
 template<std::size_t N>
-static inline void strrep( std::array<char, N> &str, const char *s, const char *r ) noexcept
+static constexpr void strrep( std::array<char, N> &str, const char *s, const char *r ) noexcept
 {
     size_t Ns  = strlen( s );
     size_t pos = find( str, s );
     while ( pos != std::string::npos ) {
-        replace( str, pos, Ns, r );
+        Ns  = replace( str, pos, Ns, r );
         pos = find( str, s );
     }
 }
+static constexpr void strrep( char *str, size_t &N, const char *s, const char *r ) noexcept
+{
+    size_t Ns  = strlen( s );
+    size_t pos = find( str, s );
+    while ( pos != std::string::npos ) {
+        N   = replace( str, N, pos, Ns, r );
+        pos = find( str, s );
+    }
+}
+static void cleanupFunctionName( char * );
 
 
 // Utility to strip the path from a filename
-static constexpr inline const char *stripPath( const char *filename ) noexcept
+static constexpr const char *stripPath( const char *filename ) noexcept
 {
     const char *s = filename;
     while ( *s ) {
@@ -147,7 +167,7 @@ static constexpr inline const char *stripPath( const char *filename ) noexcept
 
 
 // Functions to hash strings
-constexpr inline uint32_t hashString( const char *s )
+constexpr uint32_t hashString( const char *s )
 {
     uint32_t c    = 0;
     uint32_t hash = 5381;
@@ -155,7 +175,9 @@ constexpr inline uint32_t hashString( const char *s )
         hash = ( ( hash << 5 ) + hash ) ^ c;
     return hash;
 }
-inline uint64_t objHash( const std::array<char, 64> &obj, const std::array<char, 64> &objPath )
+template<std::size_t N1, std::size_t N2>
+static constexpr uint64_t objHash(
+    const std::array<char, N1> &obj, const std::array<char, N2> &objPath )
 {
     uint32_t v1  = hashString( obj.data() );
     uint32_t v2  = hashString( objPath.data() );
@@ -166,7 +188,7 @@ inline uint64_t objHash( const std::array<char, 64> &obj, const std::array<char,
 
 //! Assign a string to a std::array
 template<std::size_t N2>
-static inline void copy( const char *in, std::array<char, N2> &out ) noexcept
+static constexpr void copy( const char *in, std::array<char, N2> &out ) noexcept
 {
     size_t N1 = strlen( in );
     out.fill( 0 );
@@ -177,8 +199,19 @@ static inline void copy( const char *in, std::array<char, N2> &out ) noexcept
         out[N2 - 4] = out[N2 - 3] = out[N2 - 2] = '.';
     }
 }
+template<std::size_t N1, std::size_t N2>
+static constexpr void copy( const std::array<char, N1> &in, std::array<char, N2> &out ) noexcept
+{
+    out.fill( 0 );
+    if ( N1 < N2 ) {
+        memcpy( out.data(), in.data(), N1 );
+    } else {
+        memcpy( out.data(), in.data(), N2 - 4 );
+        out[N2 - 4] = out[N2 - 3] = out[N2 - 2] = '.';
+    }
+}
 template<std::size_t N2, std::size_t N3>
-static inline void copy(
+static constexpr void copy(
     const char *in, std::array<char, N2> &out, std::array<char, N3> &outPath ) noexcept
 {
     auto ptr = stripPath( in );
@@ -200,7 +233,7 @@ static inline void copy(
 static inline void *subtractAddress( void *a, void *b ) noexcept
 {
     return reinterpret_cast<void *>(
-        std::abs( reinterpret_cast<long long int>( a ) - reinterpret_cast<long long int>( b ) ) );
+        std::abs( reinterpret_cast<int64_t>( a ) - reinterpret_cast<int64_t>( b ) ) );
 }
 
 
@@ -229,12 +262,12 @@ void LoadModules();
 
 
 // Functions to copy data
-static inline char *copy_in( size_t N, const void *data, char *ptr )
+static constexpr char *copy_in( size_t N, const void *data, char *ptr )
 {
     memcpy( ptr, data, N );
     return ptr + N;
 }
-static inline const char *copy_out( size_t N, void *data, const char *ptr )
+static constexpr const char *copy_out( size_t N, void *data, const char *ptr )
 {
     memcpy( data, ptr, N );
     return ptr + N;
@@ -277,7 +310,7 @@ static std::vector<std::array<char, 1024>> exec2( const char *cmd )
     while ( !feof( pipe ) ) {
         char buffer[0x2000];
         buffer[0] = 0;
-        auto ptr = fgets( buffer, sizeof( buffer ), pipe );
+        auto ptr  = fgets( buffer, sizeof( buffer ), pipe );
         NULL_USE( ptr );
         size_t N2 = strlen( buffer );
         if ( N2 > 0 ) {
@@ -319,11 +352,12 @@ std::string StackTrace::exec( const std::string &cmd, int &code )
 /****************************************************************************
  *  stack_info                                                               *
  ****************************************************************************/
+static_assert( sizeof( StackTrace::stack_info ) <= 512, "Unexpected size for stack_info" );
 StackTrace::stack_info::stack_info() { clear(); }
 void StackTrace::stack_info::clear()
 {
-    line = 0;
-    address = nullptr;
+    line     = 0;
+    address  = nullptr;
     address2 = nullptr;
     object.fill( 0 );
     objectPath.fill( 0 );
@@ -579,6 +613,9 @@ const char *StackTrace::abort_error::what() const noexcept
         for ( const auto &tmp : data )
             d_msg += " " + tmp + "\n";
     }
+    for ( size_t i = 0; i < d_msg.size(); i++ )
+        if ( d_msg[i] == 0 )
+            d_msg.erase( i, 1 );
     return d_msg.c_str();
 }
 
@@ -632,6 +669,7 @@ std::string StackTrace::getExecutable()
  *    exccessive calls to nm.  This function also uses a lock to ensure      *
  *    thread safety.                                                         *
  ****************************************************************************/
+static_assert( sizeof( StackTrace::symbols_struct ) <= 128, "Unexpected size for symbols_struct" );
 std::vector<StackTrace::symbols_struct> global_symbols_data;
 static bool global_symbols_loaded = false;
 static std::vector<StackTrace::symbols_struct> getSymbolData()
@@ -728,12 +766,10 @@ static void *loadAddress( const uint32_t &obj_hash )
     }
     return address;
 }
-static std::tuple<std::array<char, 512>, std::array<char, 64>, std::array<char, 64>,
-    std::array<char, 64>, std::array<char, 64>, int>
-split_atos( const std::string &buf )
+static auto split_atos( const std::string &buf )
 {
     int line = 0;
-    std::array<char, 512> fun;
+    std::array<char, 2048> fun;
     std::array<char, 64> obj, file, objPath, filePath;
     if ( buf.empty() )
         return std::tie( fun, obj, objPath, file, filePath, line );
@@ -741,9 +777,11 @@ split_atos( const std::string &buf )
     size_t index = buf.find( " (in " );
     if ( index == std::string::npos ) {
         copy( buf.c_str(), fun );
+        cleanupFunctionName( fun );
         return std::tie( fun, obj, objPath, file, filePath, line );
     }
     copy( buf.substr( 0, index ).c_str(), fun );
+    cleanupFunctionName( fun );
     std::string tmp = buf.substr( index + 5 );
     // Get the object
     index = tmp.find( ')' );
@@ -796,8 +834,10 @@ static void getFileAndLineObject( std::vector<StackTrace::stack_info*> &info )
                 continue;
             }
             // get function name
-            if ( info[i]->function.empty() )
+            if ( info[i]->function.empty() ) {
+                cleanupFunctionName( tmp1 );
                 copy( tmp1, info[i]->function );
+            }
             // get file and line
             char *buf = tmp2;
             if ( buf[0] != '?' && buf[0] != 0 ) {
@@ -883,8 +923,8 @@ static void getDataFromGlobalSymbols( StackTrace::stack_info &info )
                 lower = value;
         }
         if ( upper > 0 ) {
-            info.object = data[lower].obj;
-            info.objectPath = data[lower].objPath;
+            copy( data[lower].obj, info.object );
+            copy( data[lower].objPath, info.objectPath );
         } else {
             copy( global_exe_name, info.object, info.objectPath );
         }
@@ -925,10 +965,12 @@ std::vector<StackTrace::stack_info> StackTrace::getStackInfo( const std::vector<
                 if ( SymGetSymFromAddr( pid, address2, &offsetFromSymbol, pSym ) != FALSE ) {
                     char name[8192]={0};
                     DWORD rtn = UnDecorateSymbolName( pSym->Name, name, sizeof(name)-1, UNDNAME_COMPLETE );
-                    if ( rtn == 0 )
+                    if ( rtn == 0 ) {
+                        cleanupFunctionName( pSym->Name );
                         copy( pSym->Name, info[i].function );
-                    else
-                        copy( nullptr, info[i].function );
+                    } else {
+                        info[i].function.fill( 0 );
+                    }
                 } else {
                     printf( "ERROR: SymGetSymFromAddr (%d,%p)\n", GetLastError(), address2 );
                 }
@@ -966,14 +1008,19 @@ std::vector<StackTrace::stack_info> StackTrace::getStackInfo( const std::vector<
                         int status;
                         char *demangled = abi::__cxa_demangle( dlinfo.dli_sname, nullptr, nullptr, &status );
                         if ( status == 0 && demangled != nullptr ) {
+                            cleanupFunctionName( demangled );
                             copy( demangled, info[i].function );
                         } else if ( dlinfo.dli_sname != nullptr ) {
                             copy( dlinfo.dli_sname, info[i].function );
                         }
                         free( demangled );
                     #endif
-                    if ( dlinfo.dli_sname != nullptr && info[i].function.empty() )
-                        copy( dlinfo.dli_sname, info[i].function );
+                    if ( dlinfo.dli_sname != nullptr && info[i].function == "" ) {
+                        std::array<char,4096> tmp;
+                        copy( dlinfo.dli_sname, tmp );
+                        cleanupFunctionName( tmp.data() );
+                        copy( tmp, info[i].function );
+                    }
                 #else
                     getDataFromGlobalSymbols( info[i] );
                 #endif
@@ -1029,7 +1076,7 @@ static void _activeThreads_signal_handler( int )
 }*/
 #endif
 #ifdef USE_LINUX
-static inline int get_tid( int pid, const char *line )
+static constexpr int get_tid( int pid, const char *line )
 {
     char buf2[128]={0};
     int i1 = 0;
@@ -1062,7 +1109,7 @@ std::thread::native_handle_type StackTrace::thisThread( )
         return std::thread::native_handle_type();
     #endif
 }
-std::vector<std::thread::native_handle_type> getActiveThreads( )
+static std::vector<std::thread::native_handle_type> getActiveThreads( )
 {
     std::vector<std::thread::native_handle_type> threads;
     threads.reserve( 128 );
@@ -1600,7 +1647,13 @@ void StackTrace::LoadModules()
 /****************************************************************************
  *  Get the signal name                                                      *
  ****************************************************************************/
-std::string StackTrace::signalName( int sig ) { return std::string( strsignal( sig ) ); }
+std::string StackTrace::signalName( int sig )
+{
+    StackTrace_mutex.lock();
+    std::string name( strsignal( sig ) );
+    StackTrace_mutex.unlock();
+    return name;
+}
 std::vector<int> StackTrace::allSignalsToCatch()
 {
     std::vector<int> signals;
@@ -1964,12 +2017,11 @@ StackTrace::multi_stack_info StackTrace::getGlobalCallStacks() { return getAllCa
 /****************************************************************************
  *  Cleanup the call stack                                                   *
  ****************************************************************************/
-template<std::size_t N>
-static inline size_t findMatching( const std::array<char, N> &str, size_t pos ) noexcept
+static constexpr size_t findMatching( const char *str, size_t N, size_t pos ) noexcept
 {
     size_t pos2 = pos + 1;
     int count   = 1;
-    while ( count != 0 && pos2 < str.size() ) {
+    while ( count != 0 && pos2 < N ) {
         if ( str[pos2] == '<' )
             count++;
         if ( str[pos2] == '>' )
@@ -1977,6 +2029,122 @@ static inline size_t findMatching( const std::array<char, N> &str, size_t pos ) 
         pos2++;
     }
     return pos2;
+}
+template<std::size_t N>
+static constexpr size_t findMatching( const std::array<char, N> &str, size_t pos ) noexcept
+{
+    return findMatching( str.data(), N );
+}
+static void cleanupFunctionName( char *function )
+{
+    constexpr size_t npos = std::string::npos;
+    // First find the string length
+    size_t N = strlen( function );
+    // Cleanup template space
+    strrep( function, N, " >", ">" );
+    strrep( function, N, "< ", "<" );
+    // Remove std::__1::
+    strrep( function, N, "std::__1::", "std::" );
+    // Replace std::chrono::duration with abbriviated version
+    if ( find( function, "std::chrono::duration<" ) != npos ) {
+        strrep( function, N, "std::chrono::duration<long, std::ratio<1l, 1l> >", "ticks" );
+        strrep( function, N, "std::chrono::duration<long, std::ratio<1l, 1000000000l> >",
+            "nanoseconds" );
+    }
+    // Replace std::ratio with abbriviated version.
+    if ( find( function, "std::ratio<" ) != npos ) {
+        strrep( function, N, "std::ratio<1l, 1000000000000000000000000l>", "std::yocto" );
+        strrep( function, N, "std::ratio<1l, 1000000000000000000000l>", "std::zepto" );
+        strrep( function, N, "std::ratio<1l, 1000000000000000000l>", "std::atto" );
+        strrep( function, N, "std::ratio<1l, 1000000000000000l>", "std::femto" );
+        strrep( function, N, "std::ratio<1l, 1000000000000l>", "std::pico" );
+        strrep( function, N, "std::ratio<1l, 1000000000l>", "std::nano" );
+        strrep( function, N, "std::ratio<1l, 1000000l>", "std::micro" );
+        strrep( function, N, "std::ratio<1l, 1000l>", "std::milli" );
+        strrep( function, N, "std::ratio<1l, 100l>", "std::centi" );
+        strrep( function, N, "std::ratio<1l, 10l>", "std::deci" );
+        strrep( function, N, "std::ratio<1l, 1l>", "" );
+        strrep( function, N, "std::ratio<10l, 1l>", "std::deca" );
+        strrep( function, N, "std::ratio<60l, 1l>", "std::ratio<60>" );
+        strrep( function, N, "std::ratio<100l, 1l>", "std::hecto" );
+        strrep( function, N, "std::ratio<1000l, 1l>", "std::kilo" );
+        strrep( function, N, "std::ratio<3600l, 1l>", "std::ratio<3600>" );
+        strrep( function, N, "std::ratio<1000000l, 1l>", "std::mega" );
+        strrep( function, N, "std::ratio<1000000000l, 1l>", "std::giga" );
+        strrep( function, N, "std::ratio<1000000000000l, 1l>", "std::tera" );
+        strrep( function, N, "std::ratio<1000000000000000l, 1l>", "std::peta" );
+        strrep( function, N, "std::ratio<1000000000000000000l, 1l>", "std::exa" );
+        strrep( function, N, "std::ratio<1000000000000000000000l, 1l>", "std::zetta" );
+        strrep( function, N, "std::ratio<1000000000000000000000000l, 1l>", "std::yotta" );
+        strrep( function, N, " >", ">" );
+        strrep( function, N, "< ", "<" );
+    }
+    // Replace std::chrono::duration with abbriviated version.
+    if ( find( function, "std::chrono::duration<" ) != npos ) {
+        // clang-format off
+        strrep( function, N, "std::chrono::duration<long, std::nano>", "std::chrono::nanoseconds" );
+        strrep( function, N, "std::chrono::duration<long, std::micro>", "std::chrono::microseconds" );
+        strrep( function, N, "std::chrono::duration<long, std::milli>", "std::chrono::milliseconds" );
+        strrep( function, N, "std::chrono::duration<long>", "std::chrono::seconds" );
+        strrep( function, N, "std::chrono::duration<long,>", "std::chrono::seconds" );
+        strrep( function, N, "std::chrono::duration<long, std::ratio<60>>", "std::chrono::minutes" );
+        strrep( function, N, "std::chrono::duration<long, std::ratio<3600>>", "std::chrono::hours" );
+        strrep( function, N, " >", ">" );
+        strrep( function, N, "< ", "<" );
+        // clang-format on
+    }
+    // Replace std::this_thread::sleep_for with abbriviated version.
+    if ( find( function, "::sleep_for<" ) != npos ) {
+        strrep( function, N, "::sleep_for<long, std::nano>", "::sleep_for<nanoseconds>" );
+        strrep( function, N, "::sleep_for<long, std::micro>", "::sleep_for<microseconds>" );
+        strrep( function, N, "::sleep_for<long, std::milli>", "::sleep_for<milliseconds>" );
+        strrep( function, N, "::sleep_for<long>", "::sleep_for<seconds>" );
+        strrep( function, N, "::sleep_for<long,>", "::sleep_for<seconds>" );
+        strrep( function, N, "::sleep_for<long, std::ratio<60>>", "::sleep_for<minutes>" );
+        strrep( function, N, "::sleep_for<long, std::ratio<3600>>", "::sleep_for<hours>" );
+        strrep( function, N, "::sleep_for<nanoseconds>(std::chrono::nanoseconds",
+            "::sleep_for(std::chrono::nanoseconds" );
+        strrep( function, N, "::sleep_for<microseconds>(std::chrono::microseconds",
+            "::sleep_for(std::chrono::microseconds" );
+        strrep( function, N, "::sleep_for<milliseconds>(std::chrono::milliseconds",
+            "::sleep_for(std::chrono::milliseconds" );
+        strrep( function, N, "::sleep_for<seconds>(std::chrono::seconds",
+            "::sleep_for(std::chrono::seconds" );
+        strrep( function, N, "::sleep_for<milliseconds>(std::chrono::minutes",
+            "::sleep_for(std::chrono::milliseconds" );
+        strrep( function, N, "::sleep_for<milliseconds>(std::chrono::hours",
+            "::sleep_for(std::chrono::hours" );
+    }
+    // Replace std::basic_string with abbriviated version
+    strrep( function, N, "std::__cxx11::basic_string<", "std::basic_string<" );
+    size_t pos = 0;
+    while ( pos < N ) {
+        // Find next instance of std::basic_string
+        pos = find( function, "std::basic_string<", pos );
+        if ( pos == npos )
+            break;
+        // Find the matching >
+        size_t pos1 = pos + 17;
+        size_t pos2 = findMatching( function, N, pos1 );
+        if ( pos2 == pos1 )
+            break;
+        if ( strncmp( &function[pos1 + 1], "char", 4 ) == 0 )
+            N = replace( function, N, pos, pos2 - pos, "std::string" );
+        else if ( strncmp( &function[pos1 + 1], "wchar_t", 7 ) == 0 )
+            N = replace( function, N, pos, pos2 - pos, "std::wstring" );
+        else if ( strncmp( &function[pos1 + 1], "char16_t", 8 ) == 0 )
+            N = replace( function, N, pos, pos2 - pos, "std::u16string" );
+        else if ( strncmp( &function[pos1 + 1], "char32_t", 8 ) == 0 )
+            N = replace( function, N, pos, pos2 - pos, "std::u32string" );
+        pos++;
+    }
+    // Replace std::make_shared with abbriviated version
+    if ( find( function, "std::make_shared<" ) != npos ) {
+        size_t pos1 = find( function, "std::make_shared<" );
+        size_t pos2 = find( function, ",", pos1 );
+        size_t pos3 = find( function, "(", pos1 );
+        N           = replace( function, N, pos2, pos3 - pos2, ">" );
+    }
 }
 void StackTrace::cleanupStackTrace( multi_stack_info &stack )
 {
@@ -1990,7 +2158,8 @@ void StackTrace::cleanupStackTrace( multi_stack_info &stack )
         // Remove callstack (and all children) for threads that are just contributing
         if ( find( filename, "StackTrace.cpp" ) != npos ) {
             bool test = find( function, "_callstack_signal_handler" ) != npos ||
-                        find( function, "getGlobalCallStacks" ) != npos;
+                        find( function, "getGlobalCallStacks" ) != npos ||
+                        find( function, "(" ) == npos;
             if ( test ) {
                 it = stack.children.erase( it );
                 continue;
@@ -2027,6 +2196,10 @@ void StackTrace::cleanupStackTrace( multi_stack_info &stack )
                  find( function, "std::thread::_Invoker<" ) != npos )
                 remove_entry = true;
         }
+        if ( filename == "invoke.h" ) {
+            remove_entry = remove_entry || find( function, "std::__invoke_impl" ) != npos;
+            remove_entry = remove_entry || find( function, "std::__invoke_result" ) != npos;
+        }
         // Remove pthread internals
         if ( function == "__GI___pthread_timedjoin_ex" )
             remove_entry = true;
@@ -2042,6 +2215,26 @@ void StackTrace::cleanupStackTrace( multi_stack_info &stack )
         if ( object == "libmwmcr.so" || object == "libmwm_lxe.so" || object == "libmwbridge.so" ||
              object == "libmwiqm.so" )
             remove_entry = true;
+        // Remove std::shared_ptr functions
+        if ( filename == "shared_ptr.h" ) {
+            if ( find( function, "> std::allocate_shared<" ) != npos ||
+                 find( function, "std::_Sp_make_shared_tag," ) != npos )
+                remove_entry = true;
+        }
+        if ( filename == "shared_ptr_base.h" )
+            remove_entry = true;
+        // Remove new_allocator functions
+        if ( filename == "new_allocator.h" )
+            remove_entry = true;
+        // Remove alloc_traits functions
+        if ( filename == "alloc_traits.h" )
+            remove_entry = true;
+        // Remove gthr-default functions
+        if ( filename == "gthr-default.h" )
+            remove_entry = true;
+        // Remove entries with no useful information
+        if ( function == "" && filename == "" )
+            remove_entry = true;
         // Remove the desired entry
         if ( remove_entry ) {
             if ( it->children.empty() ) {
@@ -2051,104 +2244,6 @@ void StackTrace::cleanupStackTrace( multi_stack_info &stack )
                 *it = it->children[0];
                 continue;
             }
-        }
-        // Cleanup template space
-        strrep( function, " >", ">" );
-        strrep( function, "< ", "<" );
-        // Remove std::__1::
-        strrep( function, "std::__1::", "std::" );
-        // Replace std::chrono::duration with abbriviated version
-        if ( find( function, "std::chrono::duration<" ) != npos ) {
-            strrep( function, "std::chrono::duration<long, std::ratio<1l, 1l> >", "ticks" );
-            strrep( function, "std::chrono::duration<long, std::ratio<1l, 1000000000l> >",
-                "nanoseconds" );
-        }
-        // Replace std::ratio with abbriviated version.
-        if ( find( function, "std::ratio<" ) != npos ) {
-            strrep( function, "std::ratio<1l, 1000000000000000000000000l>", "std::yocto" );
-            strrep( function, "std::ratio<1l, 1000000000000000000000l>", "std::zepto" );
-            strrep( function, "std::ratio<1l, 1000000000000000000l>", "std::atto" );
-            strrep( function, "std::ratio<1l, 1000000000000000l>", "std::femto" );
-            strrep( function, "std::ratio<1l, 1000000000000l>", "std::pico" );
-            strrep( function, "std::ratio<1l, 1000000000l>", "std::nano" );
-            strrep( function, "std::ratio<1l, 1000000l>", "std::micro" );
-            strrep( function, "std::ratio<1l, 1000l>", "std::milli" );
-            strrep( function, "std::ratio<1l, 100l>", "std::centi" );
-            strrep( function, "std::ratio<1l, 10l>", "std::deci" );
-            strrep( function, "std::ratio<1l, 1l>", "" );
-            strrep( function, "std::ratio<10l, 1l>", "std::deca" );
-            strrep( function, "std::ratio<60l, 1l>", "std::ratio<60>" );
-            strrep( function, "std::ratio<100l, 1l>", "std::hecto" );
-            strrep( function, "std::ratio<1000l, 1l>", "std::kilo" );
-            strrep( function, "std::ratio<3600l, 1l>", "std::ratio<3600>" );
-            strrep( function, "std::ratio<1000000l, 1l>", "std::mega" );
-            strrep( function, "std::ratio<1000000000l, 1l>", "std::giga" );
-            strrep( function, "std::ratio<1000000000000l, 1l>", "std::tera" );
-            strrep( function, "std::ratio<1000000000000000l, 1l>", "std::peta" );
-            strrep( function, "std::ratio<1000000000000000000l, 1l>", "std::exa" );
-            strrep( function, "std::ratio<1000000000000000000000l, 1l>", "std::zetta" );
-            strrep( function, "std::ratio<1000000000000000000000000l, 1l>", "std::yotta" );
-            strrep( function, " >", ">" );
-            strrep( function, "< ", "<" );
-        }
-        // Replace std::chrono::duration with abbriviated version.
-        if ( find( function, "std::chrono::duration<" ) != npos ) {
-            // clang-format off
-            strrep( function, "std::chrono::duration<long, std::nano>", "std::chrono::nanoseconds" );
-            strrep( function, "std::chrono::duration<long, std::micro>", "std::chrono::microseconds" );
-            strrep( function, "std::chrono::duration<long, std::milli>", "std::chrono::milliseconds" );
-            strrep( function, "std::chrono::duration<long>", "std::chrono::seconds" );
-            strrep( function, "std::chrono::duration<long,>", "std::chrono::seconds" );
-            strrep( function, "std::chrono::duration<long, std::ratio<60>>", "std::chrono::minutes" );
-            strrep( function, "std::chrono::duration<long, std::ratio<3600>>", "std::chrono::hours" );
-            strrep( function, " >", ">" );
-            strrep( function, "< ", "<" );
-            // clang-format on
-        }
-        // Replace std::this_thread::sleep_for with abbriviated version.
-        if ( find( function, "::sleep_for<" ) != npos ) {
-            strrep( function, "::sleep_for<long, std::nano>", "::sleep_for<nanoseconds>" );
-            strrep( function, "::sleep_for<long, std::micro>", "::sleep_for<microseconds>" );
-            strrep( function, "::sleep_for<long, std::milli>", "::sleep_for<milliseconds>" );
-            strrep( function, "::sleep_for<long>", "::sleep_for<seconds>" );
-            strrep( function, "::sleep_for<long,>", "::sleep_for<seconds>" );
-            strrep( function, "::sleep_for<long, std::ratio<60>>", "::sleep_for<minutes>" );
-            strrep( function, "::sleep_for<long, std::ratio<3600>>", "::sleep_for<hours>" );
-            strrep( function, "::sleep_for<nanoseconds>(std::chrono::nanoseconds",
-                "::sleep_for(std::chrono::nanoseconds" );
-            strrep( function, "::sleep_for<microseconds>(std::chrono::microseconds",
-                "::sleep_for(std::chrono::microseconds" );
-            strrep( function, "::sleep_for<milliseconds>(std::chrono::milliseconds",
-                "::sleep_for(std::chrono::milliseconds" );
-            strrep( function, "::sleep_for<seconds>(std::chrono::seconds",
-                "::sleep_for(std::chrono::seconds" );
-            strrep( function, "::sleep_for<milliseconds>(std::chrono::minutes",
-                "::sleep_for(std::chrono::milliseconds" );
-            strrep( function, "::sleep_for<milliseconds>(std::chrono::hours",
-                "::sleep_for(std::chrono::hours" );
-        }
-        // Replace std::basic_string with abbriviated version
-        strrep( function, "std::__cxx11::basic_string<", "std::basic_string<" );
-        size_t pos = 0;
-        while ( pos < function.size() ) {
-            // Find next instance of std::basic_string
-            pos = find( function, "std::basic_string<", pos );
-            if ( pos == npos )
-                break;
-            // Find the matching >
-            size_t pos1 = pos + 17;
-            size_t pos2 = findMatching( function, pos1 );
-            if ( pos2 == pos1 )
-                break;
-            if ( strncmp( &function[pos1 + 1], "char", 4 ) == 0 )
-                replace( function, pos, pos2 - pos, "std::string" );
-            else if ( strncmp( &function[pos1 + 1], "wchar_t", 7 ) == 0 )
-                replace( function, pos, pos2 - pos, "std::wstring" );
-            else if ( strncmp( &function[pos1 + 1], "char16_t", 8 ) == 0 )
-                replace( function, pos, pos2 - pos, "std::u16string" );
-            else if ( strncmp( &function[pos1 + 1], "char32_t", 8 ) == 0 )
-                replace( function, pos, pos2 - pos, "std::u32string" );
-            pos++;
         }
         // Cleanup the children
         cleanupStackTrace( *it );

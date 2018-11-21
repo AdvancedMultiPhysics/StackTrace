@@ -16,11 +16,11 @@ struct stack_info {
     uint32_t line;
     void *address;
     void *address2;
-    std::array<char, 64> object;
-    std::array<char, 64> objectPath;
+    std::array<char, 56> object;
+    std::array<char, 48> objectPath;
     std::array<char, 64> filename;
     std::array<char, 64> filenamePath;
-    std::array<char, 512> function;
+    std::array<char, 256> function;
     //! Default constructor
     stack_info();
     //! Reset the stack
@@ -103,8 +103,8 @@ private:
 struct symbols_struct {
     char type;
     void *address;
-    std::array<char, 64> obj;
-    std::array<char, 64> objPath;
+    std::array<char, 56> obj;
+    std::array<char, 56> objPath;
 };
 
 
