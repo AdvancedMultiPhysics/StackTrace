@@ -1,6 +1,6 @@
 // Supression file for cppcheck
 
 unusedFunction:*
-unreadVariable:*/src/TestStack.cpp
-unreachableCode:*/src/TestStack.cpp
-nullPointer:*/src/Utilities.cpp
+unreadVariable:*/TestStack.cpp
+unreachableCode:*/TestStack.cpp
+nullPointer:*/Utilities.cpp

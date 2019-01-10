@@ -94,6 +94,31 @@ static std::mutex StackTrace_mutex;
 static std::shared_ptr<std::thread> globalMonitorThread;
 
 
+// constexpr version of string functions
+static constexpr size_t strlen2( const char * str )
+{
+    size_t N = 0;
+    while ( *(str++) )
+        N++;
+    return N;
+}
+static constexpr const char* strstr2( const char *str1, const char *str2 )
+{
+    const size_t N2 = strlen2( str2 );
+    while ( *str1 ) {
+        while ( ( *str1 != *str2 ) && *str1 )
+            str1++;
+        bool match = true;
+        for ( size_t i=0; i<N2; i++)
+            match = match && str1[i]==str2[i];
+        if ( match )
+            return str1;
+        str1++;
+    }
+    return nullptr;
+}
+
+
 // Function to replace all instances of a string with another
 template<std::size_t N>
 static constexpr bool operator==( std::array<char, N> &s1, const char *s2 ) noexcept
@@ -103,7 +128,7 @@ static constexpr bool operator==( std::array<char, N> &s1, const char *s2 ) noex
 static constexpr size_t replace(
     char *str, size_t N, size_t pos, size_t len, const char *r ) noexcept
 {
-    size_t Nr = strlen( r );
+    size_t Nr = strlen2( r );
     auto tmp  = str;
     size_t k  = pos;
     for ( size_t i = 0; i < Nr && k < N; i++, k++ )
@@ -123,18 +148,18 @@ static constexpr size_t replace(
 template<std::size_t N>
 static constexpr size_t find( std::array<char, N> &str, const char *match, size_t pos = 0 ) noexcept
 {
-    auto ptr = strstr( &str[pos], match );
+    auto ptr = strstr2( &str[pos], match );
     return ptr == nullptr ? std::string::npos : ptr - str.data();
 }
 static constexpr size_t find( const char *str, const char *match, size_t pos = 0 ) noexcept
 {
-    auto ptr = strstr( &str[pos], match );
+    auto ptr = strstr2( &str[pos], match );
     return ptr == nullptr ? std::string::npos : ptr - str;
 }
 template<std::size_t N>
 static constexpr void strrep( std::array<char, N> &str, const char *s, const char *r ) noexcept
 {
-    size_t Ns  = strlen( s );
+    size_t Ns  = strlen2( s );
     size_t pos = find( str, s );
     while ( pos != std::string::npos ) {
         Ns  = replace( str, pos, Ns, r );
@@ -143,7 +168,7 @@ static constexpr void strrep( std::array<char, N> &str, const char *s, const cha
 }
 static constexpr void strrep( char *str, size_t &N, const char *s, const char *r ) noexcept
 {
-    size_t Ns  = strlen( s );
+    size_t Ns  = strlen2( s );
     size_t pos = find( str, s );
     while ( pos != std::string::npos ) {
         N   = replace( str, N, pos, Ns, r );
@@ -262,12 +287,12 @@ void LoadModules();
 
 
 // Functions to copy data
-static constexpr char *copy_in( size_t N, const void *data, char *ptr )
+static char *copy_in( size_t N, const void *data, char *ptr )
 {
     memcpy( ptr, data, N );
     return ptr + N;
 }
-static constexpr const char *copy_out( size_t N, void *data, const char *ptr )
+static const char *copy_out( size_t N, void *data, const char *ptr )
 {
     memcpy( data, ptr, N );
     return ptr + N;
