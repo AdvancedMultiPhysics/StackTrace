@@ -2,6 +2,9 @@
 #include "StackTrace/ErrorHandlers.h"
 #include "StackTrace/Utilities.h"
 
+// Replace sith std::string_view when we switch to c++17
+#include "StackTrace/string_view.h"
+
 #include <algorithm>
 #include <csignal>
 #include <cstring>
@@ -18,6 +21,7 @@
 
 #define perr std::cerr
 
+using StackTrace::string_view;
 
 // Detect the OS
 // clang-format off
@@ -94,41 +98,11 @@ static std::mutex StackTrace_mutex;
 static std::shared_ptr<std::thread> globalMonitorThread;
 
 
-// constexpr version of string functions
-static constexpr size_t strlen2( const char * str )
-{
-    size_t N = 0;
-    while ( *(str++) )
-        N++;
-    return N;
-}
-static constexpr const char* strstr2( const char *str1, const char *str2 )
-{
-    const size_t N2 = strlen2( str2 );
-    while ( *str1 ) {
-        while ( ( *str1 != *str2 ) && *str1 )
-            str1++;
-        bool match = true;
-        for ( size_t i=0; i<N2; i++)
-            match = match && str1[i]==str2[i];
-        if ( match )
-            return str1;
-        str1++;
-    }
-    return nullptr;
-}
-
-
 // Function to replace all instances of a string with another
-template<std::size_t N>
-static constexpr bool operator==( std::array<char, N> &s1, const char *s2 ) noexcept
-{
-    return strcmp( s1.data(), s2 ) == 0;
-}
 static constexpr size_t replace(
-    char *str, size_t N, size_t pos, size_t len, const char *r ) noexcept
+    char *str, size_t N, size_t pos, size_t len, const string_view &r ) noexcept
 {
-    size_t Nr = strlen2( r );
+    size_t Nr = r.size();
     auto tmp  = str;
     size_t k  = pos;
     for ( size_t i = 0; i < Nr && k < N; i++, k++ )
@@ -141,40 +115,44 @@ static constexpr size_t replace(
 }
 template<std::size_t N>
 static constexpr size_t replace(
-    std::array<char, N> &str, size_t pos, size_t len, const char *r ) noexcept
+    std::array<char, N> &str, size_t pos, size_t len, const string_view &r ) noexcept
 {
     return replace( str.data(), N, pos, len, r );
 }
 template<std::size_t N>
-static constexpr size_t find( std::array<char, N> &str, const char *match, size_t pos = 0 ) noexcept
+static inline constexpr size_t find(
+    std::array<char, N> &str, const string_view &match, size_t pos = 0 ) noexcept
 {
-    auto ptr = strstr2( &str[pos], match );
-    return ptr == nullptr ? std::string::npos : ptr - str.data();
+    string_view str2( str.data(), str.size() );
+    return str2.find( match, pos );
 }
-static constexpr size_t find( const char *str, const char *match, size_t pos = 0 ) noexcept
+static inline constexpr size_t find(
+    const string_view &str, const string_view &match, size_t pos = 0 ) noexcept
 {
-    auto ptr = strstr2( &str[pos], match );
-    return ptr == nullptr ? std::string::npos : ptr - str;
+    return str.find( match, pos );
 }
 template<std::size_t N>
-static constexpr void strrep( std::array<char, N> &str, const char *s, const char *r ) noexcept
+static constexpr void strrep(
+    std::array<char, N> &str, const string_view &s, const string_view &r ) noexcept
 {
-    size_t Ns  = strlen2( s );
+    size_t Ns  = s.size();
     size_t pos = find( str, s );
     while ( pos != std::string::npos ) {
         Ns  = replace( str, pos, Ns, r );
         pos = find( str, s );
     }
 }
-static constexpr void strrep( char *str, size_t &N, const char *s, const char *r ) noexcept
+static constexpr void strrep(
+    char *str, size_t &N, const string_view &s, const string_view &r ) noexcept
 {
-    size_t Ns  = strlen2( s );
+    size_t Ns  = s.size();
     size_t pos = find( str, s );
     while ( pos != std::string::npos ) {
         N   = replace( str, N, pos, Ns, r );
         pos = find( str, s );
     }
 }
+
 static void cleanupFunctionName( char * );
 
 
@@ -1040,7 +1018,7 @@ std::vector<StackTrace::stack_info> StackTrace::getStackInfo( const std::vector<
                         }
                         free( demangled );
                     #endif
-                    if ( dlinfo.dli_sname != nullptr && info[i].function == "" ) {
+                    if ( dlinfo.dli_sname != nullptr && info[i].function[0] == 0 ) {
                         std::array<char,4096> tmp;
                         copy( dlinfo.dli_sname, tmp );
                         cleanupFunctionName( tmp.data() );
@@ -2176,54 +2154,54 @@ void StackTrace::cleanupStackTrace( multi_stack_info &stack )
     auto it           = stack.children.begin();
     const size_t npos = std::string::npos;
     while ( it != stack.children.end() ) {
-        auto &object      = it->stack.object;
-        auto &function    = it->stack.function;
-        auto &filename    = it->stack.filename;
+        string_view object( it->stack.object.data(), it->stack.object.size() );
+        string_view function( it->stack.function.data(), it->stack.function.size() );
+        string_view filename( it->stack.filename.data(), it->stack.filename.size() );
         bool remove_entry = false;
         // Remove callstack (and all children) for threads that are just contributing
-        if ( find( filename, "StackTrace.cpp" ) != npos ) {
-            bool test = find( function, "_callstack_signal_handler" ) != npos ||
-                        find( function, "getGlobalCallStacks" ) != npos ||
-                        find( function, "(" ) == npos;
+        if ( filename.find( "StackTrace.cpp" ) != npos ) {
+            bool test = function.find( "_callstack_signal_handler" ) != npos ||
+                        function.find( "getGlobalCallStacks" ) != npos ||
+                        function.find( "(" ) == npos;
             if ( test ) {
                 it = stack.children.erase( it );
                 continue;
             }
         }
         // Remove __libc_start_main
-        if ( find( function, "__libc_start_main" ) != npos &&
-             find( filename, "libc-start.c" ) != npos )
+        if ( function.find( "__libc_start_main" ) != npos &&
+             filename.find( "libc-start.c" ) != npos )
             remove_entry = true;
         // Remove backtrace_thread
-        if ( find( function, "backtrace_thread" ) != npos &&
-             find( filename, "StackTrace.cpp" ) != npos )
+        if ( function.find( "backtrace_thread" ) != npos &&
+             filename.find( "StackTrace.cpp" ) != npos )
             remove_entry = true;
         // Remove __restore_rt
-        if ( find( function, "__restore_rt" ) != npos && find( object, "libpthread" ) != npos )
+        if ( function.find( "__restore_rt" ) != npos && object.find( "libpthread" ) != npos )
             remove_entry = true;
         // Remove std::condition_variable::__wait_until_impl
-        if ( find( function, "std::condition_variable::__wait_until_impl" ) != npos &&
+        if ( function.find( "std::condition_variable::__wait_until_impl" ) != npos &&
              filename == "condition_variable" )
             remove_entry = true;
         // Remove std::function references
         if ( filename == "functional" ) {
-            remove_entry = remove_entry || find( function, "std::_Function_handler<" ) != npos;
-            remove_entry = remove_entry || find( function, "std::_Bind_simple<" ) != npos;
-            remove_entry = remove_entry || find( function, "_M_invoke" ) != npos;
+            remove_entry = remove_entry || function.find( "std::_Function_handler<" ) != npos;
+            remove_entry = remove_entry || function.find( "std::_Bind_simple<" ) != npos;
+            remove_entry = remove_entry || function.find( "_M_invoke" ) != npos;
         }
         // Remove std::this_thread::__sleep_for
-        if ( find( function, "std::this_thread::__sleep_for(" ) != npos &&
-             find( object, "libstdc++" ) != npos )
+        if ( function.find( "std::this_thread::__sleep_for(" ) != npos &&
+             object.find( "libstdc++" ) != npos )
             remove_entry = true;
         // Remove std::thread::_Impl
         if ( filename == "thread" ) {
-            if ( find( function, "std::thread::_Impl<" ) != npos ||
-                 find( function, "std::thread::_Invoker<" ) != npos )
+            if ( function.find( "std::thread::_Impl<" ) != npos ||
+                 function.find( "std::thread::_Invoker<" ) != npos )
                 remove_entry = true;
         }
         if ( filename == "invoke.h" ) {
-            remove_entry = remove_entry || find( function, "std::__invoke_impl" ) != npos;
-            remove_entry = remove_entry || find( function, "std::__invoke_result" ) != npos;
+            remove_entry = remove_entry || function.find( "std::__invoke_impl" ) != npos;
+            remove_entry = remove_entry || function.find( "std::__invoke_result" ) != npos;
         }
         // Remove pthread internals
         if ( function == "__GI___pthread_timedjoin_ex" )
@@ -2242,8 +2220,8 @@ void StackTrace::cleanupStackTrace( multi_stack_info &stack )
             remove_entry = true;
         // Remove std::shared_ptr functions
         if ( filename == "shared_ptr.h" ) {
-            if ( find( function, "> std::allocate_shared<" ) != npos ||
-                 find( function, "std::_Sp_make_shared_tag," ) != npos )
+            if ( function.find( "> std::allocate_shared<" ) != npos ||
+                 function.find( "std::_Sp_make_shared_tag," ) != npos )
                 remove_entry = true;
         }
         if ( filename == "shared_ptr_base.h" )
