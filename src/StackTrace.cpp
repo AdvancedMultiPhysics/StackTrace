@@ -812,9 +812,13 @@ static void getFileAndLineObject( std::vector<StackTrace::stack_info*> &info )
     // This gets the file and line numbers for multiple stack lines in the same object
     #if defined( USE_LINUX )
         // Create the call command
+        uint32_t N;
         char cmd[4096];
         static_assert( sizeof(unsigned long) == sizeof(size_t), "Unxpected size for ul" );
-        uint32_t N = sprintf(cmd,"addr2line -C -e %s -f",info[0]->object.data());
+        if ( info[0]->objectPath[0] == 0 )
+            N = sprintf(cmd,"addr2line -C -e %s -f",info[0]->object.data());
+        else
+            N = sprintf(cmd,"addr2line -C -e %s/%s -f",info[0]->objectPath.data(),info[0]->object.data());
         for (size_t i=0; i<info.size() && N < sizeof(cmd) - 32; i++) {
             N += sprintf(&cmd[N]," %lx %lx",
                 reinterpret_cast<unsigned long>( info[i]->address ),
@@ -858,10 +862,14 @@ static void getFileAndLineObject( std::vector<StackTrace::stack_info*> &info )
         if ( load_address == nullptr )
             return;
         // Call atos to get the object info
+        uint32_t N;
         char cmd[4096];
         static_assert( sizeof(unsigned long) == sizeof(size_t), "Unxpected size for ul" );
-        uint32_t N = sprintf( cmd, "atos -o %s -f -l %lx", info[0]->object.data(),
-            reinterpret_cast<unsigned long>( load_address ) );
+        auto addr = reinterpret_cast<unsigned long>( load_address );
+        if ( info[0]->objectPath[0] == 0 )
+            N = sprintf( cmd, "atos -o %s -f -l %lx", info[0]->object.data(), addr );
+        else
+            N = sprintf( cmd, "atos -o %s/%s -f -l %lx", info[0]->objectPath.data(), info[0]->object.data(), addr );
         for (size_t i=0; i<info.size() && N < sizeof(cmd) - 32; i++)
             N += sprintf( &cmd[N], " %lx", reinterpret_cast<unsigned long>( info[i]->address ) );
         N += sprintf(&cmd[N]," 2> /dev/null");
