@@ -1,6 +1,8 @@
 // Supression file for cppcheck
 
+operatorEq:*
 unusedFunction:*
+useStlAlgorithm:*
 unreadVariable:*/TestStack.cpp
 unreachableCode:*/TestStack.cpp
 nullPointer:*/Utilities.cpp

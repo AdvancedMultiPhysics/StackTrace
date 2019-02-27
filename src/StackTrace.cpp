@@ -407,6 +407,7 @@ std::string StackTrace::stack_info::print( int w1, int w2, int w3 ) const
     } else if ( line > 0 ) {
         pos += sprintf( &out[pos], " : %u", line );
     }
+    NULL_USE( pos );
     return std::string( out );
 }
 size_t StackTrace::stack_info::size() const { return sizeof( *this ); }
@@ -522,7 +523,7 @@ void StackTrace::multi_stack_info::print2(
         std::vector<std::string> text2;
         child.print2( "", w, text2 );
         for ( size_t j = 0; j < text2.size(); j++ ) {
-            std::string line = prefix2 + text2[j];
+            line = prefix2 + text2[j];
             if ( children.size() > 1 && j > 0 && i < children.size() - 1 )
                 line[prefix2.size()] = '|';
             text.push_back( line );
@@ -1051,11 +1052,11 @@ std::vector<StackTrace::stack_info> StackTrace::getStackInfo( const std::vector<
 ****************************************************************************/
 static int backtrace_thread( const std::thread::native_handle_type&, void**, size_t );
 #if defined( USE_LINUX ) || defined( USE_MAC )
-static int thread_backtrace_count;
-static void* thread_backtrace[1000];
+static int global_thread_backtrace_count;
+static void* global_thread_backtrace[1000];
 static void _callstack_signal_handler( int, siginfo_t*, void* )
 {
-    thread_backtrace_count = backtrace_thread( StackTrace::thisThread(), thread_backtrace, 1000 );
+    global_thread_backtrace_count = backtrace_thread( StackTrace::thisThread(), global_thread_backtrace, 1000 );
 }
 static int get_thread_callstack_signal()
 {
@@ -1256,18 +1257,18 @@ static int backtrace_thread(
         sa.sa_flags     = SA_SIGINFO;
         sa.sa_sigaction = _callstack_signal_handler;
         sigaction( thread_callstack_signal, &sa, nullptr );
-        thread_backtrace_count = -1;
+        global_thread_backtrace_count = -1;
         pthread_kill( tid, thread_callstack_signal );
         auto t1 = std::chrono::high_resolution_clock::now();
         auto t2 = std::chrono::high_resolution_clock::now();
-        while ( thread_backtrace_count == -1 &&
+        while ( global_thread_backtrace_count == -1 &&
                 std::chrono::duration<double>( t2 - t1 ).count() < 0.15 ) {
             std::this_thread::yield();
             t2 = std::chrono::high_resolution_clock::now();
         }
-        count = std::max( thread_backtrace_count, 0 );
-        memcpy( buffer, thread_backtrace, count * sizeof( void * ) );
-        thread_backtrace_count = -1;
+        count = std::max( global_thread_backtrace_count, 0 );
+        memcpy( buffer, global_thread_backtrace, count * sizeof( void * ) );
+        global_thread_backtrace_count = -1;
         StackTrace_mutex.unlock();
     }
 #elif defined( USE_WINDOWS )
@@ -2305,18 +2306,18 @@ static StackTrace::stack_info parseLine( const char *str )
     stack.address2   = stack.address;
     // Load object, function, file
     const char *p3 = p2 + 1;
-    while ( *p3 == ' ' && *p3 != 0 )
+    while ( *p3 == ' ' )
         p3++;
     if ( *p3 == 0 )
         return stack;
     const char *p4 = strstr( p3, "  " );
     const char *p5 = nullptr;
     if ( p4 != nullptr ) {
-        while ( *p4 == ' ' && *p4 != 0 )
+        while ( *p4 == ' ' )
             p4++;
         p5 = strstr( p4, "  " );
         if ( p5 != nullptr ) {
-            while ( *p5 == ' ' && *p5 != 0 )
+            while ( *p5 == ' ' )
                 p5++;
         }
     }
@@ -2335,15 +2336,15 @@ static StackTrace::stack_info parseLine( const char *str )
     if ( p6 == nullptr )
         p6 = p0;
     // Store the results
-    auto copy = []( const char *p1, const char *p2, auto &field ) {
+    auto copyField = []( const char *p1, const char *p2, auto &field ) {
         field.fill( 0 );
         memcpy( field.data(), p1, std::min<int>( p2 - p1, field.size() ) );
         for ( int i = field.size() - 1; i > 0 && ( field[i] == ' ' || field[i] == 0 ); i-- )
             field[i] = 0;
     };
-    copy( p3, p4, stack.object );
-    copy( p4, p5, stack.function );
-    copy( p5, p6, stack.filename );
+    copyField( p3, p4, stack.object );
+    copyField( p4, p5, stack.function );
+    copyField( p5, p6, stack.filename );
     if ( p6 != p0 )
         stack.line = atoi( p6 + 1 );
     return stack;

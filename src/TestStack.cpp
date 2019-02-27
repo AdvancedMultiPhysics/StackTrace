@@ -351,8 +351,10 @@ void testActivethreads( UnitTest &results )
 
 void testStackFile( UnitTest &results, const std::string &filename )
 {
-    if ( getRank() != 0 )
+    if ( getRank() != 0 ) {
         barrier();
+        return;
+    }
     // Read entire file
     std::cout << "Reading stack trace file: " << filename << std::endl;
     auto fid = fopen( filename.c_str(), "rb" );
@@ -363,12 +365,12 @@ void testStackFile( UnitTest &results, const std::string &filename )
     fseek( fid, 0, SEEK_END );
     auto size = ftell( fid );
     fseek( fid, 0, SEEK_SET );
-    auto tmp  = new char[size + 1];
-    size      = fread( tmp, 1, size, fid );
-    tmp[size] = 0;
+    auto buf  = new char[size + 1];
+    size      = fread( buf, 1, size, fid );
+    buf[size] = 0;
     fclose( fid );
-    std::string str( tmp );
-    delete[] tmp;
+    std::string str( buf );
+    delete[] buf;
     // Load the stack
     auto stack = StackTrace::generateFromString( str );
     // Clean the stack trace
