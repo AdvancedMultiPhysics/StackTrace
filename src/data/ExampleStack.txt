@@ -1,0 +1,54 @@
+[16] 0x7fc65a0fd88f:             libc.so.6                                     clone
+  [16] 0x5616ca86bdd5:      generate_configs  AtomicModel::ThreadPool::tpool_thread(int)
+    [16] 0x5616ca6d0990:      generate_configs  std::_Function_handler<std::vector<config_data_struct, std::allocator<config_data_struct>> (int, int, int, char, bool, std::ostream&), std::vector<config_data_struct, std::allocator<config_data_struct>> (*)(int, int, int, char, bool, std::ostream&)>::_...
+      [10] 0x5616ca6db754:      generate_configs  generate_configs(int, int, int, char, bool, std::ostream&)
+      | [3] 0x5616ca6d7dd0:      generate_configs  generateConfigData(int, std::vector<AtomicModel::config_struct, std::allocator<AtomicModel::config_struct>> const&)
+      | | [3] 0x5616ca6d5387:      generate_configs  generateStructure(bool, int, std::vector<AtomicModel::config_struct, std::allocator<AtomicModel::config_struct>> const&)
+      | |   [3] 0x5616ca6d47b7:      generate_configs  callFAC(std::vector<std::string, std::allocator<std::string>> const&)
+      | |     [3] 0x5616ca8cebad:      generate_configs  StackTrace::Utilities::exec(std::string const&, int&)
+      | |       [3] 0x5616ca8d1c8d:      generate_configs  StackTrace::exec(std::string const&, int&)
+      | |         [3] 0x7fc65a05abcd:             libc.so.6                                     fgets
+      | |           [3] 0x7fc65a05be62:             libc.so.6                               _IO_getline
+      | |             [3] 0x7fc65a06a3f2:             libc.so.6                         _IO_default_uflow
+      | |               [3] 0x7fc65a069148:             libc.so.6                        _IO_file_underflow
+      | |                 [3] 0x7fc65a0ec0b4:             libc.so.6                                    __read
+      | [7] 0x5616ca6d7dd0:      generate_configs  generateConfigData(int, std::vector<AtomicModel::config_struct, std::allocator<AtomicModel::config_struct>> const&)
+      |   [7] 0x5616ca6d5387:      generate_configs  generateStructure(bool, int, std::vector<AtomicModel::config_struct, std::allocator<AtomicModel::config_struct>> const&)
+      |     [7] 0x5616ca6d47b7:      generate_configs  callFAC(std::vector<std::string, std::allocator<std::string>> const&)
+      |       [7] 0x5616ca8cebad:      generate_configs  StackTrace::Utilities::exec(std::string const&, int&)
+      |         [7] 0x5616ca8d1c8d:      generate_configs  StackTrace::exec(std::string const&, int&)
+      |           [7] 0x7fc65a05abcd:             libc.so.6                                     fgets
+      |             [7] 0x7fc65a05be62:             libc.so.6                               _IO_getline
+      |               [7] 0x7fc65a06a3f2:             libc.so.6                         _IO_default_uflow
+      |                 [7] 0x7fc65a069148:             libc.so.6                        _IO_file_underflow
+      |                   [7] 0x7fc65a0ec0b4:             libc.so.6                                    __read
+      [6] 0x5616ca6dc4ce:      generate_configs  generate_configs(int, int, int, char, bool, std::ostream&)
+        [3] 0x5616ca6d7dd0:      generate_configs  generateConfigData(int, std::vector<AtomicModel::config_struct, std::allocator<AtomicModel::config_struct>> const&)
+        | [3] 0x5616ca6d5387:      generate_configs  generateStructure(bool, int, std::vector<AtomicModel::config_struct, std::allocator<AtomicModel::config_struct>> const&)
+        |   [3] 0x5616ca6d47b7:      generate_configs  callFAC(std::vector<std::string, std::allocator<std::string>> const&)
+        |     [3] 0x5616ca8cebad:      generate_configs  StackTrace::Utilities::exec(std::string const&, int&)
+        |       [3] 0x5616ca8d1c8d:      generate_configs  StackTrace::exec(std::string const&, int&)
+        |         [3] 0x7fc65a05abcd:             libc.so.6                                     fgets
+        |           [3] 0x7fc65a05be62:             libc.so.6                               _IO_getline
+        |             [3] 0x7fc65a06a3f2:             libc.so.6                         _IO_default_uflow
+        |               [3] 0x7fc65a069148:             libc.so.6                        _IO_file_underflow
+        |                 [3] 0x7fc65a0ec0b4:             libc.so.6                                    __read
+        [3] 0x5616ca6d7dd0:      generate_configs  generateConfigData(int, std::vector<AtomicModel::config_struct, std::allocator<AtomicModel::config_struct>> const&)
+          [3] 0x5616ca6d5387:      generate_configs  generateStructure(bool, int, std::vector<AtomicModel::config_struct, std::allocator<AtomicModel::config_struct>> const&)
+            [3] 0x5616ca6d47b7:      generate_configs  callFAC(std::vector<std::string, std::allocator<std::string>> const&)
+              [3] 0x5616ca8cebad:      generate_configs  StackTrace::Utilities::exec(std::string const&, int&)
+                [3] 0x5616ca8d1c8d:      generate_configs  StackTrace::exec(std::string const&, int&)
+                  [3] 0x7fc65a05abcd:             libc.so.6                                     fgets
+                    [3] 0x7fc65a05be62:             libc.so.6                               _IO_getline
+                      [3] 0x7fc65a06a3f2:             libc.so.6                         _IO_default_uflow
+                        [3] 0x7fc65a069148:             libc.so.6                        _IO_file_underflow
+                          [3] 0x7fc65a0ec0b4:             libc.so.6                                    __read
+[1] 0x5616ca6c40aa:      generate_configs                                    _start
+  [1] 0x7fc659ffdb97:             libc.so.6                         __libc_start_main
+    [1] 0x5616ca6bf92a:      generate_configs                                      main
+      [1] 0x5616ca6e028a:      generate_configs                   run(std::string const&)
+        [1] 0x5616ca867d58:      generate_configs  AtomicModel::ThreadPool::wait_some(unsigned long, AtomicModel::ThreadPool::thread_id_t const*, unsigned long, bool*) const
+          [1] 0x5616ca867691:      generate_configs  AtomicModel::ThreadPool::print_wait_warning() const
+            [1] 0x5616ca8dab2f:      generate_configs            StackTrace::getAllCallStacks()
+              [1] 0x5616ca8d90c3:      generate_configs                StackTrace::backtraceAll()
+

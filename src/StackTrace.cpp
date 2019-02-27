@@ -2156,6 +2156,13 @@ static void cleanupFunctionName( char *function )
         size_t pos3 = find( function, "(", pos1 );
         N           = replace( function, N, pos2, pos3 - pos2, ">" );
     }
+    // Remove std::allocator in std::vector
+    if ( find( function, "std::vector<" ) != npos ) {
+        size_t pos1 = find( function, "std::vector<" );
+        size_t pos2 = find( function, ", std::allocator", pos1 );
+        size_t pos3 = findMatching( function, N, pos1 + 11 );
+        N           = replace( function, N, pos2, pos3 - pos2, ">" );
+    }
 }
 void StackTrace::cleanupStackTrace( multi_stack_info &stack )
 {
@@ -2177,9 +2184,11 @@ void StackTrace::cleanupStackTrace( multi_stack_info &stack )
             }
         }
         // Remove __libc_start_main
-        if ( function.find( "__libc_start_main" ) != npos &&
-             filename.find( "libc-start.c" ) != npos )
+        if ( function.find( "__libc_start_main" ) != npos && object.find( "libc.so" ) != npos )
             remove_entry = true;
+        // Remove libc fgets children
+        if ( function.find( "fgets" ) != npos && object.find( "libc.so" ) != npos )
+            it->children.clear();
         // Remove backtrace_thread
         if ( function.find( "backtrace_thread" ) != npos &&
              filename.find( "StackTrace.cpp" ) != npos )
@@ -2258,6 +2267,136 @@ void StackTrace::cleanupStackTrace( multi_stack_info &stack )
         }
         // Cleanup the children
         cleanupStackTrace( *it );
+        // Combine any children with the same address (can occur when we remove items)
+        bool remove = false;
+        for ( auto it2 = stack.children.begin(); it2 != it; it2++ ) {
+            if ( it->stack == it2->stack ) {
+                remove = true;
+                it2->N += it->N;
+                for ( auto &tmp : it->children )
+                    it2->children.push_back( tmp );
+                cleanupStackTrace( *it2 );
+            }
+        }
+        if ( remove ) {
+            it = stack.children.erase( it );
+            continue;
+        }
         ++it;
     }
+}
+
+
+/****************************************************************************
+ *  Generate stack from string                                               *
+ ****************************************************************************/
+static StackTrace::stack_info parseLine( const char *str )
+{
+    char tmp[1000];
+    StackTrace::stack_info stack;
+    // Load the address
+    const char *p0 = strchr( str, 0 );
+    const char *p1 = strchr( str, 'x' );
+    const char *p2 = strchr( str, ':' );
+    memset( tmp, 0, sizeof( tmp ) );
+    memcpy( tmp, p1 + 1, p2 - p1 - 1 );
+    uint64_t address = strtol( tmp, nullptr, 16 );
+    stack.address    = reinterpret_cast<void *>( address );
+    stack.address2   = stack.address;
+    // Load object, function, file
+    const char *p3 = p2 + 1;
+    while ( *p3 == ' ' && *p3 != 0 )
+        p3++;
+    if ( *p3 == 0 )
+        return stack;
+    const char *p4 = strstr( p3, "  " );
+    const char *p5 = nullptr;
+    if ( p4 != nullptr ) {
+        while ( *p4 == ' ' && *p4 != 0 )
+            p4++;
+        p5 = strstr( p4, "  " );
+        if ( p5 != nullptr ) {
+            while ( *p5 == ' ' && *p5 != 0 )
+                p5++;
+        }
+    }
+    if ( p5 == nullptr ) {
+        if ( p3 - p2 > 20 ) {
+            p5 = p4;
+            p4 = p3;
+        }
+    }
+    if ( p4 == nullptr )
+        p4 = p0;
+    if ( p5 == nullptr )
+        p5 = p0;
+    // Load line
+    auto p6 = strchr( p5, ':' );
+    if ( p6 == nullptr )
+        p6 = p0;
+    // Store the results
+    auto copy = []( const char *p1, const char *p2, auto &field ) {
+        field.fill( 0 );
+        memcpy( field.data(), p1, std::min<int>( p2 - p1, field.size() ) );
+        for ( int i = field.size() - 1; i > 0 && ( field[i] == ' ' || field[i] == 0 ); i-- )
+            field[i] = 0;
+    };
+    copy( p3, p4, stack.object );
+    copy( p4, p5, stack.function );
+    copy( p5, p6, stack.filename );
+    if ( p6 != p0 )
+        stack.line = atoi( p6 + 1 );
+    return stack;
+}
+std::vector<StackTrace::multi_stack_info> StackTrace::generateFromString( const std::string &str )
+{
+    // Break the string according to line breaks
+    std::vector<std::string> data;
+    size_t p1 = 0;
+    size_t p2 = str.find( '\n' );
+    while ( p2 != std::string::npos ) {
+        data.push_back( str.substr( p1, p2 - p1 ) );
+        p1 = p2;
+        p2 = str.find( '\n', p2 + 1 );
+    }
+    data.push_back( str.substr( p1 ) );
+    // Generate the stack
+    return generateFromString( data );
+}
+std::vector<StackTrace::multi_stack_info> StackTrace::generateFromString(
+    const std::vector<std::string> &text )
+{
+    // Get the data from the text
+    std::vector<int> indent;
+    std::vector<multi_stack_info> stack;
+    for ( const auto &str : text ) {
+        auto p1 = str.find( '[' );
+        auto p2 = str.find( ']' );
+        auto p3 = str.find( 'x' );
+        if ( p3 == std::string::npos )
+            continue;
+        multi_stack_info tmp;
+        tmp.N = 1;
+        if ( p1 < p2 && p1 < p3 )
+            tmp.N = std::stoi( str.substr( p1 + 1, p2 - p1 - 1 ) );
+        tmp.stack = parseLine( &str[p3 - 1] );
+        indent.push_back( std::min( p1, p3 - 1 ) );
+        stack.push_back( tmp );
+    }
+    // Generate the stack hierarchy
+    typedef std::vector<StackTrace::multi_stack_info> stack_list;
+    stack_list stack2;
+    std::vector<std::pair<int, stack_list *>> map;
+    map.emplace_back( 0, &stack2 );
+    for ( size_t i = 0; i < stack.size(); i++ ) {
+        while ( indent[i] < map.back().first )
+            map.resize( map.size() - 1 );
+        if ( indent[i] == map.back().first ) {
+            map.back().second->push_back( stack[i] );
+        } else {
+            map.back().second->back().children.push_back( stack[i] );
+            map.emplace_back( indent[i], &map.back().second->back().children );
+        }
+    }
+    return stack2;
 }

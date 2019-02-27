@@ -60,9 +60,65 @@ using StackTrace::Utilities::time;
 #define to_ms( x ) std::chrono::duration_cast<std::chrono::milliseconds>( x ).count()
 
 
-// Function to return the call stack
-std::vector<StackTrace::stack_info> get_call_stack()
+// NULL_USE function
+#define NULL_USE( variable )                       \
+    do {                                           \
+        if ( 0 ) {                                 \
+            auto static temp = (char *) &variable; \
+            temp++;                                \
+        }                                          \
+    } while ( 0 )
+
+
+// Class to store pass/failures
+class UnitTest
 {
+public:
+    void passes( const std::string &msg ) { passes_.push_back( msg ); }
+    void failure( const std::string &msg ) { failure_.push_back( msg ); }
+    void expected( const std::string &msg ) { expected_.push_back( msg ); }
+
+    void print() const
+    {
+        int rank = getRank();
+        if ( rank == 0 ) {
+            std::cout << "\nTests passed:" << std::endl;
+            for ( const auto &msg : passes_ )
+                std::cout << "   " << msg << std::endl;
+            std::cout << std::endl << "Tests expected failed:" << std::endl;
+        }
+        barrier();
+        for ( const auto &msg : expected_ )
+            std::cout << "   Rank " << rank << ": " << msg << std::endl;
+        barrier();
+        if ( rank == 0 )
+            std::cout << std::endl << "Tests failed:" << std::endl;
+        barrier();
+        for ( const auto &msg : failure_ )
+            std::cout << "   Rank " << rank << ": " << msg << std::endl;
+        barrier();
+    }
+
+    int N_failed() const { return sumReduce( failure_.size() ); }
+
+    void clear()
+    {
+        passes_   = std::vector<std::string>();
+        failure_  = std::vector<std::string>();
+        expected_ = std::vector<std::string>();
+    }
+
+private:
+    std::vector<std::string> passes_;
+    std::vector<std::string> failure_;
+    std::vector<std::string> expected_;
+};
+
+
+// Function to return the call stack
+std::vector<StackTrace::stack_info> get_call_stack( const std::vector<int> &null = {} )
+{
+    NULL_USE( null );
     auto stack = StackTrace::getCallStack();
     // Trick compiler to skip inline for this function with fake recursion
     if ( stack.size() > 10000 ) {
@@ -100,7 +156,7 @@ void sleep_s( int N )
 // Function to perform various signal tests
 int global_signal_helper[1024] = { 0 };
 void handleSignal( int s ) { global_signal_helper[s] = 1; }
-void testSignal( std::vector<std::string> &passes, std::vector<std::string> &failure )
+void testSignal( UnitTest &results )
 {
     barrier();
     int rank = getRank();
@@ -122,17 +178,16 @@ void testSignal( std::vector<std::string> &passes, std::vector<std::string> &fai
             pass = pass && global_signal_helper[sig] == 1;
         std::cout << std::endl;
         if ( pass )
-            passes.push_back( "Signals" );
+            results.passes( "Signals" );
         else
-            failure.push_back( "Signals" );
+            results.failure( "Signals" );
     }
     barrier();
 }
 
 
 // Test current stack trace
-void testCurrentStack(
-    std::vector<std::string> &passes, std::vector<std::string> &failure, bool &decoded_symbols )
+void testCurrentStack( UnitTest &results, bool &decoded_symbols )
 {
     barrier();
     const int rank  = getRank();
@@ -147,17 +202,17 @@ void testCurrentStack(
     }
     decoded_symbols = false;
     if ( !call_stack.empty() ) {
-        passes.push_back( "non empty call stack" );
+        results.passes( "non empty call stack" );
         for ( auto &i : call_stack ) {
             if ( i.print().find( "get_call_stack" ) != std::string::npos )
                 decoded_symbols = true;
         }
         if ( decoded_symbols )
-            passes.push_back( "call stack decoded function symbols" );
+            results.passes( "call stack decoded function symbols" );
         else
-            failure.push_back( "call stack was unable to decode function symbols" );
+            results.failure( "call stack was unable to decode function symbols" );
     } else {
-        failure.push_back( "non empty call stack" );
+        results.failure( "non empty call stack" );
     }
     if ( rank == 0 ) {
         ts1        = time();
@@ -169,8 +224,7 @@ void testCurrentStack(
 
 
 // Test stack trace of another thread
-void testThreadStack(
-    std::vector<std::string> &passes, std::vector<std::string> &failure, bool decoded_symbols )
+void testThreadStack( UnitTest &results, bool decoded_symbols )
 {
     barrier();
     const int rank = getRank();
@@ -190,7 +244,7 @@ void testThreadStack(
         std::cout << std::endl;
     }
     if ( !call_stack.empty() ) {
-        passes.push_back( "non empty call stack (thread)" );
+        results.passes( "non empty call stack (thread)" );
         bool pass = false;
         for ( auto &elem : call_stack ) {
             if ( elem.print().find( "sleep_ms" ) != std::string::npos )
@@ -198,19 +252,19 @@ void testThreadStack(
         }
         pass = pass && std::abs( t4 - t1 ) > 0.9;
         if ( pass )
-            passes.push_back( "call stack (thread)" );
+            results.passes( "call stack (thread)" );
         else if ( !decoded_symbols )
             std::cout << "call stack (thread) failed to decode symbols";
         else
-            failure.push_back( "call stack (thread)" );
+            results.failure( "call stack (thread)" );
     } else {
-        failure.push_back( "non empty call stack (thread)" );
+        results.failure( "non empty call stack (thread)" );
     }
 }
 
 
 // Test stack trace of another thread
-void testFullStack( std::vector<std::string> &, std::vector<std::string> & )
+void testFullStack( UnitTest & )
 {
     barrier();
     const int rank = getRank();
@@ -237,8 +291,8 @@ void testFullStack( std::vector<std::string> &, std::vector<std::string> & )
 
 
 // Test stack trace of another thread
-void testGlobalStack( std::vector<std::string> &, std::vector<std::string> &, bool all,
-    const std::basic_string<wchar_t> & = std::basic_string<wchar_t>() )
+void testGlobalStack(
+    UnitTest &, bool all, const std::basic_string<wchar_t> & = std::basic_string<wchar_t>() )
 {
     barrier();
     const int rank = getRank();
@@ -269,8 +323,7 @@ void testGlobalStack( std::vector<std::string> &, std::vector<std::string> &, bo
 }
 
 
-void testActivethreads( std::vector<std::string> &passes, std::vector<std::string> &failure,
-    std::vector<std::string> &expected )
+void testActivethreads( UnitTest &results )
 {
     // Test getting a list of all active threads
     std::thread thread1( sleep_ms, 1000 );
@@ -288,11 +341,45 @@ void testActivethreads( std::vector<std::string> &passes, std::vector<std::strin
     for ( auto id : thread_ids )
         pass = pass && thread_ids_test.find( id ) != thread_ids_test.end();
     if ( pass )
-        passes.push_back( "StackTrace::activeThreads" );
+        results.passes( "StackTrace::activeThreads" );
     else if ( thread_ids_test == self )
-        expected.push_back( "StackTrace::activeThreads only is able to return self" );
+        results.expected( "StackTrace::activeThreads only is able to return self" );
     else
-        failure.push_back( "StackTrace::activeThreads" );
+        results.failure( "StackTrace::activeThreads" );
+}
+
+
+void testStackFile( UnitTest &results, const std::string &filename )
+{
+    if ( getRank() != 0 )
+        barrier();
+    // Read entire file
+    std::cout << "Reading stack trace file: " << filename << std::endl;
+    auto fid = fopen( filename.c_str(), "rb" );
+    if ( fid == nullptr ) {
+        results.failure( "Unable to open file " + filename );
+        return;
+    }
+    fseek( fid, 0, SEEK_END );
+    auto size = ftell( fid );
+    fseek( fid, 0, SEEK_SET );
+    auto tmp  = new char[size + 1];
+    size      = fread( tmp, 1, size, fid );
+    tmp[size] = 0;
+    fclose( fid );
+    std::string str( tmp );
+    delete[] tmp;
+    // Load the stack
+    auto stack = StackTrace::generateFromString( str );
+    // Clean the stack trace
+    for ( auto &tmp : stack )
+        cleanupStackTrace( tmp );
+    // Print the results
+    for ( const auto &tmp : stack ) {
+        for ( const auto &tmp2 : tmp.print() )
+            std::cout << tmp2 << std::endl;
+    }
+    barrier();
 }
 
 
@@ -303,82 +390,68 @@ int main( int argc, char *argv[] )
     StackTrace::Utilities::setAbortBehavior( true );
     StackTrace::Utilities::setErrorHandlers();
     StackTrace::globalCallStackInitialize( MPI_COMM_WORLD );
-    std::vector<std::string> passes, failure, expected;
+    UnitTest results;
 
     // Limit the scope of variables
     {
         // Test getting a list of all active threads
-        testActivethreads( passes, failure, expected );
+        testActivethreads( results );
 
         // Test getting the current call stack
         bool decoded_symbols = false;
-        testCurrentStack( passes, failure, decoded_symbols );
+        testCurrentStack( results, decoded_symbols );
 
         // Test getting the stacktrace of another thread
-        testThreadStack( passes, failure, decoded_symbols );
+        testThreadStack( results, decoded_symbols );
 
         // Test getting the full stacktrace of all thread
-        testFullStack( passes, failure );
+        testFullStack( results );
 
         // Test getting the global stack trace of all threads/processes
-        testGlobalStack( passes, failure, false );
-        testGlobalStack( passes, failure, true );
+        testGlobalStack( results, false );
+        testGlobalStack( results, true );
 
         // Test getting the symbols
         auto symbols = StackTrace::getSymbols();
         if ( !symbols.empty() )
-            passes.push_back( "Read symbols from executable" );
+            results.passes( "Read symbols from executable" );
 
         // Test getting the executable
         auto exe = StackTrace::getExecutable();
         if ( rank == 0 )
             std::cout << "\nExecutable: " << exe << std::endl;
         if ( exe.find( "TestStack" ) != std::string::npos )
-            passes.push_back( "getExecutable" );
+            results.passes( "getExecutable" );
         else
-            failure.push_back( "getExecutable" );
+            results.failure( "getExecutable" );
 
         // Test identifying signals
-        testSignal( passes, failure );
+        testSignal( results );
 
         // Test catching an error
         try {
             throw std::logic_error( "Test" );
-            failure.push_back( "Failed to catch ERROR" );
+            results.failure( "Failed to catch ERROR" );
         } catch ( ... ) {
-            passes.push_back( "Caught ERROR" );
+            results.passes( "Caught ERROR" );
         }
         try {
             throw std::logic_error( "test" );
-            failure.push_back( "Failed to catch exception" );
+            results.failure( "Failed to catch exception" );
         } catch ( ... ) {
-            passes.push_back( "Caught exception" );
+            results.passes( "Caught exception" );
         }
+
+        // Test generating call stack from a string
+        testStackFile( results, "ExampleStack.txt" );
     }
 
     // Print the test results
-    int N_errors = sumReduce( failure.size() );
-    if ( rank == 0 ) {
-        std::cout << "Tests passed:" << std::endl;
-        for ( const auto &msg : passes )
-            std::cout << "   " << msg << std::endl;
-        std::cout << std::endl << "Tests expected failed:" << std::endl;
-    }
-    barrier();
-    for ( const auto &msg : expected )
-        std::cout << "   Rank " << rank << ": " << msg << std::endl;
-    barrier();
-    if ( rank == 0 )
-        std::cout << std::endl << "Tests failed:" << std::endl;
-    barrier();
-    for ( const auto &msg : failure )
-        std::cout << "   Rank " << rank << ": " << msg << std::endl;
-    barrier();
+    int N_errors = results.N_failed();
+    results.print();
+    results.clear();
     if ( N_errors == 0 && rank == 0 )
         std::cout << "\nAll tests passed\n";
-    passes   = std::vector<std::string>();
-    failure  = std::vector<std::string>();
-    expected = std::vector<std::string>();
 
     // Shutdown
     StackTrace::globalCallStackFinalize();

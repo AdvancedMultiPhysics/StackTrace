@@ -18,5 +18,6 @@ build/Testing
 build/cppcheck
 build/cppclean
 build/compile_commands.json
+build/ExampleStack.txt
 
 
