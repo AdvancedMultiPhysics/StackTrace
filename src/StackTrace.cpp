@@ -6,6 +6,7 @@
 #include "StackTrace/string_view.h"
 
 #include <algorithm>
+#include <atomic>
 #include <csignal>
 #include <cstring>
 #include <iostream>
@@ -296,6 +297,34 @@ static inline void insert( std::vector<TYPE> &x, TYPE y )
 
 
 /****************************************************************************
+ *  Utility to temporarily clear a signal in a thread-safe manner            *
+ *  If multiple threads attempt to clear a signal, then it will be cleared   *
+ *  until all threads are finished                                           *
+ ****************************************************************************/
+typedef void ( *handle_type )( int );
+static std::atomic_int reset_signal_count[128];
+static handle_type reset_signal_handler[128] = { nullptr };
+static bool initialize_reset_signal_count()
+{
+    for ( int i = 0; i < 128; i++ )
+        reset_signal_count[i].store( 0 );
+    return true;
+}
+static bool reset_signal_vars_initialize = initialize_reset_signal_count();
+static void clearSignal( int sig )
+{
+    NULL_USE( reset_signal_vars_initialize );
+    if ( reset_signal_count[sig].fetch_add( 1 ) == 0 )
+        reset_signal_handler[sig] = signal( sig, SIG_IGN );
+}
+static void resetSignal( int sig )
+{
+    if ( reset_signal_count[sig].fetch_add( -1 ) == 1 )
+        signal( sig, reset_signal_handler[sig] );
+}
+
+
+/****************************************************************************
  *  Utility to call system command and return output                         *
  ****************************************************************************/
 #ifdef USE_WINDOWS
@@ -305,7 +334,7 @@ static inline void insert( std::vector<TYPE> &x, TYPE y )
 static std::vector<std::array<char, 1024>> exec2( const char *cmd )
 {
     std::vector<std::array<char, 1024>> out;
-    auto old  = signal( SIGCHLD, SIG_DFL ); // Clear child exited
+    clearSignal( SIGCHLD ); // Clear child exited
     auto pipe = popen( cmd, "r" );
     if ( pipe == nullptr )
         return out;
@@ -327,12 +356,13 @@ static std::vector<std::array<char, 1024>> exec2( const char *cmd )
     }
     pclose( pipe );
     std::this_thread::yield(); // Allow any signals to process
-    signal( SIGCHLD, old );    // Reset child exited signal
+    resetSignal( SIGCHLD );    // Clear child exited
     return out;
 }
 std::string StackTrace::exec( const std::string &cmd, int &code )
 {
-    auto old   = signal( SIGCHLD, SIG_DFL ); // Clear child exited
+    code = -1;
+    clearSignal( SIGCHLD ); // Clear child exited
     FILE *pipe = popen( cmd.c_str(), "r" );
     if ( pipe == nullptr )
         return std::string();
@@ -347,7 +377,7 @@ std::string StackTrace::exec( const std::string &cmd, int &code )
     auto status = pclose( pipe );
     code        = WEXITSTATUS( status );
     std::this_thread::yield(); // Allow any signals to process
-    signal( SIGCHLD, old );    // Reset child exited signal
+    resetSignal( SIGCHLD );    // Clear child exited
     return result;
 }
 

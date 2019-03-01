@@ -385,6 +385,26 @@ void testStackFile( UnitTest &results, const std::string &filename )
 }
 
 
+// Test calling exec in parallel
+void test_exec( UnitTest &results )
+{
+    auto fun = []( int N ) {
+        std::string cmd = "echo test";
+        int exit_code   = 0;
+        for ( int i = 0; i < N; i++ ) {
+            auto out = StackTrace::exec( cmd, exit_code );
+            NULL_USE( out );
+        }
+    };
+    std::vector<std::thread> threads( 8 );
+    for ( size_t i = 0; i < threads.size(); i++ )
+        threads[i] = std::thread( fun, 1000 );
+    for ( size_t i = 0; i < threads.size(); i++ )
+        threads[i].join();
+    results.passes( "exec called in parallel" );
+}
+
+
 // The main function
 int main( int argc, char *argv[] )
 {
@@ -396,6 +416,9 @@ int main( int argc, char *argv[] )
 
     // Limit the scope of variables
     {
+        // Test exec
+        test_exec( results );
+
         // Test getting a list of all active threads
         testActivethreads( results );
 
