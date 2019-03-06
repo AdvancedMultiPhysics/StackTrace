@@ -372,12 +372,12 @@ static void resetSignal( int sig )
 #define pclose _pclose
 #endif
 template<class FUNCTION>
-static void exec3( const char *cmd, FUNCTION &fun )
+static inline int exec3( const char *cmd, FUNCTION &fun )
 {
     clearSignal( SIGCHLD ); // Clear child exited
     auto pipe = popen( cmd, "r" );
     if ( pipe == nullptr )
-        return;
+        return -1;
     while ( !feof( pipe ) ) {
         char buffer[0x2000];
         buffer[0] = 0;
@@ -386,57 +386,33 @@ static void exec3( const char *cmd, FUNCTION &fun )
         if ( buffer[0] != 0 )
             fun( buffer );
     }
-    pclose( pipe );
+    auto status = pclose( pipe );
+    int code    = WEXITSTATUS( status );
     std::this_thread::yield(); // Allow any signals to process
     resetSignal( SIGCHLD );    // Clear child exited
+    return code;
 }
 static std::vector<std::array<char, 1024>> exec2( const char *cmd )
 {
     std::vector<std::array<char, 1024>> out;
-    clearSignal( SIGCHLD ); // Clear child exited
-    auto pipe = popen( cmd, "r" );
-    if ( pipe == nullptr )
-        return out;
     out.reserve( 128 );
-    while ( !feof( pipe ) ) {
-        char buffer[0x2000];
-        buffer[0] = 0;
-        auto ptr  = fgets( buffer, sizeof( buffer ), pipe );
-        NULL_USE( ptr );
-        size_t N2 = strlen( buffer );
-        if ( N2 > 0 ) {
-            size_t k = out.size();
-            out.resize( k + 1 );
-            out[k].fill( 0 );
-            memcpy( out[k].data(), buffer, N2 );
-            if ( out[k][N2 - 1] == '\n' )
-                out[k][N2 - 1] = 0;
-        }
-    }
-    pclose( pipe );
-    std::this_thread::yield(); // Allow any signals to process
-    resetSignal( SIGCHLD );    // Clear child exited
+    auto fun = [&out]( const char *line ) {
+        size_t N = strlen( line );
+        size_t k = out.size();
+        out.resize( k + 1 );
+        out[k].fill( 0 );
+        memcpy( out[k].data(), line, N );
+        if ( out[k][N - 1] == '\n' )
+            out[k][N - 1] = 0;
+    };
+    exec3( cmd, fun );
     return out;
 }
 std::string StackTrace::exec( const std::string &cmd, int &code )
 {
-    code = -1;
-    clearSignal( SIGCHLD ); // Clear child exited
-    FILE *pipe = popen( cmd.c_str(), "r" );
-    if ( pipe == nullptr )
-        return std::string();
-    std::string result = "";
-    result.reserve( 1024 );
-    while ( !feof( pipe ) ) {
-        char buffer[257];
-        buffer[256] = 0;
-        if ( fgets( buffer, 128, pipe ) != nullptr )
-            result += buffer;
-    }
-    auto status = pclose( pipe );
-    code        = WEXITSTATUS( status );
-    std::this_thread::yield(); // Allow any signals to process
-    resetSignal( SIGCHLD );    // Clear child exited
+    std::string result;
+    auto fun = [&result]( const char *line ) { result += line; };
+    code     = exec3( cmd.c_str(), fun );
     return result;
 }
 
@@ -790,19 +766,19 @@ static std::vector<StackTrace::symbols_struct> getSymbolData()
 #else
 #error Unknown OS using nm
 #endif
-        auto output = exec2( cmd );
-        for ( auto &line : output ) {
+        // Function to process a line of nm output
+        auto fun = [&data]( char *line ) {
             if ( line[0] == ' ' )
-                continue;
-            auto *a = line.data();
+                return;
+            auto *a = line;
             char *b = strchr( a, ' ' );
             if ( b == nullptr )
-                continue;
+                return;
             b[0] = 0;
             b++;
             char *c = strchr( b, ' ' );
             if ( c == nullptr )
-                continue;
+                return;
             c[0] = 0;
             c++;
             char *d = strchr( c, '\n' );
@@ -814,7 +790,9 @@ static std::vector<StackTrace::symbols_struct> getSymbolData()
             data[k].address = reinterpret_cast<void *>( add );
             data[k].type    = b[0];
             copy( c, data[k].obj, data[k].objPath );
-        }
+        };
+        // Call nm
+        exec3( cmd, fun );
     } catch ( ... ) {
     }
 #endif
@@ -997,21 +975,21 @@ static void getFileAndLineObject( std::vector<StackTrace::stack_info*> &info )
         }
     #endif
 }
-static void getFileAndLine( std::vector<StackTrace::stack_info> &info )
+static void getFileAndLine( size_t N, StackTrace::stack_info *info )
 {
     // Get a list of objects
     std::vector<uint64_t> objectHash;
     objectHash.reserve( 1024 );
-    for ( const auto & tmp : info )
-        insert( objectHash, objHash( tmp.object, tmp.objectPath ) );
+    for ( size_t i = 0; i<N; i++)
+        insert( objectHash, objHash( info[i].object, info[i].objectPath ) );
     // For each object, get the file/line numbers for all entries
     std::vector<StackTrace::stack_info*> list;
-    list.reserve( info.size() );
+    list.reserve( N );
     for ( const auto & hash : objectHash ) {
         list.clear();
-        for (auto & tmp : info ) {
-            if ( objHash( tmp.object, tmp.objectPath ) == hash )
-                list.push_back( &tmp );
+        for ( size_t i = 0; i<N; i++) {
+            if ( objHash( info[i].object, info[i].objectPath ) == hash )
+                list.push_back( &info[i] );
         }
         getFileAndLineObject( list );
     }
@@ -1048,16 +1026,11 @@ static void signal_handler( int sig )
     printf("Signal caught acquiring stack (%i)\n",sig);
     StackTrace::setErrorHandler( [](const StackTrace::abort_error &err) { std::cerr << err.what(); exit( -1 ); } );
 }
-StackTrace::stack_info StackTrace::getStackInfo( void *address )
-{
-    return getStackInfo( std::vector<void*>(1,address) )[0];
-}
-std::vector<StackTrace::stack_info> StackTrace::getStackInfo( const std::vector<void*>& address )
+static void getStackInfo2( size_t N, void* const* address, StackTrace::stack_info *info )
 {
     // Temporarily handle signals to prevent recursion on the stack
     auto prev_handler = signal( SIGINT, signal_handler );
     // Get the detailed stack info
-    std::vector<StackTrace::stack_info> info(address.size());
     try {
         #ifdef USE_WINDOWS
             IMAGEHLP_SYMBOL64 pSym[1024];
@@ -1071,7 +1044,7 @@ std::vector<StackTrace::stack_info> StackTrace::getStackInfo( const std::vector<
 
             HANDLE pid = GetCurrentProcess();
 
-            for (size_t i=0; i<address.size(); i++) {
+            for (size_t i=0; i<N; i++) {
                 info[i].address = address[i];
                 DWORD64 address2 = reinterpret_cast<DWORD64>( address[i] );
                 DWORD64 offsetFromSymbol;
@@ -1107,7 +1080,7 @@ std::vector<StackTrace::stack_info> StackTrace::getStackInfo( const std::vector<
                 }
             }
         #else
-            for (size_t i=0; i<address.size(); i++) {
+            for (size_t i=0; i<N; i++) {
                 info[i].address = address[i];
                 #if defined(_GNU_SOURCE) || defined(USE_MAC)
                     Dl_info dlinfo;
@@ -1139,11 +1112,22 @@ std::vector<StackTrace::stack_info> StackTrace::getStackInfo( const std::vector<
                 #endif
             }
             // Get the filename / line numbers for each item on the stack
-            getFileAndLine( info );
+            getFileAndLine( N, info );
         #endif
     } catch ( ... ) {
     }
     signal( SIGINT, prev_handler ) ;
+}
+StackTrace::stack_info StackTrace::getStackInfo( void *address )
+{
+    StackTrace::stack_info info;
+    getStackInfo2( 1, &address, &info );
+    return info;
+}
+std::vector<StackTrace::stack_info> StackTrace::getStackInfo( const std::vector<void*>& address )
+{
+    std::vector<StackTrace::stack_info> info( address.size() );
+    getStackInfo2( address.size(), address.data(), info.data() );
     return info;
 }
 
@@ -1484,6 +1468,15 @@ std::vector<StackTrace::stack_info> StackTrace::getCallStack( std::thread::nativ
     auto info  = getStackInfo( trace );
     return info;
 }
+template<class TYPE>
+static inline int find( const std::vector<TYPE> &data, const TYPE &x )
+{
+    for ( size_t i = 0; i < data.size(); i++ ) {
+        if ( data[i] == x )
+            return i;
+    }
+    return -1;
+}
 static std::vector<std::vector<StackTrace::stack_info>> generateStacks(
     const std::vector<std::vector<void *>> &trace )
 {
@@ -1495,16 +1488,15 @@ static std::vector<std::vector<StackTrace::stack_info>> generateStacks(
             insert( addresses, ptr );
     }
     auto stack_data = StackTrace::getStackInfo( addresses );
-    std::map<void *, StackTrace::stack_info> map_data;
-    for ( size_t i = 0; i < addresses.size(); i++ )
-        map_data.insert( std::make_pair( addresses[i], stack_data[i] ) );
     // Create the stack traces
     std::vector<std::vector<StackTrace::stack_info>> stack( trace.size() );
     for ( size_t i = 0; i < trace.size(); i++ ) {
         // Create the stack for the given thread trace
         stack[i].resize( trace[i].size() );
-        for ( size_t j = 0; j < trace[i].size(); j++ )
-            stack[i][j] = map_data[trace[i][j]];
+        for ( size_t j = 0; j < trace[i].size(); j++ ) {
+            int k       = find( addresses, trace[i][j] );
+            stack[i][j] = stack_data[k];
+        }
     }
     return stack;
 }
@@ -1990,10 +1982,10 @@ static void runGlobalMonitorThread()
             // Get the stack info for the threads
             auto multistack = generateMultiStack( threads );
             // Pack and send the data
-            size_t size = multistack.size();
-            char *data  = new char[size];
+            size_t bytes = multistack.size();
+            char *data  = new char[bytes];
             multistack.pack( data );
-            MPI_Send( data, size, MPI_CHAR, src_rank, tag, globalCommForGlobalCommStack );
+            MPI_Send( data, bytes, MPI_CHAR, src_rank, tag, globalCommForGlobalCommStack );
             delete[] data;
         } else {
             // No requests recieved

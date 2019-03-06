@@ -415,60 +415,60 @@ int main( int argc, char *argv[] )
     UnitTest results;
 
     // Limit the scope of variables
-    { /*
-         // Test exec
-         test_exec( results );
+    {
+        // Test getting a list of all active threads
+        testActivethreads( results );
 
-         // Test getting a list of all active threads
-         testActivethreads( results );
+        // Test getting the current call stack
+        bool decoded_symbols = false;
+        testCurrentStack( results, decoded_symbols );
 
-         // Test getting the current call stack
-         bool decoded_symbols = false;
-         testCurrentStack( results, decoded_symbols );
+        // Test getting the stacktrace of another thread
+        testThreadStack( results, decoded_symbols );
 
-         // Test getting the stacktrace of another thread
-         testThreadStack( results, decoded_symbols );
+        // Test getting the full stacktrace of all thread
+        testFullStack( results );
 
-         // Test getting the full stacktrace of all thread
-         testFullStack( results );
-
-         // Test getting the global stack trace of all threads/processes*/
+        // Test getting the global stack trace of all threads/processes*/
         testGlobalStack( results, false );
-        testGlobalStack( results, true ); /*
+        testGlobalStack( results, true );
 
-         // Test getting the symbols
-         auto symbols = StackTrace::getSymbols();
-         if ( !symbols.empty() )
-             results.passes( "Read symbols from executable" );
+        // Test getting the symbols
+        auto symbols = StackTrace::getSymbols();
+        if ( !symbols.empty() )
+            results.passes( "Read symbols from executable" );
 
-         // Test getting the executable
-         auto exe = StackTrace::getExecutable();
-         if ( rank == 0 )
-             std::cout << "\nExecutable: " << exe << std::endl;
-         if ( exe.find( "TestStack" ) != std::string::npos )
-             results.passes( "getExecutable" );
-         else
-             results.failure( "getExecutable" );
+        // Test getting the executable
+        auto exe = StackTrace::getExecutable();
+        if ( rank == 0 )
+            std::cout << "\nExecutable: " << exe << std::endl;
+        if ( exe.find( "TestStack" ) != std::string::npos )
+            results.passes( "getExecutable" );
+        else
+            results.failure( "getExecutable" );
 
-         // Test identifying signals
-         testSignal( results );
+        // Test identifying signals
+        testSignal( results );
 
-         // Test catching an error
-         try {
-             throw std::logic_error( "Test" );
-             results.failure( "Failed to catch ERROR" );
-         } catch ( ... ) {
-             results.passes( "Caught ERROR" );
-         }
-         try {
-             throw std::logic_error( "test" );
-             results.failure( "Failed to catch exception" );
-         } catch ( ... ) {
-             results.passes( "Caught exception" );
-         }
+        // Test catching an error
+        try {
+            throw std::logic_error( "Test" );
+            results.failure( "Failed to catch ERROR" );
+        } catch ( ... ) {
+            results.passes( "Caught ERROR" );
+        }
+        try {
+            throw std::logic_error( "test" );
+            results.failure( "Failed to catch exception" );
+        } catch ( ... ) {
+            results.passes( "Caught exception" );
+        }
 
-         // Test generating call stack from a string
-         testStackFile( results, "ExampleStack.txt" );*/
+        // Test generating call stack from a string
+        testStackFile( results, "ExampleStack.txt" );
+
+        // Test exec
+        // test_exec( results );
     }
 
     // Print the test results
