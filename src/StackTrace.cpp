@@ -279,6 +279,46 @@ static const char *copy_out( size_t N, void *data, const char *ptr )
 
 
 /****************************************************************************
+ *  Class to replace a std::vector with a fixed capacity                     *
+ ****************************************************************************/
+template<class TYPE, std::size_t CAPACITY>
+class staticVector final
+{
+public:
+    staticVector() : d_size( 0 ) {}
+    size_t size() const { return d_size; }
+    bool empty() const { return d_size == 0; }
+    void push_back( const TYPE &v )
+    {
+        if ( d_size < CAPACITY )
+            d_data[d_size++] = v;
+    }
+    TYPE &operator[]( size_t i ) { return d_data[i]; }
+    TYPE *begin() { return d_data; }
+    TYPE *end() { return d_data + d_size; }
+    TYPE &back() { return d_data[d_size - 1]; }
+    TYPE *data() { return d_size == 0 ? nullptr : d_data; }
+    void pop_back() { d_size = std::max<size_t>( d_size, 1 ) - 1; }
+    const TYPE *begin() const { return d_data; }
+    const TYPE *end() const { return d_data + d_size; }
+    const TYPE &back() const { return d_data[d_size - 1]; }
+    void erase( const TYPE &x )
+    {
+        size_t N = 0;
+        for ( size_t i = 0; i < d_size; i++ ) {
+            if ( d_data[i] != x )
+                d_data[N++] = d_data[i];
+        }
+        d_size = N;
+    }
+
+private:
+    size_t d_size;
+    TYPE d_data[CAPACITY];
+};
+
+
+/****************************************************************************
  *  Utility functions to use std::vector like a set                          *
  ****************************************************************************/
 template<class TYPE>
@@ -331,6 +371,25 @@ static void resetSignal( int sig )
 #define popen _popen
 #define pclose _pclose
 #endif
+template<class FUNCTION>
+static void exec3( const char *cmd, FUNCTION &fun )
+{
+    clearSignal( SIGCHLD ); // Clear child exited
+    auto pipe = popen( cmd, "r" );
+    if ( pipe == nullptr )
+        return;
+    while ( !feof( pipe ) ) {
+        char buffer[0x2000];
+        buffer[0] = 0;
+        auto ptr  = fgets( buffer, sizeof( buffer ), pipe );
+        NULL_USE( ptr );
+        if ( buffer[0] != 0 )
+            fun( buffer );
+    }
+    pclose( pipe );
+    std::this_thread::yield(); // Allow any signals to process
+    resetSignal( SIGCHLD );    // Clear child exited
+}
 static std::vector<std::array<char, 1024>> exec2( const char *cmd )
 {
     std::vector<std::array<char, 1024>> out;
@@ -473,43 +532,6 @@ std::vector<StackTrace::stack_info> StackTrace::stack_info::unpackArray( const c
         ptr = i.unpack( ptr );
     return data;
 }
-#ifdef USE_MPI
-static std::vector<char> pack( const std::vector<std::vector<StackTrace::stack_info>> &data )
-{
-    size_t size = sizeof( int );
-    for ( const auto &i : data ) {
-        size += sizeof( int );
-        for ( size_t j = 0; j < i.size(); j++ )
-            size += i[j].size();
-    }
-    std::vector<char> out( size, 0 );
-    char *ptr = out.data();
-    int N     = data.size();
-    ptr       = copy_in( sizeof( int ), &N, ptr );
-    for ( int i = 0; i < N; i++ ) {
-        int M = data[i].size();
-        ptr   = copy_in( sizeof( int ), &M, ptr );
-        for ( int j = 0; j < M; j++ )
-            ptr = data[i][j].pack( ptr );
-    }
-    return out;
-}
-static std::vector<std::vector<StackTrace::stack_info>> unpack( const std::vector<char> &in )
-{
-    const char *ptr = in.data();
-    int N;
-    ptr = copy_out( sizeof( int ), &N, ptr );
-    std::vector<std::vector<StackTrace::stack_info>> data( N );
-    for ( int i = 0; i < N; i++ ) {
-        int M;
-        ptr = copy_out( sizeof( int ), &M, ptr );
-        data[i].resize( M );
-        for ( int j = 0; j < M; j++ )
-            ptr = data[i][j].unpack( ptr );
-    }
-    return data;
-}
-#endif
 
 
 /****************************************************************************
@@ -606,6 +628,55 @@ void StackTrace::multi_stack_info::add( size_t len, const stack_info *stack )
     children.back().stack = s;
     if ( len > 1 )
         children.back().add( len - 1, stack );
+}
+void StackTrace::multi_stack_info::add( const multi_stack_info &rhs )
+{
+    N += rhs.N;
+    for ( const auto &x : rhs.children ) {
+        bool found = false;
+        for ( auto &tmp : children ) {
+            if ( tmp.stack == x.stack ) {
+                found = true;
+                tmp.add( x );
+            }
+        }
+        if ( !found )
+            children.push_back( x );
+    }
+}
+size_t StackTrace::multi_stack_info::size() const
+{
+    size_t bytes = 2 * sizeof( int ) + stack.size();
+    for ( const auto &tmp : children )
+        bytes += tmp.size();
+    return bytes;
+}
+char *StackTrace::multi_stack_info::pack( char *ptr ) const
+{
+    int N2 = N;
+    memcpy( ptr, &N2, sizeof( int ) );
+    ptr += sizeof( int );
+    ptr    = stack.pack( ptr );
+    int Nc = children.size();
+    memcpy( ptr, &Nc, sizeof( int ) );
+    ptr += sizeof( int );
+    for ( const auto &tmp : children )
+        ptr = tmp.pack( ptr );
+    return ptr;
+}
+const char *StackTrace::multi_stack_info::unpack( const char *ptr )
+{
+    int N2, Nc;
+    memcpy( &N2, ptr, sizeof( int ) );
+    ptr += sizeof( int );
+    N   = N2;
+    ptr = stack.unpack( ptr );
+    memcpy( &Nc, ptr, sizeof( int ) );
+    ptr += sizeof( int );
+    children.resize( Nc );
+    for ( auto &tmp : children )
+        ptr = tmp.unpack( ptr );
+    return ptr;
 }
 
 
@@ -1151,29 +1222,31 @@ std::thread::native_handle_type StackTrace::thisThread( )
         return std::thread::native_handle_type();
     #endif
 }
-static std::vector<std::thread::native_handle_type> getActiveThreads( )
+static staticVector<std::thread::native_handle_type,1024> getActiveThreads( )
 {
-    std::vector<std::thread::native_handle_type> threads;
-    threads.reserve( 128 );
+    staticVector<std::thread::native_handle_type,1024> threads;
     #if defined( USE_LINUX )
-        std::vector<int> tid;
-        tid.reserve( 128 );
+        int N_tid = 0, tid[1024];
         int pid = getpid();
         char cmd[128];
         sprintf( cmd, "ps -T -p %i", pid );
-        auto output = exec2( cmd );
-        for ( const auto& line : output ) {
-            int tid2 = get_tid( pid, line.data() );
-            if ( tid2 != -1 )
-                insert( tid, tid2 );
+        auto fun = [&N_tid,&tid,pid]( const char* line ) {
+            int id = get_tid( pid, line );
+            if ( id != -1 && N_tid < 1024 )
+                tid[N_tid++] = id;
+        };
+        exec3( cmd, fun );
+        int myid = syscall(SYS_gettid);
+        for ( int i=0; i<N_tid; i++) {
+            if ( tid[i] == myid )
+                std::swap( tid[i], tid[--N_tid] );
         }
-        erase<int>( tid, syscall(SYS_gettid) );
         auto old = signal( thread_callstack_signal, _activeThreads_signal_handler );
-        for ( auto tid2 : tid ) {
+        for ( int i=0; i<N_tid; i++) {
             StackTrace_mutex.lock();
             thread_id_finished = false;
             thread_handle = StackTrace::thisThread();
-            syscall( SYS_tgkill, pid, tid2, thread_callstack_signal );
+            syscall( SYS_tgkill, pid, tid[i], thread_callstack_signal );
             auto t1 = std::chrono::high_resolution_clock::now();
             auto t2 = std::chrono::high_resolution_clock::now();
             while ( !thread_id_finished && std::chrono::duration<double>(t2-t1).count()<0.1 ) {
@@ -1436,9 +1509,13 @@ static std::vector<std::vector<StackTrace::stack_info>> generateStacks(
     return stack;
 }
 static StackTrace::multi_stack_info generateMultiStack(
-    const std::vector<std::vector<void *>> &trace )
+    const staticVector<std::thread::native_handle_type, 1024> &threads )
 {
     // Get the stack data for all pointers
+    std::vector<std::vector<void *>> trace( threads.size() );
+    auto it = threads.begin();
+    for ( size_t i = 0; i < threads.size(); i++, ++it )
+        trace[i] = StackTrace::backtrace( *it );
     auto stack = generateStacks( trace );
     // Create the multi-stack trace
     StackTrace::multi_stack_info multistack;
@@ -1449,10 +1526,10 @@ static StackTrace::multi_stack_info generateMultiStack(
 }
 StackTrace::multi_stack_info StackTrace::getAllCallStacks()
 {
-    // Get the backtrace of each thread
-    auto thread_backtrace = backtraceAll();
+    // Get the list of active thread
+    auto threads = getActiveThreads();
     // Create the multi-stack strucutre
-    auto stack = generateMultiStack( thread_backtrace );
+    auto stack = generateMultiStack( threads );
     return stack;
 }
 
@@ -1907,24 +1984,17 @@ static void runGlobalMonitorThread()
             int tag;
             MPI_Recv( &tag, 1, MPI_INT, src_rank, 1, globalCommForGlobalCommStack, &status );
             // Get the list of threads (except this)
-            auto threads = StackTrace::activeThreads();
-            threads.erase( StackTrace::thisThread() );
+            auto threads = getActiveThreads();
             if ( threads.empty() )
                 continue;
-            // Get the trace of each thread
-            std::vector<std::vector<void *>> trace( threads.size() );
-            auto it = threads.begin();
-            for ( size_t i = 0; i < threads.size(); i++, ++it ) {
-                trace[i].resize( 1000, nullptr );
-                size_t count = backtrace_thread( *it, trace[i].data(), trace[i].size() );
-                trace[i].resize( count );
-            }
             // Get the stack info for the threads
-            auto stack = generateStacks( trace );
+            auto multistack = generateMultiStack( threads );
             // Pack and send the data
-            auto data = pack( stack );
-            int count = data.size();
-            MPI_Send( data.data(), count, MPI_CHAR, src_rank, tag, globalCommForGlobalCommStack );
+            size_t size = multistack.size();
+            char *data  = new char[size];
+            multistack.pack( data );
+            MPI_Send( data, size, MPI_CHAR, src_rank, tag, globalCommForGlobalCommStack );
+            delete[] data;
         } else {
             // No requests recieved
             std::this_thread::sleep_for( std::chrono::milliseconds( 50 ) );
@@ -2006,12 +2076,8 @@ StackTrace::multi_stack_info StackTrace::getGlobalCallStacks()
         MPI_Isend( &tag, 1, MPI_INT, i, 1, globalCommForGlobalCommStack, &sendRequest[i] );
     }
     // Get the trace for the current process
-    auto threads = getActiveThreads();
-    std::vector<std::vector<void *>> trace( threads.size() );
-    auto it = threads.begin();
-    for ( size_t i = 0; i < threads.size(); i++, ++it )
-        trace[i] = StackTrace::backtrace( *it );
-    auto multistack = generateMultiStack( trace );
+    auto threads    = getActiveThreads();
+    auto multistack = generateMultiStack( threads );
     // Recieve the backtrace for all processes/threads
     int N_finished        = 1;
     auto start            = std::chrono::steady_clock::now();
@@ -2029,12 +2095,12 @@ StackTrace::multi_stack_info StackTrace::getGlobalCallStacks()
             int src_rank = status.MPI_SOURCE;
             int count;
             MPI_Get_count( &status, MPI_CHAR, &count );
-            std::vector<char> data( count, 0 );
-            MPI_Recv( data.data(), count, MPI_CHAR, src_rank, tag, globalCommForGlobalCommStack,
-                &status );
-            auto stack_list = unpack( data );
-            for ( const auto &stack : stack_list )
-                multistack.add( stack.size(), stack.data() );
+            char *data = new char[count];
+            MPI_Recv( data, count, MPI_CHAR, src_rank, tag, globalCommForGlobalCommStack, &status );
+            StackTrace::multi_stack_info tmp;
+            tmp.unpack( data );
+            delete[] data;
+            multistack.add( tmp );
             N_finished++;
         } else {
             auto stop = std::chrono::steady_clock::now();

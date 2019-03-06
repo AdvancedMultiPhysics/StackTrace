@@ -63,6 +63,14 @@ struct multi_stack_info {
     bool empty() const { return N == 0; }
     //! Add the given stack to the multistack
     void add( size_t len, const stack_info *stack );
+    //! Add the given stack to the multistack
+    void add( const multi_stack_info &stack );
+    //! Compute the number of bytes needed to store the object
+    size_t size() const;
+    //! Pack the data to a byte array, returning a pointer to the end of the data
+    char *pack( char *ptr ) const;
+    //! Unpack the data from a byte array, returning a pointer to the end of the data
+    const char *unpack( const char *ptr );
     //! Print the stack info
     std::vector<std::string> print( const std::string &prefix = std::string() ) const;
 
