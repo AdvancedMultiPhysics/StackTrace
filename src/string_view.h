@@ -1,5 +1,5 @@
-#ifndef included_stringView
-#define included_stringView
+#ifndef included_StackTrace_stringView
+#define included_StackTrace_stringView
 
 #include <cstring>
 #include <ostream>

@@ -77,11 +77,11 @@ struct multi_stack_info {
     //! Unpack the data from a byte array, returning a pointer to the end of the data
     const char *unpack( const char *ptr );
     //! Print the stack info
-    std::vector<std::string> print( const string_view &prefix = "" ) const;
+    std::vector<std::string> print( const StackTrace::string_view &prefix = "" ) const;
     //! Print the stack info
-    void print( std::ostream &out, const string_view &prefix = "" ) const;
+    void print( std::ostream &out, const StackTrace::string_view &prefix = "" ) const;
     //! Print the stack info
-    std::string printString( const string_view &prefix = "" ) const;
+    std::string printString( const StackTrace::string_view &prefix = "" ) const;
 
 private:
     template<class FUN>
