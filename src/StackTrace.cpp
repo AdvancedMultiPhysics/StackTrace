@@ -408,11 +408,11 @@ static std::vector<std::array<char, 1024>> exec2( const char *cmd )
     exec3( cmd, fun );
     return out;
 }
-std::string StackTrace::exec( const std::string &cmd, int &code )
+std::string StackTrace::exec( const string_view &cmd, int &code )
 {
     std::string result;
     auto fun = [&result]( const char *line ) { result += line; };
-    code     = exec3( cmd.c_str(), fun );
+    code     = exec3( cmd.data(), fun );
     return result;
 }
 
@@ -458,7 +458,12 @@ int StackTrace::stack_info::getAddressWidth() const
 }
 std::string StackTrace::stack_info::print( int w1, int w2, int w3 ) const
 {
-    char out[8192] = { 0 };
+    char out[32 + sizeof( stack_info )];
+    print2( out, w1, w2, w3 );
+    return std::string( out );
+}
+void StackTrace::stack_info::print2( char *out, int w1, int w2, int w3 ) const
+{
     char tmp1[16], tmp2[16];
     sprintf( tmp1, "0x%%0%illx:  ", w1 );
     sprintf( tmp2, "%%%is  %%%is", w2, w3 );
@@ -473,7 +478,6 @@ std::string StackTrace::stack_info::print( int w1, int w2, int w3 ) const
         pos += sprintf( &out[pos], " : %u", line );
     }
     NULL_USE( pos );
-    return std::string( out );
 }
 size_t StackTrace::stack_info::size() const { return sizeof( *this ); }
 char *StackTrace::stack_info::pack( char *ptr ) const
@@ -535,35 +539,55 @@ void StackTrace::multi_stack_info::clear()
     stack.clear();
     children.clear();
 }
-void StackTrace::multi_stack_info::print2(
-    const std::string &prefix, int w[3], std::vector<std::string> &text ) const
+template<class FUN>
+void StackTrace::multi_stack_info::print2( int Np, char *prefix, int w[3], bool c, FUN &fun ) const
 {
-    if ( stack == stack_info() ) {
-        for ( const auto &child : children )
-            child.print2( "", w, text );
-        return;
+    if ( stack.address != 0 ) {
+        prefix[Np] = 0;
+        char line[4096];
+        int N2 = sprintf( line, "%s[%i] ", prefix, N );
+        stack.print2( &line[N2], w[0], w[1], w[2] );
+        fun( line );
+        prefix[Np++] = c ? '|' : ' ';
+        prefix[Np++] = ' ';
     }
-    std::string line = prefix + "[" + std::to_string( N ) + "] " + stack.print( w[0], w[1], w[2] );
-    text.push_back( line );
-    std::string prefix2 = prefix + "  ";
     for ( size_t i = 0; i < children.size(); i++ ) {
+        bool c2           = children.size() > 1 && i < children.size() - 1 && stack.address != 0;
         const auto &child = children[i];
-        std::vector<std::string> text2;
-        child.print2( "", w, text2 );
-        for ( size_t j = 0; j < text2.size(); j++ ) {
-            line = prefix2 + text2[j];
-            if ( children.size() > 1 && j > 0 && i < children.size() - 1 )
-                line[prefix2.size()] = '|';
-            text.push_back( line );
-        }
+        child.print2( Np, prefix, w, c2, fun );
     }
 }
-std::vector<std::string> StackTrace::multi_stack_info::print( const std::string &prefix ) const
+std::vector<std::string> StackTrace::multi_stack_info::print( const string_view &prefix ) const
 {
     std::vector<std::string> text;
     int w[3] = { getAddressWidth(), getObjectWidth(), getFunctionWidth() };
-    print2( prefix, w, text );
+    char prefix2[1024];
+    memcpy( prefix2, prefix.data(), prefix.size() );
+    auto fun = [&text]( const char *line ) { text.push_back( line ); };
+    print2( prefix.size(), prefix2, w, false, fun );
     return text;
+}
+void StackTrace::multi_stack_info::print( std::ostream &out, const string_view &prefix ) const
+{
+    int w[3] = { getAddressWidth(), getObjectWidth(), getFunctionWidth() };
+    char prefix2[1024];
+    memcpy( prefix2, prefix.data(), prefix.size() );
+    auto fun = [&out]( const char *line ) { out << line << std::endl; };
+    print2( prefix.size(), prefix2, w, false, fun );
+}
+std::string StackTrace::multi_stack_info::printString( const string_view &prefix ) const
+{
+    int w[3] = { getAddressWidth(), getObjectWidth(), getFunctionWidth() };
+    char prefix2[1024];
+    memcpy( prefix2, prefix.data(), prefix.size() );
+    std::string out;
+    out.reserve( 4096 );
+    auto fun = [&out]( const char *line ) {
+        out += line;
+        out += '\n';
+    };
+    print2( prefix.size(), prefix2, w, false, fun );
+    return out;
 }
 int StackTrace::multi_stack_info::getAddressWidth() const
 {
@@ -690,9 +714,7 @@ const char *StackTrace::abort_error::what() const noexcept
     }
     if ( !stack.empty() ) {
         d_msg += "Stack Trace:\n";
-        auto data = stack.print();
-        for ( const auto &tmp : data )
-            d_msg += " " + tmp + "\n";
+        d_msg += stack.printString( " " );
     }
     for ( size_t i = 0; i < d_msg.size(); i++ )
         if ( d_msg[i] == 0 )
@@ -1983,7 +2005,7 @@ static void runGlobalMonitorThread()
             auto multistack = generateMultiStack( threads );
             // Pack and send the data
             size_t bytes = multistack.size();
-            char *data  = new char[bytes];
+            char *data   = new char[bytes];
             multistack.pack( data );
             MPI_Send( data, bytes, MPI_CHAR, src_rank, tag, globalCommForGlobalCommStack );
             delete[] data;
@@ -2437,7 +2459,7 @@ static StackTrace::stack_info parseLine( const char *str )
         stack.line = atoi( p6 + 1 );
     return stack;
 }
-std::vector<StackTrace::multi_stack_info> StackTrace::generateFromString( const std::string &str )
+StackTrace::multi_stack_info StackTrace::generateFromString( const std::string &str )
 {
     // Break the string according to line breaks
     std::vector<std::string> data;
@@ -2445,15 +2467,14 @@ std::vector<StackTrace::multi_stack_info> StackTrace::generateFromString( const 
     size_t p2 = str.find( '\n' );
     while ( p2 != std::string::npos ) {
         data.push_back( str.substr( p1, p2 - p1 ) );
-        p1 = p2;
-        p2 = str.find( '\n', p2 + 1 );
+        p1 = p2 + 1;
+        p2 = str.find( '\n', p1 );
     }
     data.push_back( str.substr( p1 ) );
     // Generate the stack
     return generateFromString( data );
 }
-std::vector<StackTrace::multi_stack_info> StackTrace::generateFromString(
-    const std::vector<std::string> &text )
+StackTrace::multi_stack_info StackTrace::generateFromString( const std::vector<std::string> &text )
 {
     // Get the data from the text
     std::vector<int> indent;
@@ -2473,10 +2494,9 @@ std::vector<StackTrace::multi_stack_info> StackTrace::generateFromString(
         stack.push_back( tmp );
     }
     // Generate the stack hierarchy
-    typedef std::vector<StackTrace::multi_stack_info> stack_list;
-    stack_list stack2;
-    std::vector<std::pair<int, stack_list *>> map;
-    map.emplace_back( 0, &stack2 );
+    multi_stack_info stack2;
+    std::vector<std::pair<int, std::vector<multi_stack_info> *>> map;
+    map.emplace_back( 0, &stack2.children );
     for ( size_t i = 0; i < stack.size(); i++ ) {
         while ( indent[i] < map.back().first )
             map.resize( map.size() - 1 );

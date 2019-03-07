@@ -293,7 +293,7 @@ void Utilities::cause_segfault()
 /****************************************************************************
  *  Call system command                                                      *
  ****************************************************************************/
-std::string Utilities::exec( const std::string &cmd, int &exit_code )
+std::string Utilities::exec( const string_view &cmd, int &exit_code )
 {
     return StackTrace::exec( cmd, exit_code );
 }

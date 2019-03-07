@@ -8,6 +8,8 @@
 #include <thread>
 #include <vector>
 
+#include "StackTrace/string_view.h"
+
 
 namespace StackTrace {
 
@@ -33,6 +35,9 @@ struct stack_info {
     int getAddressWidth() const;
     //! Print the stack info
     std::string print( int widthAddress = 16, int widthObject = 20, int widthFunction = 32 ) const;
+    //! Print the stack info
+    void print2(
+        char *txt, int widthAddress = 16, int widthObject = 20, int widthFunction = 32 ) const;
     //! Compute the number of bytes needed to store the object
     size_t size() const;
     //! Pack the data to a byte array, returning a pointer to the end of the data
@@ -72,10 +77,15 @@ struct multi_stack_info {
     //! Unpack the data from a byte array, returning a pointer to the end of the data
     const char *unpack( const char *ptr );
     //! Print the stack info
-    std::vector<std::string> print( const std::string &prefix = std::string() ) const;
+    std::vector<std::string> print( const string_view &prefix = "" ) const;
+    //! Print the stack info
+    void print( std::ostream &out, const string_view &prefix = "" ) const;
+    //! Print the stack info
+    std::string printString( const string_view &prefix = "" ) const;
 
 private:
-    void print2( const std::string &prefix, int w[3], std::vector<std::string> &text ) const;
+    template<class FUN>
+    void print2( int Np, char *prefix, int w[3], bool c, FUN &fun ) const;
     int getAddressWidth() const;
     int getObjectWidth() const;
     int getFunctionWidth() const;
@@ -258,7 +268,7 @@ std::thread::native_handle_type thisThread();
  * @param[out] exit_code    Exit code returned from child process
  * @return                  Returns string containing the output
  */
-std::string exec( const std::string &cmd, int &exit_code );
+std::string exec( const string_view &cmd, int &exit_code );
 
 
 /*!
@@ -267,7 +277,7 @@ std::string exec( const std::string &cmd, int &exit_code );
  * @param[in] str           Vector of strings containing call stack
  * @return                  Returns the call stack
  */
-std::vector<multi_stack_info> generateFromString( const std::vector<std::string> &str );
+multi_stack_info generateFromString( const std::vector<std::string> &str );
 
 
 /*!
@@ -276,7 +286,7 @@ std::vector<multi_stack_info> generateFromString( const std::vector<std::string>
  * @param[in] str           String containing call stack
  * @return                  Returns the call stack
  */
-std::vector<multi_stack_info> generateFromString( const std::string &str );
+multi_stack_info generateFromString( const std::string &str );
 
 
 } // namespace StackTrace

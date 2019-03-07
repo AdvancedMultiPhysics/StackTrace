@@ -281,9 +281,7 @@ void testFullStack( UnitTest & )
     thread3.join();
     if ( rank == 0 ) {
         std::cout << "Call stack (all threads):" << std::endl;
-        auto text = call_stack.print( "   " );
-        for ( auto &line : text )
-            std::cout << line << std::endl;
+        call_stack.print( std::cout );
         std::cout << "Time to get call stack (all threads): " << t2 - t1 << std::endl;
         std::cout << std::endl;
     }
@@ -314,9 +312,7 @@ void testGlobalStack(
         return;
     if ( rank == 0 && !all ) {
         std::cout << "Call stack (global):" << std::endl;
-        auto text = call_stack.print( "   " );
-        for ( auto &line : text )
-            std::cout << line << std::endl;
+        call_stack.print( std::cout );
         std::cout << "Time to get call stack (global): " << t2 - t1 << std::endl;
         std::cout << std::endl;
     }
@@ -374,13 +370,9 @@ void testStackFile( UnitTest &results, const std::string &filename )
     // Load the stack
     auto stack = StackTrace::generateFromString( str );
     // Clean the stack trace
-    for ( auto &tmp : stack )
-        cleanupStackTrace( tmp );
+    cleanupStackTrace( stack );
     // Print the results
-    for ( const auto &tmp : stack ) {
-        for ( const auto &tmp2 : tmp.print() )
-            std::cout << tmp2 << std::endl;
-    }
+    stack.print( std::cout );
     barrier();
 }
 
@@ -388,20 +380,29 @@ void testStackFile( UnitTest &results, const std::string &filename )
 // Test calling exec in parallel
 void test_exec( UnitTest &results )
 {
-    auto fun = []( int N ) {
-        std::string cmd = "echo test";
+    bool pass = true;
+    int count = 0;
+    auto fun  = [&pass, &count]( int N ) {
+        auto cmd        = "echo test";
         int exit_code   = 0;
+        bool pass_local = true;
         for ( int i = 0; i < N; i++ ) {
-            auto out = StackTrace::exec( cmd, exit_code );
-            NULL_USE( out );
+            auto out   = StackTrace::exec( cmd, exit_code );
+            pass_local = pass_local && out == "test\n";
         }
+        pass = pass && pass_local;
+        count += N;
     };
     std::vector<std::thread> threads( 8 );
     for ( size_t i = 0; i < threads.size(); i++ )
         threads[i] = std::thread( fun, 1000 );
     for ( size_t i = 0; i < threads.size(); i++ )
         threads[i].join();
-    results.passes( "exec called in parallel" );
+    pass = pass && count == 8000;
+    if ( pass )
+        results.passes( "exec called in parallel" );
+    else
+        results.failure( "exec called in parallel" );
 }
 
 
@@ -416,6 +417,9 @@ int main( int argc, char *argv[] )
 
     // Limit the scope of variables
     {
+        // Test exec
+        test_exec( results );
+
         // Test getting a list of all active threads
         testActivethreads( results );
 
@@ -429,7 +433,7 @@ int main( int argc, char *argv[] )
         // Test getting the full stacktrace of all thread
         testFullStack( results );
 
-        // Test getting the global stack trace of all threads/processes*/
+        // Test getting the global stack trace of all threads/processes
         testGlobalStack( results, false );
         testGlobalStack( results, true );
 
@@ -466,9 +470,6 @@ int main( int argc, char *argv[] )
 
         // Test generating call stack from a string
         testStackFile( results, "ExampleStack.txt" );
-
-        // Test exec
-        // test_exec( results );
     }
 
     // Print the test results
