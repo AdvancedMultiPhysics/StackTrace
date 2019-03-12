@@ -629,49 +629,6 @@ const char *StackTrace::multi_stack_info::unpack( const char *ptr )
 
 
 /****************************************************************************
- *  abort_error                                                              *
- ****************************************************************************/
-StackTrace::abort_error::abort_error()
-    : type( terminateType::unknown ), signal( 0 ), line( -1 ), bytes( 0 )
-{
-}
-const char *StackTrace::abort_error::what() const noexcept
-{
-    d_msg.clear();
-    if ( type == terminateType::abort ) {
-        d_msg += "Program abort called";
-    } else if ( type == terminateType::signal ) {
-        d_msg += "Unhandled signal (" + std::to_string( signal ) + ") caught";
-    } else if ( type == terminateType::exception ) {
-        d_msg += "Unhandled exception caught";
-    } else if ( type == terminateType::MPI ) {
-        d_msg += "Error calling MPI routine";
-    } else {
-        d_msg += "Unknown error called";
-    }
-    if ( !filename.empty() ) {
-        d_msg += " in file '" + filename + "'";
-        if ( line > 0 ) {
-            d_msg += " at line " + std::to_string( line );
-        }
-    }
-    d_msg += ":\n";
-    d_msg += "   " + message + "\n";
-    if ( bytes > 0 ) {
-        d_msg += "Bytes used = " + std::to_string( bytes ) + "\n";
-    }
-    if ( !stack.empty() ) {
-        d_msg += "Stack Trace:\n";
-        d_msg += stack.printString( " " );
-    }
-    for ( size_t i = 0; i < d_msg.size(); i++ )
-        if ( d_msg[i] == 0 )
-            d_msg.erase( i, 1 );
-    return d_msg.c_str();
-}
-
-
-/****************************************************************************
  *  Function to get the executable name                                      *
  ****************************************************************************/
 static std::array<char, 1000> getExecutableName()
@@ -1470,13 +1427,9 @@ static std::vector<std::vector<StackTrace::stack_info>> generateStacks(
     return stack;
 }
 static StackTrace::multi_stack_info generateMultiStack(
-    const staticVector<std::thread::native_handle_type, 1024> &threads )
+    const std::vector<std::vector<void *>> &trace )
 {
     // Get the stack data for all pointers
-    std::vector<std::vector<void *>> trace( threads.size() );
-    auto it = threads.begin();
-    for ( size_t i = 0; i < threads.size(); i++, ++it )
-        trace[i] = StackTrace::backtrace( *it );
     auto stack = generateStacks( trace );
     // Create the multi-stack trace
     StackTrace::multi_stack_info multistack;
@@ -1484,6 +1437,17 @@ static StackTrace::multi_stack_info generateMultiStack(
     for ( const auto &tmp : stack )
         multistack.add( tmp.size(), tmp.data() );
     return multistack;
+}
+static StackTrace::multi_stack_info generateMultiStack(
+    const staticVector<std::thread::native_handle_type, 1024> &threads )
+{
+    // Get the stack data for all pointers
+    std::vector<std::vector<void *>> trace( threads.size() );
+    auto it = threads.begin();
+    for ( size_t i = 0; i < threads.size(); i++, ++it )
+        trace[i] = StackTrace::backtrace( *it );
+    // Create the multi-stack trace
+    return generateMultiStack( trace );
 }
 StackTrace::multi_stack_info StackTrace::getAllCallStacks()
 {
@@ -1806,19 +1770,19 @@ static StackTrace::abort_error rethrow()
     if ( error.bytes == 0 )
         error.bytes = StackTrace::Utilities::getMemoryUsage();
     if ( error.stack.empty() ) {
-        error.stack = StackTrace::getCallStack();
-        StackTrace::cleanupStackTrace( error.stack );
+        error.stackType = StackTrace::printStackType::local;
+        error.stack     = StackTrace::backtrace();
     }
     return error;
 }
 static void term_func_abort( int sig )
 {
     StackTrace::abort_error err;
-    err.type   = StackTrace::terminateType::signal;
-    err.signal = sig;
-    err.bytes  = StackTrace::Utilities::getMemoryUsage();
-    err.stack  = StackTrace::getGlobalCallStacks();
-    StackTrace::cleanupStackTrace( err.stack );
+    err.type      = StackTrace::terminateType::signal;
+    err.signal    = sig;
+    err.bytes     = StackTrace::Utilities::getMemoryUsage();
+    err.stack     = StackTrace::backtrace();
+    err.stackType = StackTrace::printStackType::global;
     abort_fun( err );
 }
 static bool signals_set[256] = { false };
@@ -1900,11 +1864,11 @@ static void MPI_error_handler_fun( MPI_Comm *comm, int *err, ... )
     char message[1000] = { 0 };
     MPI_Error_string( *err, message, &msg_len );
     StackTrace::abort_error error;
-    error.message = std::string( message );
-    error.type    = StackTrace::terminateType::MPI;
-    error.bytes   = StackTrace::Utilities::getMemoryUsage();
-    error.stack   = StackTrace::getGlobalCallStacks();
-    StackTrace::cleanupStackTrace( error.stack );
+    error.message   = std::string( message );
+    error.type      = StackTrace::terminateType::MPI;
+    error.bytes     = StackTrace::Utilities::getMemoryUsage();
+    error.stack     = StackTrace::backtrace();
+    error.stackType = StackTrace::printStackType::global;
     throw error;
 }
 void StackTrace::setMPIErrorHandler( MPI_Comm comm )
@@ -2024,15 +1988,15 @@ void StackTrace::globalCallStackFinalize()
         MPI_Comm_free( &globalCommForGlobalCommStack );
     globalCommForGlobalCommStack = MPI_COMM_NULL;
 }
-StackTrace::multi_stack_info StackTrace::getGlobalCallStacks()
+StackTrace::multi_stack_info getRemoteCallStacks()
 {
     if ( globalMonitorThreadStatus == -1 ) {
         // User did not call globalCallStackInitialize
         printf( "Warning: getGlobalCallStacks called without call to globalCallStackInitialize\n" );
-        return getAllCallStacks();
+        return StackTrace::multi_stack_info();
     } else if ( globalMonitorThreadStatus != 1 ) {
         // globalCallStackInitialize is not supported
-        return getAllCallStacks();
+        return StackTrace::multi_stack_info();
     }
     // Signal all processes that we want their stack for all threads
     int rank = 0;
@@ -2049,14 +2013,12 @@ StackTrace::multi_stack_info StackTrace::getGlobalCallStacks()
             continue;
         MPI_Isend( &tag, 1, MPI_INT, i, 1, globalCommForGlobalCommStack, &sendRequest[i] );
     }
-    // Get the trace for the current process
-    auto threads    = getActiveThreads();
-    auto multistack = generateMultiStack( threads );
-    // Recieve the backtrace for all processes/threads
+    // Recieve the backtrace for all remote processes/threads
     int N_finished        = 1;
     auto start            = std::chrono::steady_clock::now();
     double time           = 0;
     const double max_time = 10.0 + size * 20e-3;
+    StackTrace::multi_stack_info multistack;
     while ( N_finished < size && time < max_time ) {
         int flag = 0;
         MPI_Status status;
@@ -2092,8 +2054,15 @@ StackTrace::multi_stack_info StackTrace::getGlobalCallStacks()
 #else
 void StackTrace::globalCallStackInitialize( MPI_Comm ) {}
 void StackTrace::globalCallStackFinalize() {}
-StackTrace::multi_stack_info StackTrace::getGlobalCallStacks() { return getAllCallStacks(); }
+StackTrace::multi_stack_info getRemoteCallStacks() { return StackTrace::multi_stack_info(); }
 #endif
+StackTrace::multi_stack_info StackTrace::getGlobalCallStacks()
+{
+    auto threads    = getActiveThreads();
+    auto multistack = generateMultiStack( threads );
+    multistack.add( getRemoteCallStacks() );
+    return multistack;
+}
 
 
 /****************************************************************************
@@ -2475,4 +2444,74 @@ StackTrace::multi_stack_info StackTrace::generateFromString( const std::vector<s
         }
     }
     return stack2;
+}
+
+
+/****************************************************************************
+ *  abort_error                                                              *
+ ****************************************************************************/
+StackTrace::abort_error::abort_error()
+    : type( terminateType::unknown ), signal( 0 ), line( -1 ), bytes( 0 )
+{
+}
+const char *StackTrace::abort_error::what() const noexcept
+{
+    d_msg.clear();
+    if ( type == terminateType::abort ) {
+        d_msg += "Program abort called";
+    } else if ( type == terminateType::signal ) {
+        d_msg += "Unhandled signal (" + std::to_string( signal ) + ") caught";
+    } else if ( type == terminateType::exception ) {
+        d_msg += "Unhandled exception caught";
+    } else if ( type == terminateType::MPI ) {
+        d_msg += "Error calling MPI routine";
+    } else {
+        d_msg += "Unknown error called";
+    }
+    if ( !filename.empty() ) {
+        d_msg += " in file '" + filename + "'";
+        if ( line > 0 ) {
+            d_msg += " at line " + std::to_string( line );
+        }
+    }
+    d_msg += ":\n";
+    d_msg += "   " + message + "\n";
+    if ( bytes > 0 ) {
+        d_msg += "Bytes used = " + std::to_string( bytes ) + "\n";
+    }
+    if ( !stack.empty() ) {
+        d_msg += "Stack Trace:\n";
+        if ( stackType == printStackType::local ) {
+            for ( const auto &item : getStackInfo( stack ) ) {
+                char txt[1000];
+                item.print2( txt );
+                d_msg += " ";
+                d_msg += txt;
+            }
+        } else if ( stackType == printStackType::threaded || stackType == printStackType::global ) {
+            // Get the call stack
+            std::vector<std::vector<void *>> trace;
+            trace.push_back( stack );
+            // Get the call stack for all threads except the current one
+            auto threads = getActiveThreads();
+            threads.erase( thisThread() );
+            for ( auto tid : threads )
+                trace.push_back( backtrace( tid ) );
+            // Generate call stack
+            auto multistack = generateMultiStack( trace );
+            // Add remote call stack info
+            if ( stackType == printStackType::global )
+                multistack.add( getRemoteCallStacks() );
+            // Cleanup call stack
+            cleanupStackTrace( multistack );
+            // Print the results
+            d_msg += multistack.printString( " " );
+        } else {
+            d_msg += "Unknown value for stackType\n";
+        }
+    }
+    for ( size_t i = 0; i < d_msg.size(); i++ )
+        if ( d_msg[i] == 0 )
+            d_msg.erase( i, 1 );
+    return d_msg.c_str();
 }

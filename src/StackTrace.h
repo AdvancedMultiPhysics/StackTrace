@@ -93,19 +93,20 @@ private:
 
 //!< Terminate type
 enum class terminateType : uint8_t { signal, exception, abort, MPI, unknown };
-
+enum class printStackType : uint8_t { local = 1, threaded = 2, global = 3 };
 
 //!< Class to contain exception info from abort
 class abort_error : public std::exception
 {
 public:
-    std::string message;                //!< Abort message
-    std::string filename;               //!< File where abort was called
-    terminateType type;                 //!< What caused the termination
-    uint8_t signal;                     //!< Signal number
-    int line;                           //!< Line number where abort was called
-    size_t bytes;                       //!< Memory in use during abort
-    StackTrace::multi_stack_info stack; //!< Stack for abort
+    std::string message;       //!< Abort message
+    std::string filename;      //!< File where abort was called
+    terminateType type;        //!< What caused the termination
+    printStackType stackType;  //!< Print the local stack, all threads, or global call stack
+    uint8_t signal;            //!< Signal number
+    int line;                  //!< Line number where abort was called
+    size_t bytes;              //!< Memory in use during abort
+    std::vector<void *> stack; //!< Local call stack for abort
 public:
     virtual const char *what() const noexcept override;
     abort_error();

@@ -15,7 +15,7 @@ namespace Utilities {
 
 /*!
  * Aborts the run after printing an error message with file and
- * linenumber information.
+ * line number information.
  */
 void abort( const std::string &message, const std::string &filename, const int line );
 

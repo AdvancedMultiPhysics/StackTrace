@@ -375,6 +375,7 @@ void testStackFile( UnitTest &results, const std::string &filename )
     cleanupStackTrace( stack );
     // Print the results
     stack.print( std::cout );
+    std::cout << std::endl;
     barrier();
 }
 
@@ -408,11 +409,57 @@ void test_exec( UnitTest &results )
 }
 
 
+// Test throw costs
+void test_throw( UnitTest & )
+{
+    // Verify we can still get the global call stack
+    barrier();
+    std::thread thread1( sleep_ms, 1000 );
+    std::thread thread2( sleep_s, 1 );
+    if ( getRank() == 0 ) {
+        std::cout << "Testing abort:" << std::endl;
+        try {
+            StackTrace::Utilities::abort( "Test", __FILE__, __LINE__ );
+        } catch ( StackTrace::abort_error &e ) {
+            std::cout << e.what() << std::endl;
+        }
+    }
+    thread1.join();
+    thread2.join();
+    barrier();
+
+    // Test the time to call abort vs throw
+    if ( getRank() == 0 ) {
+        int N   = 10;
+        auto t1 = std::chrono::high_resolution_clock::now();
+        for ( int i = 0; i < N; i++ ) {
+            try {
+                throw std::logic_error( "Test" );
+            } catch ( std::exception &e ) {
+            }
+        }
+        auto t2 = std::chrono::high_resolution_clock::now();
+        for ( int i = 0; i < N; i++ ) {
+            try {
+                StackTrace::Utilities::abort( "Test", __FILE__, __LINE__ );
+            } catch ( std::exception &e ) {
+            }
+        }
+        auto t3 = std::chrono::high_resolution_clock::now();
+        int dt1 = std::chrono::duration_cast<std::chrono::microseconds>( t2 - t1 ).count() / N;
+        int dt2 = std::chrono::duration_cast<std::chrono::microseconds>( t3 - t2 ).count() / N;
+        std::cout << "Cost for std::logic_error: " << dt1 << "us" << std::endl;
+        std::cout << "Cost to call abort(): " << dt2 << "us" << std::endl;
+        std::cout << std::endl;
+    }
+}
+
+
 // The main function
 int main( int argc, char *argv[] )
 {
     int rank = startup( argc, argv );
-    StackTrace::Utilities::setAbortBehavior( true );
+    StackTrace::Utilities::setAbortBehavior( true, 3 );
     StackTrace::Utilities::setErrorHandlers();
     StackTrace::globalCallStackInitialize( MPI_COMM_WORLD );
     UnitTest results;
@@ -472,6 +519,9 @@ int main( int argc, char *argv[] )
 
         // Test generating call stack from a string
         testStackFile( results, "ExampleStack.txt" );
+
+        // Test the cost to throw using abort
+        test_throw( results );
     }
 
     // Print the test results
