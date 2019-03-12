@@ -98,7 +98,9 @@ public:
     {
         size_t i = pos;
         size_t N = v.size();
-        while ( i < d_size ) {
+        if ( N == 0 || N > ( d_size - pos ) )
+            return std::string::npos;
+        while ( i < ( d_size - N + 1 ) ) {
             size_t j = 0;
             for ( j = 0; j < N && i + j < d_size; j++ )
                 if ( d_data[i + j] != v[j] )

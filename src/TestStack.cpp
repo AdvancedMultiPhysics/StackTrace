@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -165,7 +166,8 @@ void testSignal( UnitTest &results )
         auto signals = StackTrace::allSignalsToCatch();
         // Identify the signals
         std::cout << "\nIdentifying signals\n";
-        for ( int i = 1; i <= std::max( 64, signals.back() ); i++ )
+        // for ( int i = 1; i <= std::max( 1, signals.back() ); i++ )
+        for ( int i = 1; i <= std::max( 1, signals.back() ); i++ )
             std::cout << "  " << i << ": " << StackTrace::signalName( i ) << std::endl;
         // Test setting/catching different signals
         StackTrace::setSignals( signals, handleSignal );
@@ -196,15 +198,14 @@ void testCurrentStack( UnitTest &results, bool &decoded_symbols )
     double ts2      = time();
     if ( rank == 0 ) {
         std::cout << "Call stack:" << std::endl;
-        for ( auto &elem : call_stack )
-            std::cout << "   " << elem.print() << std::endl;
+        StackTrace::stack_info::print( std::cout, call_stack, "   " );
         std::cout << "Time to get call stack: " << ts2 - ts1 << std::endl;
     }
     decoded_symbols = false;
     if ( !call_stack.empty() ) {
         results.passes( "non empty call stack" );
-        for ( auto &i : call_stack ) {
-            if ( i.print().find( "get_call_stack" ) != std::string::npos )
+        for ( auto &item : call_stack ) {
+            if ( strstr( item.function.data(), "get_call_stack" ) )
                 decoded_symbols = true;
         }
         if ( decoded_symbols )
@@ -238,16 +239,15 @@ void testThreadStack( UnitTest &results, bool decoded_symbols )
     double t4 = time();
     if ( rank == 0 ) {
         std::cout << "Call stack (thread):" << std::endl;
-        for ( auto &elem : call_stack )
-            std::cout << "   " << elem.print() << std::endl;
+        StackTrace::stack_info::print( std::cout, call_stack, "   " );
         std::cout << "Time to get call stack (thread): " << t3 - t2 << std::endl;
         std::cout << std::endl;
     }
     if ( !call_stack.empty() ) {
         results.passes( "non empty call stack (thread)" );
         bool pass = false;
-        for ( auto &elem : call_stack ) {
-            if ( elem.print().find( "sleep_ms" ) != std::string::npos )
+        for ( auto &item : call_stack ) {
+            if ( strstr( item.function.data(), "sleep_ms" ) )
                 pass = true;
         }
         pass = pass && std::abs( t4 - t1 ) > 0.9;
@@ -324,21 +324,23 @@ void testActivethreads( UnitTest &results )
     // Test getting a list of all active threads
     std::thread thread1( sleep_ms, 1000 );
     std::thread thread2( sleep_ms, 1000 );
-    sleep_ms( 50 ); // Give threads time to start
+    sleep_ms( 100 ); // Give threads time to start
     auto thread_ids_test = StackTrace::activeThreads();
-    std::set<std::thread::native_handle_type> self, thread_ids;
-    self.insert( StackTrace::thisThread() );
-    thread_ids.insert( StackTrace::thisThread() );
-    thread_ids.insert( thread1.native_handle() );
-    thread_ids.insert( thread2.native_handle() );
+    std::thread::native_handle_type thread_ids[3];
+    auto self     = StackTrace::thisThread();
+    thread_ids[0] = StackTrace::thisThread();
+    thread_ids[1] = thread1.native_handle();
+    thread_ids[2] = thread2.native_handle();
     thread1.join();
     thread2.join();
     bool pass = true;
-    for ( auto id : thread_ids )
-        pass = pass && thread_ids_test.find( id ) != thread_ids_test.end();
+    for ( auto id : thread_ids ) {
+        auto it = std::find( thread_ids_test.begin(), thread_ids_test.end(), id );
+        pass    = pass && it != thread_ids_test.end();
+    }
     if ( pass )
         results.passes( "StackTrace::activeThreads" );
-    else if ( thread_ids_test == self )
+    else if ( thread_ids_test.size() == 1u && thread_ids_test[0] == self )
         results.expected( "StackTrace::activeThreads only is able to return self" );
     else
         results.failure( "StackTrace::activeThreads" );
