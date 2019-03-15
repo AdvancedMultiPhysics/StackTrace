@@ -2485,7 +2485,7 @@ const char *StackTrace::abort_error::what() const noexcept
             for ( const auto &item : getStackInfo( stack ) ) {
                 char txt[1000];
                 item.print2( txt );
-                d_msg += " ";
+                d_msg += " \n";
                 d_msg += txt;
             }
         } else if ( stackType == printStackType::threaded || stackType == printStackType::global ) {
