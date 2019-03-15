@@ -1,5 +1,6 @@
 // Supression file for cppcheck
 
+unmatchedSuppression:*
 operatorEq:*
 unusedFunction:*
 useStlAlgorithm:*
