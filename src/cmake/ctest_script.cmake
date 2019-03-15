@@ -6,7 +6,7 @@
 
 
 # Set the Project variables
-SET( PROJ AtomicModel )
+SET( PROJ StackTrace )
 
 
 # Set platform specific variables
