@@ -2378,7 +2378,7 @@ static StackTrace::stack_info parseLine( const char *str )
     if ( p5 == nullptr )
         p5 = p0;
     // Load line
-    auto p6 = strchr( p5, ':' );
+    const char *p6 = strchr( p5, ':' );
     if ( p6 == nullptr )
         p6 = p0;
     // Store the results
