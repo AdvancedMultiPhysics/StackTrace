@@ -9,3 +9,4 @@ nullPointer:*/Utilities.cpp
 noExplicitConstructor:*/string_view.h
 arrayIndexOutOfBounds:*/StackTrace.cpp
 uninitMemberVar:*/StackTrace.cpp
+knownConditionTrueFalse:*/TestStack.cpp

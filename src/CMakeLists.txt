@@ -1,10 +1,16 @@
+# Set some CMake properties
 INCLUDE(CheckCXXCompilerFlag)
 INCLUDE(CheckCXXSourceCompiles)
-CMAKE_MINIMUM_REQUIRED(VERSION 3.2)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.9)
+
 
 MESSAGE( "===========================" )
 MESSAGE( "Configuring StackTrace"      )
 MESSAGE( "===========================" )
+
+
+# Set the project name
+SET( PROJ STACKTRACE )              # Set the project name for CMake
 
 
 # Prevent users from building in place
@@ -13,17 +19,54 @@ IF ("${CMAKE_CURRENT_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_BINARY_DIR}" )
 ENDIF()
 
 
+# Set source/install paths
+SET( ${PROJ}_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}" )
+SET( ${PROJ}_BUILD_DIR  "${CMAKE_CURRENT_BINARY_DIR}" )
+IF( ${PROJ}_INSTALL_DIR )
+    SET( ${PROJ}_INSTALL_DIR "${${PROJ}_INSTALL_DIR}" )
+ELSEIF( NOT ${PROJ}_INSTALL_DIR )
+    SET( ${PROJ}_INSTALL_DIR "${CMAKE_CURRENT_BINARY_DIR}" )
+ENDIF()
+INCLUDE_DIRECTORIES( "${${PROJ}_INSTALL_DIR}/include" )
+SET( CMAKE_MODULE_PATH ${${PROJ}_SOURCE_DIR} ${${PROJ}_SOURCE_DIR}/cmake )
+
+
 # Set the project name
-PROJECT( STACKTRACE LANGUAGES CXX )
+PROJECT( ${PROJ} LANGUAGES CXX )
 
 
-# Inlcude cmake files
+# Include CMake files
 INCLUDE( cmake/macros.cmake )
 
 
 # Enable testing
 ENABLE_TESTING()
 INCLUDE( CTest )
+
+# Create the target for documentation
+IF ( NOT DEFINED USE_DOXYGEN )
+    SET( USE_DOXYGEN 1 )
+ENDIF()
+IF ( USE_DOXYGEN )
+    ADD_CUSTOM_TARGET( doc )
+    FILE( MAKE_DIRECTORY "${${PROJ}_INSTALL_DIR}/doc" )
+    SET( DOXYFILE_LATEX "YES" )
+    SET( DOXYFILE_IN "${${PROJ}_SOURCE_DIR}/doxygen/Doxyfile.in" )
+    SET( DOXY_HEADER_FILE "${${PROJ}_SOURCE_DIR}/doxygen/html/header.html" )
+    SET( DOXY_FOOTER_FILE "${${PROJ}_SOURCE_DIR}/doxygen/html/footer.html" )
+    SET( DOXYFILE_OUTPUT_DIR "${${PROJ}_INSTALL_DIR}/doc" )
+    SET( DOXYFILE_SRC_HTML_DIR "${${PROJ}_SOURCE_DIR}/doxygen/html" )
+    SET( DOXYFILE_SOURCE_DIR "${${PROJ}_SOURCE_DIR}" )
+    SET( REL_PACKAGE_HTML "" )
+    SET( DOXYGEN_MACROS "" )
+    MESSAGE("DOXYGEN_MACROS = ${DOXYGEN_MACROS}")
+    INCLUDE( "${${PROJ}_SOURCE_DIR}/cmake/UseDoxygen.cmake" )
+    IF ( DOXYGEN_FOUND )
+        ADD_DEPENDENCIES( doc doxygen )
+    ELSE()
+        SET( USE_DOXYGEN 0 )
+    ENDIF()
+ENDIF()
 
 
 # Add system specific libraries

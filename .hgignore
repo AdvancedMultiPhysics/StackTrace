@@ -9,6 +9,7 @@ build/cmake_install.cmake
 build/install_manifest.txt
 build/lib/*
 build/bin/*
+build/doc/*
 build/include/*
 build/libstacktrace.a
 build/FindStackTrace.cmake
@@ -19,5 +20,8 @@ build/cppcheck
 build/cppclean
 build/compile_commands.json
 build/ExampleStack.txt
+build/CMakeDoxyfile.in
+build/CMakeDoxygenDefaults.cmake
+build/Doxyfile
 
 
