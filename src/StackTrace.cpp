@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cerrno>
 #include <csignal>
 #include <cstring>
 #include <iostream>
@@ -348,8 +349,11 @@ static inline int exec3( const char *cmd, FUNCTION &fun )
         if ( buffer[0] != 0 )
             fun( buffer );
     }
-    auto status = pclose( pipe );
-    int code    = WEXITSTATUS( status );
+    int code = pclose( pipe );
+    if ( errno == ECHILD ) {
+        errno = 0;
+        code  = 0;
+    }
     std::this_thread::yield(); // Allow any signals to process
     resetSignal( SIGCHLD );    // Clear child exited
     return code;
