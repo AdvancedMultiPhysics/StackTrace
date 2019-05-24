@@ -246,6 +246,10 @@ void clearSignals();
 void raiseSignal( int signal );
 
 
+//! Default function to abort after catching a signal
+void terminateFunctionSignal( int signal );
+
+
 //! Return a list of all signals that can be caught
 std::vector<int> allSignalsToCatch();
 

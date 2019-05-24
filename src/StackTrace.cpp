@@ -1745,7 +1745,7 @@ std::vector<int> StackTrace::defaultSignalsToCatch()
  *  Set the signal handlers                                                  *
  ****************************************************************************/
 static std::function<void( const StackTrace::abort_error &err )> abort_fun;
-static StackTrace::abort_error rethrow()
+StackTrace::abort_error rethrow()
 {
     StackTrace::abort_error error;
 #ifdef USE_LINUX
@@ -1779,7 +1779,7 @@ static StackTrace::abort_error rethrow()
     }
     return error;
 }
-static void term_func_abort( int sig )
+void StackTrace::terminateFunctionSignal( int sig )
 {
     StackTrace::abort_error err;
     err.type      = StackTrace::terminateType::signal;
@@ -1833,7 +1833,7 @@ void StackTrace::setErrorHandler( std::function<void( const StackTrace::abort_er
 {
     abort_fun = abort;
     std::set_terminate( term_func );
-    setSignals( defaultSignalsToCatch(), &term_func_abort );
+    setSignals( defaultSignalsToCatch(), &terminateFunctionSignal );
     std::set_unexpected( term_func );
 }
 void StackTrace::clearErrorHandler()
@@ -2219,6 +2219,7 @@ void StackTrace::cleanupStackTrace( multi_stack_info &stack )
             // Remove callstack (and all children) for threads that are just contributing
             bool test = function.find( "_callstack_signal_handler" ) != npos ||
                         function.find( "getGlobalCallStacks" ) != npos ||
+                        function.find( "backtrace" ) != npos ||
                         function.find( "(" ) == npos;
             if ( test ) {
                 it = stack.children.erase( it );

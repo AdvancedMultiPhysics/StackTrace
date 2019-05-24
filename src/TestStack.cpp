@@ -466,6 +466,7 @@ int main( int argc, char *argv[] )
 
     // Limit the scope of variables
     {
+
         // Test exec
         test_exec( results );
 
