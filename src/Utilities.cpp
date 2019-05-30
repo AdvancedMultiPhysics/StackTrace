@@ -8,6 +8,7 @@
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <mutex>
 #include <sstream>
 #include <stdexcept>
 
@@ -116,11 +117,16 @@ void Utilities::abort( const std::string &message, const std::string &filename, 
     err.stack     = StackTrace::backtrace();
     throw err;
 }
+static std::mutex terminate_mutex;
 static void terminate( const StackTrace::abort_error &err )
 {
+    // Lock mutex to ensure multiple threads do not try to abort simultaneously
+    terminate_mutex.lock();
+    // Clear the error handlers
     clearErrorHandler();
     // Print the message and abort
     if ( force_exit > 1 ) {
+        terminate_mutex.unlock();
         std::abort();
     } else if ( !abort_throwException ) {
         // Use MPI_abort (will terminate all processes)
@@ -135,9 +141,12 @@ static void terminate( const StackTrace::abort_error &err )
             MPI_Abort( MPI_COMM_WORLD, -1 );
         }
 #endif
+        terminate_mutex.unlock();
         std::abort();
     } else {
         perr << err.what();
+        perr.flush();
+        terminate_mutex.unlock();
         std::abort();
     }
 }

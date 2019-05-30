@@ -2219,8 +2219,7 @@ void StackTrace::cleanupStackTrace( multi_stack_info &stack )
             // Remove callstack (and all children) for threads that are just contributing
             bool test = function.find( "_callstack_signal_handler" ) != npos ||
                         function.find( "getGlobalCallStacks" ) != npos ||
-                        function.find( "backtrace" ) != npos ||
-                        function.find( "(" ) == npos;
+                        function.find( "backtrace" ) != npos || function.find( "(" ) == npos;
             if ( test ) {
                 it = stack.children.erase( it );
                 continue;
