@@ -4,6 +4,7 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <typeinfo>
 
 #include "StackTrace/StackTrace.h"
 #include "StackTrace/string_view.h"
@@ -90,6 +91,18 @@ void cause_segfault();
  * @return                  Returns string containing the output
  */
 std::string exec( const StackTrace::string_view &cmd, int &exit_code );
+
+
+//! Return the hopefully demangled name of the given type
+std::string getTypeName( const std::type_info &id );
+
+
+//! Return the hopefully demangled name of the given type
+template<class TYPE>
+inline std::string getTypeName()
+{
+    return getTypeName( typeid( TYPE ) );
+}
 
 
 } // namespace Utilities

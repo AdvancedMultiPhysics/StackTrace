@@ -11,6 +11,7 @@
 #include <mutex>
 #include <sstream>
 #include <stdexcept>
+#include <typeinfo>
 
 #ifdef USE_MPI
 #include "mpi.h"
@@ -64,6 +65,12 @@
     #include <sys/types.h>
 #endif
 // clang-format on
+
+
+#ifdef __GNUC__
+#define USE_ABI
+#include <cxxabi.h>
+#endif
 
 
 namespace StackTrace {
@@ -299,6 +306,20 @@ void Utilities::cause_segfault()
 std::string Utilities::exec( const string_view &cmd, int &exit_code )
 {
     return StackTrace::exec( cmd, exit_code );
+}
+
+
+/****************************************************************************
+ *  Get the type name                                                        *
+ ****************************************************************************/
+std::string Utilities::getTypeName( const std::type_info &id )
+{
+    std::string name = id.name();
+#if defined( USE_ABI )
+    int status;
+    name = abi::__cxa_demangle( name.c_str(), 0, 0, &status );
+#endif
+    return name;
 }
 
 

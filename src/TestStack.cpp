@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cmath>
+#include <complex>
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
@@ -455,6 +456,22 @@ void test_throw( UnitTest & )
 }
 
 
+// Test getting type name
+void testTypeName( UnitTest &results )
+{
+    using StackTrace::Utilities::getTypeName;
+    bool pass = true;
+    pass      = pass && getTypeName<int>() == "int";
+    pass      = pass && getTypeName<float>() == "float";
+    pass      = pass && getTypeName<double>() == "double";
+    pass      = pass && getTypeName<std::complex<double>>() == "std::complex<double>";
+    if ( pass )
+        results.passes( "getTypeName" );
+    else
+        results.failure( "getTypeName" );
+}
+
+
 // The main function
 int main( int argc, char *argv[] )
 {
@@ -469,6 +486,9 @@ int main( int argc, char *argv[] )
 
         // Test exec
         test_exec( results );
+
+        // Test getting type name
+        testTypeName( results );
 
         // Test getting a list of all active threads
         testActivethreads( results );
