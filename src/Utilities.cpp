@@ -125,7 +125,7 @@ void Utilities::abort( const std::string &message, const std::string &filename, 
     throw err;
 }
 static std::mutex terminate_mutex;
-static void terminate( const StackTrace::abort_error &err )
+void Utilities::terminate( const StackTrace::abort_error &err )
 {
     // Lock mutex to ensure multiple threads do not try to abort simultaneously
     terminate_mutex.lock();
@@ -165,7 +165,7 @@ static void terminate( const StackTrace::abort_error &err )
 static void setTerminateErrorHandler()
 {
     // Set the terminate routine for runtime errors
-    StackTrace::setErrorHandler( terminate );
+    StackTrace::setErrorHandler( Utilities::terminate );
 }
 void Utilities::setErrorHandlers()
 {

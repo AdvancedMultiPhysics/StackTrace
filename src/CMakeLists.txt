@@ -74,7 +74,7 @@ GET_SYSTEM_LIBS()
 
 
 # Add distclean target
-ADD_DISTCLEAN( libstacktrace* FindStackTrace.cmake TestStack )
+ADD_DISTCLEAN( libstacktrace* FindStackTrace.cmake TestStack ExampleStack.txt )
 
 
 # Set the install path

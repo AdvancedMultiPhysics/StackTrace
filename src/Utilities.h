@@ -29,8 +29,13 @@ void abort( const std::string &message, const std::string &filename, const int l
 void setAbortBehavior( bool throwException, int stackType = 2 );
 
 
+//! Function to terminate the application
+void terminate( const StackTrace::abort_error &err );
+
+
 //! Function to set the error handlers
 void setErrorHandlers();
+
 
 //! Function to clear the error handlers
 void clearErrorHandlers();
