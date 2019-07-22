@@ -5,6 +5,7 @@ build/CMakeFiles/*
 build/CMakeCache.txt
 build/Makefile
 build/TestStack
+build/TestTerminate
 build/cmake_install.cmake
 build/install_manifest.txt
 build/lib/*

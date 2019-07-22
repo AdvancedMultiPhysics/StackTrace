@@ -104,13 +104,12 @@ inline size_t findfirst( const std::vector<TYPE> &X, TYPE Y )
 /****************************************************************************
  *  Function to terminate the program                                        *
  ****************************************************************************/
-static bool abort_throwException      = false;
-static printStackType abort_stackType = printStackType::global;
-static int force_exit                 = 0;
+static bool abort_throwException = false;
+static int force_exit            = 0;
 void Utilities::setAbortBehavior( bool throwException, int stackType )
 {
     abort_throwException = throwException;
-    abort_stackType      = static_cast<printStackType>( stackType );
+    StackTrace::setDefaultStackType( static_cast<printStackType>( stackType ) );
 }
 void Utilities::abort( const std::string &message, const std::string &filename, const int line )
 {
@@ -120,7 +119,7 @@ void Utilities::abort( const std::string &message, const std::string &filename, 
     err.type      = terminateType::abort;
     err.line      = line;
     err.bytes     = Utilities::getMemoryUsage();
-    err.stackType = abort_stackType;
+    err.stackType = StackTrace::getDefaultStackType();
     err.stack     = StackTrace::backtrace();
     throw err;
 }

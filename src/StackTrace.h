@@ -293,6 +293,13 @@ multi_stack_info generateFromString( const std::vector<std::string> &str );
 multi_stack_info generateFromString( const std::string &str );
 
 
+//! Set default stack type
+void setDefaultStackType( StackTrace::printStackType );
+
+//! Get default stack type
+StackTrace::printStackType getDefaultStackType();
+
+
 } // namespace StackTrace
 
 

@@ -1786,7 +1786,7 @@ void StackTrace::terminateFunctionSignal( int sig )
     err.signal    = sig;
     err.bytes     = StackTrace::Utilities::getMemoryUsage();
     err.stack     = StackTrace::backtrace();
-    err.stackType = StackTrace::printStackType::global;
+    err.stackType = StackTrace::getDefaultStackType();
     abort_fun( err );
 }
 static bool signals_set[256] = { false };
@@ -2519,3 +2519,11 @@ const char *StackTrace::abort_error::what() const noexcept
             d_msg.erase( i, 1 );
     return d_msg.c_str();
 }
+
+
+/****************************************************************************
+ * Get/Set default stack type                                                *
+ ****************************************************************************/
+static StackTrace::printStackType abort_stackType = StackTrace::printStackType::global;
+void StackTrace::setDefaultStackType( StackTrace::printStackType type ) { abort_stackType = type; }
+StackTrace::printStackType StackTrace::getDefaultStackType() { return abort_stackType; }

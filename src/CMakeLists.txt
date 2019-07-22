@@ -74,7 +74,7 @@ GET_SYSTEM_LIBS()
 
 
 # Add distclean target
-ADD_DISTCLEAN( libstacktrace* FindStackTrace.cmake TestStack ExampleStack.txt )
+ADD_DISTCLEAN( libstacktrace* FindStackTrace.cmake TestStack TestTerminate ExampleStack.txt )
 
 
 # Set the install path
@@ -143,12 +143,9 @@ INSTALL( TARGETS stacktrace DESTINATION "${CMAKE_INSTALL_PREFIX}/lib" )
 TARGET_COMPILE_DEFINITIONS( stacktrace PUBLIC ${COVERAGE_FLAGS} )
 
 
-# Add an executable
-ADD_EXECUTABLE( TestStack TestStack.cpp )
-TARGET_LINK_LIBRARIES( TestStack stacktrace )
-TARGET_LINK_LIBRARIES( TestStack ${TIMER_LIB} ${MPI_CXX_LIBRARIES} ${COVERAGE_LIBS} "${SYSTEM_LIBS}" )
-TARGET_COMPILE_DEFINITIONS( TestStack PUBLIC ${COVERAGE_FLAGS} )
-INSTALL( TARGETS TestStack DESTINATION "${CMAKE_INSTALL_PREFIX}/bin" )
+# Add the tests
+ADD_EXE( TestStack TestStack.cpp )
+ADD_EXE( TestTerminate TestTerminate.cpp )
 CONFIGURE_FILE( "data/ExampleStack.txt" "${CMAKE_CURRENT_BINARY_DIR}/ExampleStack.txt" @ONLY )
 CONFIGURE_FILE( "data/ExampleStack.txt" "${CMAKE_INSTALL_PREFIX}/bin/ExampleStack.txt" @ONLY )
 IF ( USE_MPI )
