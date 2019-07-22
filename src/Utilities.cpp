@@ -22,7 +22,7 @@
 #endif
 
 #ifdef USE_GCOV
-extern "C" void __gcov_flush(void);
+extern "C" void __gcov_flush( void );
 #endif
 
 

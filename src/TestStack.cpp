@@ -569,6 +569,13 @@ int main( int argc, char *argv[] )
         else
             results.failure( "tick" );
 
+        // Test getSystemMemory
+        auto bytes = StackTrace::Utilities::getSystemMemory();
+        if ( bytes > 1e7 && bytes < 1e14 )
+            results.passes( "getSystemMemory" );
+        else
+            results.failure( "getSystemMemory" );
+
         // Test terminate
         testTerminate( results );
     }

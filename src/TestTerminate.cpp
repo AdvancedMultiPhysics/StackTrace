@@ -24,13 +24,10 @@ int main( int argc, char *argv[] )
         StackTrace::Utilities::abort( "StackTrace::Utilities::abort", __FILE__, __LINE__ );
     else if ( strcmp( argv[1], "throw" ) == 0 )
         throw std::logic_error( "test throw" );
+    else if ( strcmp( argv[1], "segfault" ) == 0 )
+        StackTrace::Utilities::cause_segfault();
     else
         std::cerr << "Unknown argument\n";
 
-    // Shutdown
-    StackTrace::Utilities::clearErrorHandlers();
-    StackTrace::clearSignals();
-    StackTrace::clearSymbols();
-    std::cout << "Finished\n";
     return 0;
 }
