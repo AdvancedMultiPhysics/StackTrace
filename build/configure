@@ -7,7 +7,7 @@ cmake                               \
     -D CMAKE_CXX_EXTENSIONS:BOOL=FALSE \
     -D CMAKE_EXPORT_COMPILE_COMMANDS=ON \
     -D USE_MPI:BOOL=TRUE            \
-    -D ENABLE_COVERAGE:BOOL=FALSE   \
+    -D ENABLE_COVERAGE:BOOL=TRUE   \
     -D TIMER_DIRECTORY=/projects/TimerUtility/build/debug \
     ../src
 
