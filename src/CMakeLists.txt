@@ -149,11 +149,17 @@ ADD_EXE( TestTerminate TestTerminate.cpp )
 CONFIGURE_FILE( "data/ExampleStack.txt" "${CMAKE_CURRENT_BINARY_DIR}/ExampleStack.txt" @ONLY )
 CONFIGURE_FILE( "data/ExampleStack.txt" "${CMAKE_INSTALL_PREFIX}/bin/ExampleStack.txt" @ONLY )
 IF ( USE_MPI )
-    ADD_TEST( NAME TestStack COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4 $<TARGET_FILE:TestStack> )
+    ADD_TEST( NAME TestStack COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 1 $<TARGET_FILE:TestStack> )
     ADD_TEST( NAME TestStack-4procs COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4 $<TARGET_FILE:TestStack> )
 ELSE()
     ADD_TEST( NAME TestStack COMMAND $<TARGET_FILE:TestStack> )
 ENDIF()
+ADD_TEST( NAME TestTerminate-signal COMMAND $<TARGET_FILE:TestTerminate> signal "2>&1" )
+ADD_TEST( NAME TestTerminate-abort  COMMAND $<TARGET_FILE:TestTerminate> abort  "2>&1" )
+ADD_TEST( NAME TestTerminate-throw  COMMAND $<TARGET_FILE:TestTerminate> throw  "2>&1" )
+SET_TESTS_PROPERTIES( TestTerminate-signal PROPERTIES WILL_FAIL TRUE PASS_REGULAR_EXPRESSION "Unhandled signal (6) caught"  )
+SET_TESTS_PROPERTIES( TestTerminate-abort  PROPERTIES WILL_FAIL TRUE PASS_REGULAR_EXPRESSION "Program abort called in file" )
+SET_TESTS_PROPERTIES( TestTerminate-throw  PROPERTIES WILL_FAIL TRUE PASS_REGULAR_EXPRESSION "Unhandled exception caught"   )
 
 
 # Create FindStackTrace.cmake
