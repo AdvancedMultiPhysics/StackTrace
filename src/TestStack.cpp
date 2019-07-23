@@ -459,18 +459,23 @@ void test_throw( UnitTest & )
 // Test terminate
 void testTerminate( UnitTest &results )
 {
-    int exit;
-    bool pass = true;
-    auto msg1 = StackTrace::Utilities::exec( "./TestTerminate signal 2>&1", exit );
-    auto msg2 = StackTrace::Utilities::exec( "./TestTerminate abort 2>&1", exit );
-    auto msg3 = StackTrace::Utilities::exec( "./TestTerminate throw 2>&1", exit );
-    pass      = pass && msg1.find( "Unhandled signal (6) caught" ) != std::string::npos;
-    pass      = pass && msg2.find( "Program abort called in file" ) != std::string::npos;
-    pass      = pass && msg3.find( "Unhandled exception caught" ) != std::string::npos;
-    if ( pass )
-        results.passes( "terminate" );
-    else
-        results.failure( "terminate" );
+    if ( getRank() == 0 ) {
+        int exit;
+        bool pass = true;
+        auto msg1 = StackTrace::Utilities::exec( "./TestTerminate signal 2>&1", exit );
+        auto msg2 = StackTrace::Utilities::exec( "./TestTerminate abort 2>&1", exit );
+        auto msg3 = StackTrace::Utilities::exec( "./TestTerminate throw 2>&1", exit );
+        auto msg4 = StackTrace::Utilities::exec( "./TestTerminate segfault 2>&1", exit );
+        pass      = pass && msg1.find( "Unhandled signal (6) caught" ) != std::string::npos;
+        pass      = pass && msg2.find( "Program abort called in file" ) != std::string::npos;
+        pass      = pass && msg3.find( "Unhandled exception caught" ) != std::string::npos;
+        pass      = pass && msg4.find( "Unhandled signal (11) caught" ) != std::string::npos;
+        if ( pass )
+            results.passes( "terminate" );
+        else
+            results.failure( "terminate" );
+    }
+    barrier();
 }
 
 

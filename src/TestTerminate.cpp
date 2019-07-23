@@ -10,7 +10,7 @@ int main( int argc, char *argv[] )
 {
     if ( argc != 2 ) {
         std::cout << "Incorrect number of arguments\n";
-        return 0;
+        return -1;
     }
 
     // Startup
@@ -29,5 +29,5 @@ int main( int argc, char *argv[] )
     else
         std::cerr << "Unknown argument\n";
 
-    return 0;
+    return -1;
 }
