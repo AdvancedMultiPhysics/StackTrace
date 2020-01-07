@@ -323,28 +323,41 @@ void testGlobalStack(
 void testActivethreads( UnitTest &results )
 {
     // Test getting a list of all active threads
-    std::thread thread1( sleep_ms, 1000 );
-    std::thread thread2( sleep_ms, 1000 );
-    sleep_ms( 100 ); // Give threads time to start
+    int status[2] = { 0, 0 };
+    // Start the threads
+    auto run = [&status]( int id ) {
+        status[id] = 1;
+        while ( status[id] != 2 )
+            sleep_ms( 100 );
+    };
+    std::thread thread1( run, 0 );
+    std::thread thread2( run, 1 );
+    // Make sure the threads have initialized
+    while ( status[0] == 0 || status[1] == 0 )
+        sleep_ms( 100 );
+    // Get the active thread ids
     auto thread_ids_test = StackTrace::activeThreads();
-    std::thread::native_handle_type thread_ids[3];
+    std::vector<std::thread::native_handle_type> thread_ids( 3 );
     auto self     = StackTrace::thisThread();
     thread_ids[0] = StackTrace::thisThread();
     thread_ids[1] = thread1.native_handle();
     thread_ids[2] = thread2.native_handle();
+    std::sort( thread_ids.begin(), thread_ids.end() );
+    std::sort( thread_ids_test.begin(), thread_ids_test.end() );
+    // Close the threads
+    status[0] = 2;
+    status[1] = 2;
     thread1.join();
     thread2.join();
-    bool pass = true;
-    for ( auto id : thread_ids ) {
-        auto it = std::find( thread_ids_test.begin(), thread_ids_test.end(), id );
-        pass    = pass && it != thread_ids_test.end();
-    }
-    if ( pass )
+    int N = thread_ids_test.size();
+    if ( thread_ids == thread_ids_test )
         results.passes( "StackTrace::activeThreads" );
-    else if ( thread_ids_test.size() == 1u && thread_ids_test[0] == self )
+    else if ( N == 1 && thread_ids_test[0] == self )
         results.expected( "StackTrace::activeThreads only is able to return self" );
+    else if ( N == 3 )
+        results.failure( "StackTrace::activeThreads ids do not match" );
     else
-        results.failure( "StackTrace::activeThreads" );
+        results.failure( "StackTrace::activeThreads found " + std::to_string( N ) + " ids" );
 }
 
 
@@ -600,9 +613,10 @@ int main( int argc, char *argv[] )
     shutdown();
 #ifdef USE_TIMER
     PROFILE_DISABLE();
-    std::cout << std::endl << std::endl;
-    if ( rank == 0 )
+    if ( rank == 0 ) {
+        std::cout << std::endl << std::endl;
         MemoryApp::print( std::cout );
+    }
 #endif
     return N_errors;
 }
