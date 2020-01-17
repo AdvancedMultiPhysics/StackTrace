@@ -25,7 +25,14 @@
 # Find cppcheck if availible
 FIND_PROGRAM( CPPCHECK 
     NAMES cppcheck cppcheck.exe 
-    PATHS "${CPPCHECK_DIRECTORY}" "C:/Program Files/Cppcheck" "C:/Program Files (x86)/Cppcheck" 
+    PATHS "${CPPCHECK_DIRECTORY}" "${CPPCHECK_DIRECTORY}/bin" NO_DEFAULT_PATH
+)
+FIND_PROGRAM( CPPCHECK 
+    NAMES cppcheck cppcheck.exe 
+    PATHS "C:/Program Files/Cppcheck" "C:/Program Files (x86)/Cppcheck" NO_DEFAULT_PATH
+)
+FIND_PROGRAM( CPPCHECK 
+    NAMES cppcheck cppcheck.exe 
 )
 IF ( CPPCHECK )
     SET( CPPCHECK_FOUND TRUE )

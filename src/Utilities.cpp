@@ -325,7 +325,9 @@ std::string Utilities::getTypeName( const std::type_info &id )
     std::string name = id.name();
 #if defined( USE_ABI )
     int status;
-    name = abi::__cxa_demangle( name.c_str(), 0, 0, &status );
+    auto tmp = abi::__cxa_demangle( name.c_str(), 0, 0, &status );
+    name.assign( tmp );
+    free( tmp );
 #endif
     return name;
 }

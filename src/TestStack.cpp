@@ -614,8 +614,11 @@ int main( int argc, char *argv[] )
 #ifdef USE_TIMER
     PROFILE_DISABLE();
     if ( rank == 0 ) {
-        std::cout << std::endl << std::endl;
-        MemoryApp::print( std::cout );
+        auto memory = MemoryApp::getMemoryStats();
+        if ( rank == 0 && memory.N_new > memory.N_delete ) {
+            std::cout << std::endl << std::endl;
+            MemoryApp::print( std::cout );
+        }
     }
 #endif
     return N_errors;
