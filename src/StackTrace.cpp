@@ -358,13 +358,16 @@ static inline int exec3( const char *cmd, FUNCTION &fun )
     resetSignal( SIGCHLD );    // Clear child exited
     return code;
 }
-template<std::size_t blocKSize>
-static void exec2( const char *cmd, staticVector<std::array<char, 1024>, blocKSize> &out )
+template<std::size_t blockSize>
+static void exec2( const char *cmd, staticVector<std::array<char, 512>, blockSize> &out )
 {
     out.clear();
     auto fun = [&out]( const char *line ) {
-        size_t N = strlen( line );
         size_t k = out.size();
+        if ( k == blockSize )
+            return;
+        size_t N = strlen( line );
+        N        = std::min<size_t>( N, 512 );
         out.resize( k + 1 );
         out[k].fill( 0 );
         memcpy( out[k].data(), line, N );
@@ -832,7 +835,7 @@ static void getFileAndLineObject( staticVector<StackTrace::stack_info*,blockSize
         }
         N += sprintf(&cmd[N]," 2> /dev/null");
         // Get the function/line/file
-        staticVector<std::array<char, 1024>,4*blockSize> output;
+        staticVector<std::array<char, 512>,4*blockSize> output;
         exec2( cmd, output );
         if ( output.size() != 4*info.size() )
             return;
@@ -881,7 +884,7 @@ static void getFileAndLineObject( staticVector<StackTrace::stack_info*,blockSize
             N += sprintf( &cmd[N], " %lx", reinterpret_cast<unsigned long>( info[i]->address ) );
         N += sprintf(&cmd[N]," 2> /dev/null");
         // Get the function/line/file
-        staticVector<std::array<char, 1024>,blockSize> output;
+        staticVector<std::array<char, 512>,blockSize> output;
         exec2( cmd, output );
         if ( output.size() != info.size() )
             return;
@@ -905,7 +908,8 @@ static void getFileAndLineObject( staticVector<StackTrace::stack_info*,blockSize
 }
 static void getFileAndLine( size_t N, StackTrace::stack_info *info )
 {
-    constexpr size_t blockSize = 1024;
+    // Limit block size to prevent blowing out the stack
+    constexpr size_t blockSize = 256;
     // Operate on blocks
     size_t i0 = 0;
     while ( i0 < N ) {
