@@ -788,11 +788,11 @@ static auto split_atos( const std::string &buf )
     size_t index = buf.find( " (in " );
     if ( index == std::string::npos ) {
         copy( buf.c_str(), fun );
-        cleanupFunctionName( fun );
+        cleanupFunctionName( fun.data() );
         return std::tie( fun, obj, objPath, file, filePath, line );
     }
     copy( buf.substr( 0, index ).c_str(), fun );
-    cleanupFunctionName( fun );
+    cleanupFunctionName( fun.data() );
     std::string tmp = buf.substr( index + 5 );
     // Get the object
     index = tmp.find( ')' );
@@ -892,14 +892,14 @@ static void getFileAndLineObject( staticVector<StackTrace::stack_info*,blockSize
         for ( size_t i=0; i<info.size(); i++) {
             auto data = split_atos( output[2*i].data() );
             if ( info[i]->function.empty() )
-                info[i]->function = std::get<0>(data);
+                copy( std::get<0>(data), info[i]->function );
             if ( info[i]->object.empty() ) {
-                info[i]->object = std::get<1>(data);
-                info[i]->objectPath = std::get<2>(data);
+                copy( std::get<1>(data), info[i]->object );
+                copy( std::get<2>(data), info[i]->objectPath );
             }
             if ( info[i]->filename.empty() ) {
-                info[i]->filename = std::get<3>(data);
-                info[i]->filenamePath = std::get<4>(data);
+                copy( std::get<3>(data), info[i]->filename );
+                copy( std::get<4>(data), info[i]->filenamePath );
             }
             if ( info[i]->line==0 )
                 info[i]->line = std::get<5>(data);
@@ -1179,7 +1179,7 @@ static staticVector<std::thread::native_handle_type,1024> getActiveThreads( )
         mach_msg_type_number_t thread_count = 0;
         task_threads(mach_task_self(), &thread_list, &thread_count);
         auto old = signal( thread_callstack_signal, _activeThreads_signal_handler );
-        for ( int i=0; i<thread_count; i++) {
+        for ( int i=0; i<static_cast<int>(thread_count); i++) {
             if ( thread_list[i] == mach_thread_self() )
                 continue;
             static bool called = false;
