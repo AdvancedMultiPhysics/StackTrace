@@ -1169,8 +1169,10 @@ static staticVector<std::thread::native_handle_type,1024> getActiveThreads( )
                 std::this_thread::yield();
                 t2 = std::chrono::high_resolution_clock::now();
             }
-            if ( thread_handle != thread0 )
-                threads.push_back( const_cast<decltype(thread0)&>( thread_handle ) );
+            if ( thread_handle != thread0 ) {
+                std::thread::native_handle_type tmp = thread_handle;
+                threads.push_back( tmp );
+            }
         }
         signal( thread_callstack_signal, old );
         StackTrace_mutex.unlock();
