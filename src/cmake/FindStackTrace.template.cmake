@@ -22,6 +22,11 @@
 SET( StackTrace_FOUND TRUE )
 SET( CMAKE_INSTALL_RPATH "@CMAKE_INSTALL_PREFIX@/lib" @CMAKE_INSTALL_RPATH@ ${CMAKE_INSTALL_RPATH} )
 FIND_LIBRARY( StackTrace_LIB  NAMES stacktrace  PATHS "@CMAKE_INSTALL_PREFIX@/lib" NO_DEFAULT_PATH )
-SET( StackTrace_LIBRARIES ${StackTrace_LIB} @TIMER_LIB@ @SYSTEM_LIBS@ )
+SET( StackTrace_LIBRARIES ${StackTrace_LIB} )
+IF ( NOT TIMER_FOUND )
+    # Do not include Timer libraries if they have already been found
+    SET( StackTrace_LIBRARIES ${StackTrace_LIBRARIES} @TIMER_LIB@ )
+ENDIF()
+SET( StackTrace_LIBRARIES ${StackTrace_LIBRARIES} @SYSTEM_LIBS@ )
 SET( StackTrace_INCLUDE_DIRS "@CMAKE_INSTALL_PREFIX@/include" )
 

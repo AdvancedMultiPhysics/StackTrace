@@ -1,13 +1,16 @@
 rm -rf CMake*
 
+# export CXX=mpic++
+export CXX=g++
+
 cmake                               \
     -D CMAKE_BUILD_TYPE=Debug       \
-    -D CMAKE_CXX_COMPILER=mpic++    \
+    -D CMAKE_CXX_COMPILER=${CXX}    \
     -D CMAKE_CXX_STANDARD=14        \
     -D CMAKE_CXX_EXTENSIONS:BOOL=FALSE \
     -D CMAKE_EXPORT_COMPILE_COMMANDS=ON \
-    -D USE_MPI:BOOL=TRUE            \
-    -D ENABLE_COVERAGE:BOOL=TRUE    \
+    -D USE_MPI:BOOL=FALSE            \
+    -D ENABLE_COVERAGE:BOOL=FALSE    \
     -D CPPCHECK_DIRECTORY=/packages/TPLs/install/debug/cppcheck \
     -D USE_TIMER:BOOL=FALSE         \
     -D TIMER_DIRECTORY=/projects/TimerUtility/build/debug \

@@ -88,8 +88,54 @@ SET( CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH} 
 
 # Add the include directory
 INCLUDE_DIRECTORIES( "${CMAKE_INSTALL_PREFIX}/include" )
+
+
+# Configure MPI
 IF ( USE_MPI )
-    FIND_PACKAGE( MPI )
+    MESSAGE( "Configuring MPI" )
+    IF ( MPIEXEC )
+        SET( MPIEXEC_EXECUTABLE ${MPIEXEC} )
+    ENDIF()
+    IF ( NOT MPI_SKIP_SEARCH )
+        FIND_PACKAGE( MPI )
+    ELSE()
+        # Write mpi test
+        SET( MPI_TEST_SRC "${CMAKE_CURRENT_BINARY_DIR}/test_mpi.cpp" )
+        FILE(WRITE  ${MPI_TEST_SRC} "#include <mpi.h>\n" )
+        FILE(APPEND ${MPI_TEST_SRC} "int main(int argc, char** argv) {\n" )
+        FILE(APPEND ${MPI_TEST_SRC} "    MPI_Init(NULL, NULL);\n")
+        FILE(APPEND ${MPI_TEST_SRC} "    MPI_Finalize();\n" )
+        FILE(APPEND ${MPI_TEST_SRC} "}\n" )
+        # Test the compile
+        SET( TMP_FLAGS -DINCLUDE_DIRECTORIES=${MPI_CXX_INCLUDE_PATH} )
+        TRY_COMPILE( MPI_TEST_CXX ${CMAKE_CURRENT_BINARY_DIR} ${MPI_TEST_SRC}
+            CMAKE_FLAGS ${TMP_FLAGS}
+            LINK_OPTIONS ${MPI_CXX_LINK_FLAGS}
+            LINK_LIBRARIES ${MPI_CXX_LIBRARIES}
+            OUTPUT_VARIABLE OUT_TXT)
+        IF ( NOT ${MPI_TEST} )
+            MESSAGE( FATAL_ERROR "Skipping MPI search and default compile fails:\n${OUT_TXT}" )
+        ENDIF()
+        SET( MPI_C_FOUND TRUE )
+        SET( MPI_CXX_FOUND TRUE )
+        SET( MPI_Fortran_FOUND TRUE )
+    ENDIF()
+    STRING( STRIP "${MPI_CXX_COMPILE_FLAGS}" MPI_CXX_COMPILE_FLAGS )
+    STRING( STRIP "${MPI_CXX_LINK_FLAGS}" MPI_CXX_LINK_FLAGS )
+    STRING( STRIP "${MPI_CXX_LIBRARIES}" MPI_CXX_LIBRARIES )
+    MESSAGE( "   MPI_CXX_FOUND = ${MPI_CXX_FOUND}" )
+    MESSAGE( "   MPI_CXX_COMPILER = ${MPI_CXX_COMPILER}" )
+    MESSAGE( "   MPI_CXX_COMPILE_FLAGS = ${MPI_CXX_COMPILE_FLAGS}" )
+    MESSAGE( "   MPI_CXX_INCLUDE_PATH = ${MPI_CXX_INCLUDE_PATH}" )
+    MESSAGE( "   MPI_CXX_LINK_FLAGS = ${MPI_CXX_LINK_FLAGS}" )
+    MESSAGE( "   MPI_CXX_LIBRARIES = ${MPI_CXX_LIBRARIES}" )
+    MESSAGE( "   MPIEXEC = ${MPIEXEC}" )
+    MESSAGE( "   MPIEXEC_NUMPROC_FLAG = ${MPIEXEC_NUMPROC_FLAG}" )
+    MESSAGE( "   MPIEXEC_PREFLAGS = ${MPIEXEC_PREFLAGS}" )
+    MESSAGE( "   MPIEXEC_POSTFLAGS = ${MPIEXEC_POSTFLAGS}" )
+    IF ( NOT MPI_CXX_FOUND )
+        MESSAGE( FATAL_ERROR "MPI not found" )
+    ENDIF()
     ADD_DEFINITIONS( -DUSE_MPI )
     INCLUDE_DIRECTORIES( ${MPI_CXX_INCLUDE_PATH} )
     SET( MPI_COMM "#include \"mpi.h\"" )
@@ -113,7 +159,7 @@ ENDIF()
 IF ( NOT CMAKE_CXX_STANDARD )
     SET( CMAKE_CXX_STANDARD 14 )
 ENDIF()
-SET_COMPILER_FLAGS()
+SET_WARNINGS()
 
 
 # Check if we are using the timer (allows a more accurace memory usage)
@@ -129,7 +175,6 @@ IF ( USE_TIMER )
     INCLUDE_DIRECTORIES( "${TIMER_DIRECTORY}/include" )
     FIND_LIBRARY( TIMER_LIB timerutility PATHS "${TIMER_DIRECTORY}/lib" NO_DEFAULT_PATH )
 ENDIF()
-SET_COMPILER_FLAGS()
 
 
 # Create a target to copy headers
