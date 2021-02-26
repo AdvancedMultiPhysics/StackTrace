@@ -69,27 +69,6 @@ IF ( USE_DOXYGEN )
 ENDIF()
 
 
-# Add system specific libraries
-GET_SYSTEM_LIBS()
-
-
-# Add distclean target
-ADD_DISTCLEAN( libstacktrace* FindStackTrace.cmake TestStack TestTerminate ExampleStack.txt )
-
-
-# Set the install path
-IF ( INSTALL_PREFIX )
-    SET( CMAKE_INSTALL_PREFIX "${INSTALL_PREFIX}" )
-ELSE()
-    SET( CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_BINARY_DIR}" )
-ENDIF()
-SET( CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH} )
-
-
-# Add the include directory
-INCLUDE_DIRECTORIES( "${CMAKE_INSTALL_PREFIX}/include" )
-
-
 # Configure MPI
 IF ( USE_MPI )
     MESSAGE( "Configuring MPI" )
@@ -116,9 +95,7 @@ IF ( USE_MPI )
         IF ( NOT ${MPI_TEST} )
             MESSAGE( FATAL_ERROR "Skipping MPI search and default compile fails:\n${OUT_TXT}" )
         ENDIF()
-        SET( MPI_C_FOUND TRUE )
         SET( MPI_CXX_FOUND TRUE )
-        SET( MPI_Fortran_FOUND TRUE )
     ENDIF()
     STRING( STRIP "${MPI_CXX_COMPILE_FLAGS}" MPI_CXX_COMPILE_FLAGS )
     STRING( STRIP "${MPI_CXX_LINK_FLAGS}" MPI_CXX_LINK_FLAGS )
@@ -142,6 +119,14 @@ IF ( USE_MPI )
 ELSE()
     SET( MPI_COMM "typedef int MPI_Comm;" )
 ENDIF()
+
+
+# Add system specific libraries
+GET_SYSTEM_LIBS()
+
+
+# Add distclean target
+ADD_DISTCLEAN( libstacktrace* FindStackTrace.cmake TestStack TestTerminate ExampleStack.txt )
 
 
 # Check if we want to enable coverage
@@ -183,7 +168,7 @@ FILE(GLOB headers "${CMAKE_CURRENT_SOURCE_DIR}/*.h")
 FILE( GLOB hfiles RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" ${headers} )
 FOREACH( tmp ${hfiles} )
     SET( SRC_FILE "${CMAKE_CURRENT_SOURCE_DIR}/${tmp}" )
-    SET( DST_FILE "${CMAKE_INSTALL_PREFIX}/include/StackTrace/${tmp}" )
+    SET( DST_FILE "${${PROJ}_INSTALL_DIR}/include/StackTrace/${tmp}" )
     CONFIGURE_FILE( "${SRC_FILE}" "${DST_FILE}" @ONLY )
 ENDFOREACH()
 
@@ -191,7 +176,7 @@ ENDFOREACH()
 # Add a static library
 ADD_LIBRARY( stacktrace STATIC Utilities.cpp StackTrace.cpp )
 ADD_DEPENDENCIES( stacktrace StackTrace-include )
-INSTALL( TARGETS stacktrace DESTINATION "${CMAKE_INSTALL_PREFIX}/lib" )
+INSTALL( TARGETS stacktrace DESTINATION "${${PROJ}_INSTALL_DIR}/lib" )
 TARGET_COMPILE_DEFINITIONS( stacktrace PUBLIC ${COVERAGE_FLAGS} )
 
 
@@ -199,7 +184,7 @@ TARGET_COMPILE_DEFINITIONS( stacktrace PUBLIC ${COVERAGE_FLAGS} )
 ADD_EXE( TestStack TestStack.cpp )
 ADD_EXE( TestTerminate TestTerminate.cpp )
 CONFIGURE_FILE( "data/ExampleStack.txt" "${CMAKE_CURRENT_BINARY_DIR}/ExampleStack.txt" @ONLY )
-CONFIGURE_FILE( "data/ExampleStack.txt" "${CMAKE_INSTALL_PREFIX}/bin/ExampleStack.txt" @ONLY )
+CONFIGURE_FILE( "data/ExampleStack.txt" "${${PROJ}_INSTALL_DIR}/bin/ExampleStack.txt" @ONLY )
 IF ( USE_MPI )
     ADD_TEST( NAME TestStack COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 1 $<TARGET_FILE:TestStack> )
     ADD_TEST( NAME TestStack-4procs COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4 $<TARGET_FILE:TestStack> )
@@ -209,11 +194,11 @@ ENDIF()
 
 
 # Create FindStackTrace.cmake
-CONFIGURE_FILE( cmake/FindStackTrace.template.cmake "${CMAKE_INSTALL_PREFIX}/FindStackTrace.cmake" @ONLY )
+CONFIGURE_FILE( cmake/FindStackTrace.template.cmake "${${PROJ}_INSTALL_DIR}/FindStackTrace.cmake" @ONLY )
 
 
 # Add the cppcheck tests
-SET( CPPCHECK_INCLUDE "-I${CMAKE_INSTALL_PREFIX}/include" )
+SET( CPPCHECK_INCLUDE "-I${${PROJ}_INSTALL_DIR}/include" )
 SET( CPPCHECK_SERIALIZE TRUE )
 SET( CPPCHECK_SUPRESSION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/cmake/cppcheckSuppressionFile" )
 FIND_PACKAGE( Cppcheck )
