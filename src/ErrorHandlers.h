@@ -15,7 +15,6 @@
 namespace StackTrace
 {
 
-
     /*!
      * Set the error handler
      * @param[in] abort     Function to terminate the program: abort(msg,type)

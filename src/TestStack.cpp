@@ -22,6 +22,9 @@
 using StackTrace::Utilities::time;
 
 
+std::string rootPath;
+
+
 // Include MPI
 // clang-format off
 #ifdef USE_MPI
@@ -30,6 +33,11 @@ using StackTrace::Utilities::time;
         int rank = 0;
         MPI_Comm_rank( MPI_COMM_WORLD, &rank );
         return rank;
+    }
+    int getSize() {
+        int size = 0;
+        MPI_Comm_size( MPI_COMM_WORLD, &size );
+        return size;
     }
     void barrier() { MPI_Barrier( MPI_COMM_WORLD ); }
     int sumReduce( int x ) {
@@ -54,6 +62,7 @@ using StackTrace::Utilities::time;
     int startup( int, char*[] ) { return 0; }
     void shutdown( ) { }
     int getRank() { return 0; }
+    int getSize() { return 1; }
 #endif
 // clang-format on
 
@@ -88,17 +97,24 @@ public:
             for ( const auto &msg : passes_ )
                 std::cout << "   " << msg << std::endl;
             std::cout << std::endl << "Tests expected failed:" << std::endl;
-        }
-        barrier();
-        for ( const auto &msg : expected_ )
-            std::cout << "   Rank " << rank << ": " << msg << std::endl;
-        barrier();
-        if ( rank == 0 )
+            printAll( expected_ );
             std::cout << std::endl << "Tests failed:" << std::endl;
-        barrier();
-        for ( const auto &msg : failure_ )
-            std::cout << "   Rank " << rank << ": " << msg << std::endl;
-        barrier();
+            printAll( failure_ );
+        } else {
+            printAll( expected_ );
+            printAll( failure_ );
+        }
+    }
+    static void printAll( std::vector<std::string> messages )
+    {
+        int rank = getRank();
+        int size = getSize();
+        for ( int i = 0; i < size; i++ ) {
+            if ( rank == i )
+                for ( const auto &msg : messages )
+                    std::cout << "   Rank " << rank << ": " << msg << std::endl;
+            barrier();
+        }
     }
 
     int N_failed() const { return sumReduce( failure_.size() ); }
@@ -155,6 +171,16 @@ void sleep_s( int N )
 }
 
 
+// Funcion to add pass/fail
+void addMessage( UnitTest &ut, bool pass, const std::string &msg )
+{
+    if ( pass )
+        ut.passes( msg );
+    else
+        ut.failure( msg );
+}
+
+
 // Function to perform various signal tests
 int global_signal_helper[1024] = { 0 };
 void handleSignal( int s ) { global_signal_helper[s] = 1; }
@@ -180,10 +206,7 @@ void testSignal( UnitTest &results )
         for ( auto sig : signals )
             pass = pass && global_signal_helper[sig] == 1;
         std::cout << std::endl;
-        if ( pass )
-            results.passes( "Signals" );
-        else
-            results.failure( "Signals" );
+        addMessage( results, pass, "Signals" );
     }
     barrier();
 }
@@ -209,10 +232,7 @@ void testCurrentStack( UnitTest &results, bool &decoded_symbols )
             if ( strstr( item.function.data(), "get_call_stack" ) )
                 decoded_symbols = true;
         }
-        if ( decoded_symbols )
-            results.passes( "call stack decoded function symbols" );
-        else
-            results.failure( "call stack was unable to decode function symbols" );
+        addMessage( results, decoded_symbols, "call stack decoded function symbols" );
     } else {
         results.failure( "non empty call stack" );
     }
@@ -363,15 +383,12 @@ void testActivethreads( UnitTest &results )
 
 void testStackFile( UnitTest &results, const std::string &filename )
 {
-    if ( getRank() != 0 ) {
-        barrier();
-        return;
-    }
     // Read entire file
     std::cout << "Reading stack trace file: " << filename << std::endl;
     auto fid = fopen( filename.c_str(), "rb" );
     if ( fid == nullptr ) {
         results.failure( "Unable to open file " + filename );
+        barrier();
         return;
     }
     fseek( fid, 0, SEEK_END );
@@ -390,7 +407,6 @@ void testStackFile( UnitTest &results, const std::string &filename )
     // Print the results
     stack.print( std::cout );
     std::cout << std::endl;
-    barrier();
 }
 
 
@@ -416,10 +432,7 @@ void test_exec( UnitTest &results )
     for ( size_t i = 0; i < threads.size(); i++ )
         threads[i].join();
     pass = pass && count == 8000;
-    if ( pass )
-        results.passes( "exec called in parallel" );
-    else
-        results.failure( "exec called in parallel" );
+    addMessage( results, pass, "exec called in parallel" );
 }
 
 
@@ -474,19 +487,18 @@ void testTerminate( UnitTest &results )
 {
     if ( getRank() == 0 ) {
         int exit;
-        bool pass = true;
-        auto msg1 = StackTrace::Utilities::exec( "./TestTerminate signal 2>&1", exit );
-        auto msg2 = StackTrace::Utilities::exec( "./TestTerminate abort 2>&1", exit );
-        auto msg3 = StackTrace::Utilities::exec( "./TestTerminate throw 2>&1", exit );
-        auto msg4 = StackTrace::Utilities::exec( "./TestTerminate segfault 2>&1", exit );
-        pass      = pass && msg1.find( "Unhandled signal (6) caught" ) != std::string::npos;
-        pass      = pass && msg2.find( "Program abort called in file" ) != std::string::npos;
-        pass      = pass && msg3.find( "Unhandled exception caught" ) != std::string::npos;
-        pass      = pass && msg4.find( "Unhandled signal (11) caught" ) != std::string::npos;
-        if ( pass )
-            results.passes( "terminate" );
-        else
-            results.failure( "terminate" );
+        auto msg1  = StackTrace::Utilities::exec( rootPath + "TestTerminate signal 2>&1", exit );
+        auto msg2  = StackTrace::Utilities::exec( rootPath + "TestTerminate abort 2>&1", exit );
+        auto msg3  = StackTrace::Utilities::exec( rootPath + "TestTerminate throw 2>&1", exit );
+        auto msg4  = StackTrace::Utilities::exec( rootPath + "TestTerminate segfault 2>&1", exit );
+        bool test1 = msg1.find( "Unhandled signal (6) caught" ) != std::string::npos;
+        bool test2 = msg2.find( "Program abort called in file" ) != std::string::npos;
+        bool test3 = msg3.find( "Unhandled exception caught" ) != std::string::npos;
+        bool test4 = msg4.find( "Unhandled signal (11) caught" ) != std::string::npos;
+        addMessage( results, test1, "Unhandled signal (6) caught" );
+        addMessage( results, test2, "Program abort called in file" );
+        addMessage( results, test3, "Unhandled exception caught" );
+        addMessage( results, test4, "Unhandled signal (11) caught" );
     }
     barrier();
 }
@@ -501,10 +513,7 @@ void testTypeName( UnitTest &results )
     pass      = pass && getTypeName<float>() == "float";
     pass      = pass && getTypeName<double>() == "double";
     pass      = pass && getTypeName<std::complex<double>>() == "std::complex<double>";
-    if ( pass )
-        results.passes( "getTypeName" );
-    else
-        results.failure( "getTypeName" );
+    addMessage( results, pass, "getTypeName" );
 }
 
 
@@ -519,6 +528,12 @@ int main( int argc, char *argv[] )
 
     // Limit the scope of variables
     {
+        // Set the value of rootPath
+        rootPath     = argv[0];
+        size_t index = rootPath.rfind( "TestStack" );
+        rootPath     = rootPath.substr( 0, index );
+        if ( rootPath.empty() )
+            rootPath = "./";
 
         // Test exec
         test_exec( results );
@@ -552,10 +567,7 @@ int main( int argc, char *argv[] )
         auto exe = StackTrace::getExecutable();
         if ( rank == 0 )
             std::cout << "\nExecutable: " << exe << std::endl;
-        if ( exe.find( "TestStack" ) != std::string::npos )
-            results.passes( "getExecutable" );
-        else
-            results.failure( "getExecutable" );
+        addMessage( results, exe.find( "TestStack" ) != std::string::npos, "getExecutable" );
 
         // Test identifying signals
         testSignal( results );
@@ -575,24 +587,23 @@ int main( int argc, char *argv[] )
         }
 
         // Test generating call stack from a string
-        testStackFile( results, "ExampleStack.txt" );
+        if ( rank == 0 ) {
+            testStackFile( results, rootPath + "ExampleStack.txt" );
+            for ( int i = 1; i < argc; i++ )
+                testStackFile( results, argv[i] );
+        }
+        barrier();
 
         // Test the cost to throw using abort
         test_throw( results );
 
         // Test tick
         double tick = StackTrace::Utilities::tick();
-        if ( tick > 0 && tick < 1e-5 )
-            results.passes( "tick" );
-        else
-            results.failure( "tick" );
+        addMessage( results, tick > 0 && tick < 1e-5, "tick" );
 
         // Test getSystemMemory
         auto bytes = StackTrace::Utilities::getSystemMemory();
-        if ( bytes > 1e7 && bytes < 1e14 )
-            results.passes( "getSystemMemory" );
-        else
-            results.failure( "getSystemMemory" );
+        addMessage( results, bytes > 1e7 && bytes < 1e14, "getSystemMemory" );
 
         // Test terminate
         testTerminate( results );
