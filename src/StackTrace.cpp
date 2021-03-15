@@ -2,9 +2,6 @@
 #include "StackTrace/ErrorHandlers.h"
 #include "StackTrace/Utilities.h"
 
-// Replace sith std::string_view when we switch to c++17
-#include "StackTrace/string_view.h"
-
 #include <algorithm>
 #include <atomic>
 #include <cerrno>
@@ -18,12 +15,11 @@
 #include <set>
 #include <sstream>
 #include <stdexcept>
+#include <string_view>
 #include <thread>
 
 
 #define perr std::cerr
-
-using StackTrace::string_view;
 
 // Detect the OS
 // clang-format off
@@ -102,7 +98,7 @@ static std::shared_ptr<std::thread> globalMonitorThread;
 
 // Function to replace all instances of a string with another
 static constexpr size_t replace(
-    char *str, size_t N, size_t pos, size_t len, const string_view &r ) noexcept
+    char *str, size_t N, size_t pos, size_t len, const std::string_view &r ) noexcept
 {
     size_t Nr = r.size();
     auto tmp  = str;
@@ -117,18 +113,18 @@ static constexpr size_t replace(
 }
 template<std::size_t N>
 static constexpr size_t replace(
-    std::array<char, N> &str, size_t pos, size_t len, const string_view &r ) noexcept
+    std::array<char, N> &str, size_t pos, size_t len, const std::string_view &r ) noexcept
 {
     return replace( str.data(), N, pos, len, r );
 }
 static constexpr void strrep(
-    char *str, size_t &N, const string_view &s, const string_view &r ) noexcept
+    char *str, size_t &N, const std::string_view &s, const std::string_view &r ) noexcept
 {
     size_t Ns  = s.size();
-    size_t pos = string_view( str, N ).find( s );
+    size_t pos = std::string_view( str, N ).find( s );
     while ( pos != std::string::npos ) {
         N   = replace( str, N, pos, Ns, r );
-        pos = string_view( str, N ).find( s );
+        pos = std::string_view( str, N ).find( s );
     }
 }
 
@@ -376,7 +372,7 @@ static void exec2( const char *cmd, staticVector<std::array<char, 512>, blockSiz
     };
     exec3( cmd, fun );
 }
-std::string StackTrace::exec( const string_view &cmd, int &code )
+std::string StackTrace::exec( const std::string_view &cmd, int &code )
 {
     std::string result;
     auto fun = [&result]( const char *line ) { result += line; };
@@ -431,7 +427,7 @@ std::string StackTrace::stack_info::print( int w1, int w2, int w3 ) const
     return std::string( out );
 }
 void StackTrace::stack_info::print(
-    std::ostream &out, const std::vector<stack_info> &stack, const StackTrace::string_view &prefix )
+    std::ostream &out, const std::vector<stack_info> &stack, const std::string_view &prefix )
 {
     char buf[32 + sizeof( stack_info )];
     for ( const auto &tmp : stack ) {
@@ -512,7 +508,7 @@ void StackTrace::multi_stack_info::print2( int Np, char *prefix, int w[3], bool 
         child.print2( Np, prefix, w, c2, fun );
     }
 }
-std::vector<std::string> StackTrace::multi_stack_info::print( const string_view &prefix ) const
+std::vector<std::string> StackTrace::multi_stack_info::print( const std::string_view &prefix ) const
 {
     std::vector<std::string> text;
     int w[3] = { getAddressWidth(), getObjectWidth(), getFunctionWidth() };
@@ -522,7 +518,7 @@ std::vector<std::string> StackTrace::multi_stack_info::print( const string_view 
     print2( prefix.size(), prefix2, w, false, fun );
     return text;
 }
-void StackTrace::multi_stack_info::print( std::ostream &out, const string_view &prefix ) const
+void StackTrace::multi_stack_info::print( std::ostream &out, const std::string_view &prefix ) const
 {
     int w[3] = { getAddressWidth(), getObjectWidth(), getFunctionWidth() };
     char prefix2[1024];
@@ -530,7 +526,7 @@ void StackTrace::multi_stack_info::print( std::ostream &out, const string_view &
     auto fun = [&out]( const char *line ) { out << line << std::endl; };
     print2( prefix.size(), prefix2, w, false, fun );
 }
-std::string StackTrace::multi_stack_info::printString( const string_view &prefix ) const
+std::string StackTrace::multi_stack_info::printString( const std::string_view &prefix ) const
 {
     int w[3] = { getAddressWidth(), getObjectWidth(), getFunctionWidth() };
     char prefix2[1024];
@@ -2111,8 +2107,8 @@ static void cleanupFunctionName( char *function )
     // Remove std::__1::
     strrep( function, N, "std::__1::", "std::" );
     // Replace std::ratio with abbriviated version
-    auto find = [&function, &N]( const string_view &str, size_t pos = 0 ) {
-        return string_view( function, N ).find( str, pos );
+    auto find = [&function, &N]( const std::string_view &str, size_t pos = 0 ) {
+        return std::string_view( function, N ).find( str, pos );
     };
     if ( find( "std::ratio<" ) != npos ) {
         strrep( function, N, "std::ratio<1l, 1000000000000000000000000l>", "std::yocto" );
@@ -2220,9 +2216,9 @@ void StackTrace::cleanupStackTrace( multi_stack_info &stack )
     auto it           = stack.children.begin();
     const size_t npos = std::string::npos;
     while ( it != stack.children.end() ) {
-        string_view object( it->stack.object.data() );
-        string_view function( it->stack.function.data() );
-        string_view filename( it->stack.filename.data() );
+        std::string_view object( it->stack.object.data() );
+        std::string_view function( it->stack.function.data() );
+        std::string_view filename( it->stack.filename.data() );
         bool remove_entry = false;
         // Remove StackTrace functions
         if ( filename == "StackTrace.cpp" ) {

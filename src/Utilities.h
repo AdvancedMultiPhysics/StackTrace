@@ -3,11 +3,11 @@
 
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <typeinfo>
 
 #include "StackTrace/StackTrace.h"
-#include "StackTrace/string_view.h"
 
 
 namespace StackTrace {
@@ -95,7 +95,7 @@ void cause_segfault();
  * @param[out] exit_code    Exit code returned from child process
  * @return                  Returns string containing the output
  */
-std::string exec( const StackTrace::string_view &cmd, int &exit_code );
+std::string exec( const std::string_view &cmd, int &exit_code );
 
 
 //! Return the hopefully demangled name of the given type

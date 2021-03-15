@@ -5,10 +5,9 @@
 #include <functional>
 #include <iostream>
 #include <set>
+#include <string_view>
 #include <thread>
 #include <vector>
-
-#include "StackTrace/string_view.h"
 
 
 namespace StackTrace {
@@ -37,7 +36,7 @@ struct stack_info {
     std::string print( int widthAddress = 16, int widthObject = 20, int widthFunction = 32 ) const;
     //! Print the stack info
     static void print( std::ostream &out, const std::vector<stack_info> &stack,
-        const StackTrace::string_view &prefix = "" );
+        const std::string_view &prefix = "" );
     //! Print the stack info
     void print2(
         char *txt, int widthAddress = 16, int widthObject = 20, int widthFunction = 32 ) const;
@@ -76,11 +75,11 @@ struct multi_stack_info {
     //! Unpack the data from a byte array, returning a pointer to the end of the data
     const char *unpack( const char *ptr );
     //! Print the stack info
-    std::vector<std::string> print( const StackTrace::string_view &prefix = "" ) const;
+    std::vector<std::string> print( const std::string_view &prefix = "" ) const;
     //! Print the stack info
-    void print( std::ostream &out, const StackTrace::string_view &prefix = "" ) const;
+    void print( std::ostream &out, const std::string_view &prefix = "" ) const;
     //! Print the stack info
-    std::string printString( const StackTrace::string_view &prefix = "" ) const;
+    std::string printString( const std::string_view &prefix = "" ) const;
 
 private:
     template<class FUN>
@@ -272,7 +271,7 @@ std::thread::native_handle_type thisThread();
  * @param[out] exit_code    Exit code returned from child process
  * @return                  Returns string containing the output
  */
-std::string exec( const string_view &cmd, int &exit_code );
+std::string exec( const std::string_view &cmd, int &exit_code );
 
 
 /*!
