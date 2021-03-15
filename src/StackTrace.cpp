@@ -372,7 +372,7 @@ static void exec2( const char *cmd, staticVector<std::array<char, 512>, blockSiz
     };
     exec3( cmd, fun );
 }
-std::string StackTrace::exec( const std::string_view &cmd, int &code )
+std::string StackTrace::exec( const std::string &cmd, int &code )
 {
     std::string result;
     auto fun = [&result]( const char *line ) { result += line; };
@@ -427,7 +427,7 @@ std::string StackTrace::stack_info::print( int w1, int w2, int w3 ) const
     return std::string( out );
 }
 void StackTrace::stack_info::print(
-    std::ostream &out, const std::vector<stack_info> &stack, const std::string_view &prefix )
+    std::ostream &out, const std::vector<stack_info> &stack, const std::string &prefix )
 {
     char buf[32 + sizeof( stack_info )];
     for ( const auto &tmp : stack ) {
@@ -508,7 +508,7 @@ void StackTrace::multi_stack_info::print2( int Np, char *prefix, int w[3], bool 
         child.print2( Np, prefix, w, c2, fun );
     }
 }
-std::vector<std::string> StackTrace::multi_stack_info::print( const std::string_view &prefix ) const
+std::vector<std::string> StackTrace::multi_stack_info::print( const std::string &prefix ) const
 {
     std::vector<std::string> text;
     int w[3] = { getAddressWidth(), getObjectWidth(), getFunctionWidth() };
@@ -518,7 +518,7 @@ std::vector<std::string> StackTrace::multi_stack_info::print( const std::string_
     print2( prefix.size(), prefix2, w, false, fun );
     return text;
 }
-void StackTrace::multi_stack_info::print( std::ostream &out, const std::string_view &prefix ) const
+void StackTrace::multi_stack_info::print( std::ostream &out, const std::string &prefix ) const
 {
     int w[3] = { getAddressWidth(), getObjectWidth(), getFunctionWidth() };
     char prefix2[1024];
@@ -526,7 +526,7 @@ void StackTrace::multi_stack_info::print( std::ostream &out, const std::string_v
     auto fun = [&out]( const char *line ) { out << line << std::endl; };
     print2( prefix.size(), prefix2, w, false, fun );
 }
-std::string StackTrace::multi_stack_info::printString( const std::string_view &prefix ) const
+std::string StackTrace::multi_stack_info::printString( const std::string &prefix ) const
 {
     int w[3] = { getAddressWidth(), getObjectWidth(), getFunctionWidth() };
     char prefix2[1024];
