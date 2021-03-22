@@ -18,9 +18,9 @@
 #   StackTrace_INCLUDE_DIRS    - Include paths
 
 
-# Add the libraries for the atomic model
+# Add the libraries for the stack trace
 SET( StackTrace_FOUND TRUE )
-SET( CMAKE_INSTALL_RPATH "@CMAKE_INSTALL_PREFIX@/lib" @CMAKE_INSTALL_RPATH@ ${CMAKE_INSTALL_RPATH} )
+SET( CMAKE_INSTALL_RPATH "@STACKTRACE_INSTALL_DIR@/lib" @CMAKE_INSTALL_RPATH@ ${CMAKE_INSTALL_RPATH} )
 FIND_LIBRARY( StackTrace_LIB  NAMES stacktrace  PATHS "@STACKTRACE_INSTALL_DIR@/lib" NO_DEFAULT_PATH )
 SET( StackTrace_LIBRARIES ${StackTrace_LIB} )
 IF ( NOT TIMER_FOUND )
