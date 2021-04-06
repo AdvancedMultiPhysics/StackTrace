@@ -33,7 +33,7 @@ void terminate( const StackTrace::abort_error &err );
 
 
 //! Function to set the error handlers
-void setErrorHandlers();
+void setErrorHandlers( std::function<void( StackTrace::abort_error & )> abort = nullptr );
 
 
 //! Function to clear the error handlers

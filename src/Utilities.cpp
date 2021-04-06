@@ -170,18 +170,16 @@ void Utilities::terminate( const StackTrace::abort_error &err )
 /****************************************************************************
  *  Functions to set the error handler                                       *
  ****************************************************************************/
-static void setTerminateErrorHandler()
-{
-    // Set the terminate routine for runtime errors
-    StackTrace::setErrorHandler( Utilities::terminate );
-}
-void Utilities::setErrorHandlers()
+void Utilities::setErrorHandlers( std::function<void( StackTrace::abort_error & )> abort )
 {
 #ifdef USE_MPI
     setMPIErrorHandler( MPI_COMM_WORLD );
     setMPIErrorHandler( MPI_COMM_SELF );
 #endif
-    setTerminateErrorHandler();
+    if ( abort )
+        StackTrace::setErrorHandler( abort );
+    else
+        StackTrace::setErrorHandler( Utilities::terminate );
 }
 void Utilities::clearErrorHandlers()
 {

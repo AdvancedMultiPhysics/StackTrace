@@ -1750,7 +1750,7 @@ std::vector<int> StackTrace::defaultSignalsToCatch()
 /****************************************************************************
  *  Set the signal handlers                                                  *
  ****************************************************************************/
-static std::function<void( const StackTrace::abort_error &err )> abort_fun;
+static std::function<void( StackTrace::abort_error &err )> abort_fun;
 StackTrace::abort_error rethrow()
 {
     StackTrace::abort_error error;
@@ -1835,7 +1835,7 @@ void StackTrace::setSignals( const std::vector<int> &signals, void ( *handler )(
     std::this_thread::yield();
 }
 void StackTrace::raiseSignal( int signal ) { std::raise( signal ); }
-void StackTrace::setErrorHandler( std::function<void( const StackTrace::abort_error & )> abort )
+void StackTrace::setErrorHandler( std::function<void( StackTrace::abort_error & )> abort )
 {
     abort_fun = abort;
     std::set_terminate( term_func );
@@ -2211,6 +2211,94 @@ static void cleanupFunctionName( char *function )
         N           = replace( function, N, pos2, pos3 - pos2, ">" );
     }
 }
+static bool keep( const StackTrace::stack_info &info )
+{
+    const size_t npos = std::string::npos;
+    std::string_view object( info.object.data() );
+    std::string_view function( info.function.data() );
+    std::string_view filename( info.filename.data() );
+    // Remove backtrace_thread from StackTrace.cpp
+    if ( filename == "StackTrace.cpp" && function.find( "backtrace_thread" ) != npos )
+        return false;
+    // Remove libc functions
+    if ( object.find( "libc.so" ) != npos ) {
+        // Remove __libc_start_main
+        if ( function.find( "__libc_start_main" ) != npos )
+            return false;
+    }
+    // Remove libc++ functions
+    if ( object.find( "libstdc++" ) != npos ) {
+        // Remove std::this_thread::__sleep_for
+        if ( function.find( "std::this_thread::__sleep_for(" ) != npos )
+            return false;
+    }
+    // Remove pthread functions
+    if ( object.find( "libpthread" ) != npos ) {
+        // Remove __restore_rt
+        if ( function.find( "__restore_rt" ) != npos && object.find( "libpthread" ) != npos )
+            return false;
+    }
+    // Remove condition_variable functions
+    if ( filename == "condition_variable" ) {
+        // Remove std::condition_variable::__wait_until_impl
+        if ( function.find( "std::condition_variable::__wait_until_impl" ) != npos )
+            return false;
+    }
+    // Remove std::function references
+    if ( filename == "functional" ) {
+        if ( function.find( "std::_Function_handler<" ) != npos ||
+             function.find( "std::_Bind_simple<" ) != npos || function.find( "_M_invoke" ) != npos )
+            return false;
+    }
+    // Remove std::thread::_Impl
+    if ( filename == "thread" ) {
+        if ( function.find( "std::thread::_Impl<" ) != npos ||
+             function.find( "std::thread::_Invoker<" ) != npos )
+            return false;
+    }
+    if ( filename == "invoke.h" ) {
+        if ( function.find( "std::__invoke_impl" ) != npos ||
+             function.find( "std::__invoke_result" ) != npos )
+            return false;
+    }
+    // Remove pthread internals
+    if ( function == "__GI___pthread_timedjoin_ex" )
+        return false;
+    // Remove MPI internal routines
+    if ( function == "MPIR_Barrier_impl" || function == "MPIR_Barrier_intra" ||
+         function == "MPIC_Sendrecv" )
+        return false;
+    // Remove OpenMPI specific internal routines
+    if ( function == "opal_libevent2022_event_set_log_callback" ||
+         function == "opal_libevent2022_event_base_loop" )
+        return false;
+    // Remove MATLAB internal routines
+    if ( object == "libmwmcr.so" || object == "libmwm_lxe.so" || object == "libmwbridge.so" ||
+         object == "libmwiqm.so" || object == "libmwm_dispatcher.so" || object == "libmwmvm.so" ||
+         object.find( "libPocoNetSSL.so" ) != std::string::npos )
+        return false;
+    // Remove std::shared_ptr functions
+    if ( filename == "shared_ptr.h" ) {
+        if ( function.find( "> std::allocate_shared<" ) != npos ||
+             function.find( "std::_Sp_make_shared_tag," ) != npos )
+            return false;
+    }
+    if ( filename == "shared_ptr_base.h" )
+        return false;
+    // Remove new_allocator functions
+    if ( filename == "new_allocator.h" )
+        return false;
+    // Remove alloc_traits functions
+    if ( filename == "alloc_traits.h" )
+        return false;
+    // Remove gthr-default functions
+    if ( filename == "gthr-default.h" )
+        return false;
+    // Remove entries with no useful information
+    if ( function.empty() && filename.empty() )
+        return false;
+    return true;
+}
 void StackTrace::cleanupStackTrace( multi_stack_info &stack )
 {
     auto it           = stack.children.begin();
@@ -2219,10 +2307,8 @@ void StackTrace::cleanupStackTrace( multi_stack_info &stack )
         std::string_view object( it->stack.object.data() );
         std::string_view function( it->stack.function.data() );
         std::string_view filename( it->stack.filename.data() );
-        bool remove_entry = false;
-        // Remove StackTrace functions
+        // Remove callstack (and all children) for threads that are just contributing
         if ( filename == "StackTrace.cpp" ) {
-            // Remove callstack (and all children) for threads that are just contributing
             bool test = function.find( "_callstack_signal_handler" ) != npos ||
                         function.find( "getGlobalCallStacks" ) != npos ||
                         function.find( "backtrace" ) != npos || function.find( "(" ) == npos;
@@ -2230,88 +2316,14 @@ void StackTrace::cleanupStackTrace( multi_stack_info &stack )
                 it = stack.children.erase( it );
                 continue;
             }
-            // Remove backtrace_thread
-            if ( function.find( "backtrace_thread" ) != npos )
-                remove_entry = true;
         }
-        // Remove libc functions
+        // Remove libc fgets children
         if ( object.find( "libc.so" ) != npos ) {
-            // Remove __libc_start_main
-            if ( function.find( "__libc_start_main" ) != npos )
-                remove_entry = true;
-            // Remove libc fgets children
             if ( function.find( "fgets" ) != npos )
                 it->children.clear();
         }
-        // Remove libc++ functions
-        if ( object.find( "libstdc++" ) != npos ) {
-            // Remove std::this_thread::__sleep_for
-            if ( function.find( "std::this_thread::__sleep_for(" ) != npos )
-                remove_entry = true;
-        }
-        // Remove pthread functions
-        if ( object.find( "libpthread" ) != npos ) {
-            // Remove __restore_rt
-            if ( function.find( "__restore_rt" ) != npos && object.find( "libpthread" ) != npos )
-                remove_entry = true;
-        }
-        // Remove condition_variable functions
-        if ( filename == "condition_variable" ) {
-            // Remove std::condition_variable::__wait_until_impl
-            if ( function.find( "std::condition_variable::__wait_until_impl" ) != npos )
-                remove_entry = true;
-        }
-        // Remove std::function references
-        if ( filename == "functional" ) {
-            remove_entry = remove_entry || function.find( "std::_Function_handler<" ) != npos;
-            remove_entry = remove_entry || function.find( "std::_Bind_simple<" ) != npos;
-            remove_entry = remove_entry || function.find( "_M_invoke" ) != npos;
-        }
-        // Remove std::thread::_Impl
-        if ( filename == "thread" ) {
-            if ( function.find( "std::thread::_Impl<" ) != npos ||
-                 function.find( "std::thread::_Invoker<" ) != npos )
-                remove_entry = true;
-        }
-        if ( filename == "invoke.h" ) {
-            remove_entry = remove_entry || function.find( "std::__invoke_impl" ) != npos;
-            remove_entry = remove_entry || function.find( "std::__invoke_result" ) != npos;
-        }
-        // Remove pthread internals
-        if ( function == "__GI___pthread_timedjoin_ex" )
-            remove_entry = true;
-        // Remove MPI internal routines
-        if ( function == "MPIR_Barrier_impl" || function == "MPIR_Barrier_intra" ||
-             function == "MPIC_Sendrecv" )
-            remove_entry = true;
-        // Remove OpenMPI specific internal routines
-        if ( function == "opal_libevent2022_event_set_log_callback" ||
-             function == "opal_libevent2022_event_base_loop" )
-            remove_entry = true;
-        // Remove MATLAB internal routines
-        if ( object == "libmwmcr.so" || object == "libmwm_lxe.so" || object == "libmwbridge.so" ||
-             object == "libmwiqm.so" )
-            remove_entry = true;
-        // Remove std::shared_ptr functions
-        if ( filename == "shared_ptr.h" ) {
-            if ( function.find( "> std::allocate_shared<" ) != npos ||
-                 function.find( "std::_Sp_make_shared_tag," ) != npos )
-                remove_entry = true;
-        }
-        if ( filename == "shared_ptr_base.h" )
-            remove_entry = true;
-        // Remove new_allocator functions
-        if ( filename == "new_allocator.h" )
-            remove_entry = true;
-        // Remove alloc_traits functions
-        if ( filename == "alloc_traits.h" )
-            remove_entry = true;
-        // Remove gthr-default functions
-        if ( filename == "gthr-default.h" )
-            remove_entry = true;
-        // Remove entries with no useful information
-        if ( function.empty() && filename.empty() )
-            remove_entry = true;
+        // Identify if we want to print the current item
+        bool remove_entry = keep( it->stack );
         // Remove the desired entry
         if ( remove_entry ) {
             if ( it->children.empty() ) {
@@ -2493,6 +2505,8 @@ const char *StackTrace::abort_error::what() const noexcept
         d_msg += "Stack Trace:\n";
         if ( stackType == printStackType::local ) {
             for ( const auto &item : getStackInfo( stack ) ) {
+                if ( !keep( item ) )
+                    continue;
                 char txt[1000];
                 item.print2( txt );
                 d_msg += " \n";
