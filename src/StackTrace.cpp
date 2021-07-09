@@ -2323,7 +2323,7 @@ void StackTrace::cleanupStackTrace( multi_stack_info &stack )
                 it->children.clear();
         }
         // Identify if we want to print the current item
-        bool remove_entry = keep( it->stack );
+        bool remove_entry = !keep( it->stack );
         // Remove the desired entry
         if ( remove_entry ) {
             if ( it->children.empty() ) {
