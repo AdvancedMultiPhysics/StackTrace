@@ -5,7 +5,7 @@ MACRO( SET_WARNINGS )
     # Note: adding -Wlogical-op causes a wierd linking error on Titan using the nvcc wrapper:
     #    /usr/bin/ld: cannot find gical-op: No such file or directory
     SET(CMAKE_C_FLAGS     "${CMAKE_C_FLAGS} -Wall -Wextra") 
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Woverloaded-virtual -Wsign-compare -pedantic")
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic -Woverloaded-virtual -Wsign-compare -Wformat-security")
   ELSEIF ( USING_MSVC )
     # Add Microsoft specifc compiler options
     SET(CMAKE_C_FLAGS     "${CMAKE_C_FLAGS} /D _SCL_SECURE_NO_WARNINGS /D _CRT_SECURE_NO_WARNINGS /D _ITERATOR_DEBUG_LEVEL=0 /wd4267" )
@@ -13,7 +13,7 @@ MACRO( SET_WARNINGS )
   ELSEIF ( USING_ICC )
     # Add Intel specifc compiler options
     SET(CMAKE_C_FLAGS     " ${CMAKE_C_FLAGS} -Wall" )
-    SET(CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -Wall" )
+    SET(CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -Wall -wd1011" )
   ELSEIF ( USING_CRAY )
     # Add default compiler options
     SET(CMAKE_C_FLAGS     " ${CMAKE_C_FLAGS}")
@@ -26,8 +26,8 @@ MACRO( SET_WARNINGS )
     SET(CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} --diag_suppress 111,128,185")
   ELSEIF ( USING_CLANG )
     # Add default compiler options
-    SET(CMAKE_C_FLAGS     " ${CMAKE_C_FLAGS} -Wall")
-    SET(CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -Wall -Wno-missing-braces -Wmissing-field-initializers -ftemplate-depth=1024")
+    SET(CMAKE_C_FLAGS     " ${CMAKE_C_FLAGS} -Wall -Wextra")
+    SET(CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic -Wno-missing-braces -Wmissing-field-initializers -ftemplate-depth=1024")
   ELSEIF ( USING_XL )
     # Add default compiler options
     SET(CMAKE_C_FLAGS     " ${CMAKE_C_FLAGS} -Wall")
@@ -106,11 +106,13 @@ ENDMACRO()
 # cleans and removes cmake generated files etc.
 MACRO( ADD_DISTCLEAN ${ARGN} )
     SET(DISTCLEANED
+        assembly
         cmake.depends
         cmake.check_depends
         CMakeCache.txt
         CMakeFiles
         CMakeTmp
+        CMakeDoxy*
         cmake.check_cache
         *.cmake
         compile.log
@@ -123,12 +125,14 @@ MACRO( ADD_DISTCLEAN ${ARGN} )
         include
         doc
         docs
+        examples
         latex_docs
         lib
         Makefile.config
         install_manifest.txt
         test
         matlab
+        Matlab
         mex
         tmp
         #tmp#
@@ -138,7 +142,7 @@ MACRO( ADD_DISTCLEAN ${ARGN} )
         compile_commands.json
         ${ARGN}
     )
-    ADD_CUSTOM_TARGET (distclean @echo cleaning for source distribution)
+    ADD_CUSTOM_TARGET(distclean @echo cleaning for source distribution)
     IF (UNIX)
         ADD_CUSTOM_COMMAND(
             DEPENDS clean

@@ -29,6 +29,7 @@ ELSEIF( NOT ${PROJ}_INSTALL_DIR )
 ENDIF()
 INCLUDE_DIRECTORIES( "${${PROJ}_INSTALL_DIR}/include" )
 SET( CMAKE_MODULE_PATH ${${PROJ}_SOURCE_DIR} ${${PROJ}_SOURCE_DIR}/cmake )
+SET( CMAKE_INSTALL_RPATH "${${PROJ}_INSTALL_DIR}/lib" ${CMAKE_INSTALL_RPATH} )
 
 
 # Set the project name
@@ -37,7 +38,6 @@ PROJECT( ${PROJ} LANGUAGES CXX )
 
 # Include CMake files
 INCLUDE( cmake/macros.cmake )
-
 
 # Enable testing
 ENABLE_TESTING()
@@ -161,6 +161,7 @@ IF ( USE_TIMER )
     ADD_DEFINITIONS( -DUSE_TIMER )
     INCLUDE_DIRECTORIES( "${TIMER_DIRECTORY}/include" )
     FIND_LIBRARY( TIMER_LIB timerutility PATHS "${TIMER_DIRECTORY}/lib" NO_DEFAULT_PATH )
+    SET( CMAKE_INSTALL_RPATH "${TIMER_DIRECTORY}/lib" ${CMAKE_INSTALL_RPATH} )
 ENDIF()
 
 
@@ -176,8 +177,9 @@ ENDFOREACH()
 
 
 # Add a static library
-ADD_LIBRARY( stacktrace STATIC Utilities.cpp StackTrace.cpp )
+ADD_LIBRARY( stacktrace ${LIB_TYPE} Utilities.cpp StackTrace.cpp )
 ADD_DEPENDENCIES( stacktrace StackTrace-include )
+TARGET_LINK_LIBRARIES(stacktrace ${CMAKE_DL_LIBS} ${TPL_LIBRARIES} )
 INSTALL( TARGETS stacktrace DESTINATION "${${PROJ}_INSTALL_DIR}/lib" )
 TARGET_COMPILE_DEFINITIONS( stacktrace PUBLIC ${COVERAGE_FLAGS} )
 
