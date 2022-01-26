@@ -1900,9 +1900,6 @@ void StackTrace::clearMPIErrorHandler( MPI_Comm comm )
     mpierr.reset();
     MPI_Comm_set_errhandler( comm, MPI_ERRORS_ARE_FATAL );
 }
-#else
-void StackTrace::setMPIErrorHandler( MPI_Comm ) {}
-void StackTrace::clearMPIErrorHandler( MPI_Comm ) {}
 #endif
 
 
@@ -2062,8 +2059,6 @@ StackTrace::multi_stack_info getRemoteCallStacks()
     return multistack;
 }
 #else
-void StackTrace::globalCallStackInitialize( MPI_Comm ) {}
-void StackTrace::globalCallStackFinalize() {}
 StackTrace::multi_stack_info getRemoteCallStacks() { return StackTrace::multi_stack_info(); }
 #endif
 StackTrace::multi_stack_info StackTrace::getGlobalCallStacks()

@@ -13,10 +13,6 @@
 #include <stdexcept>
 #include <typeinfo>
 
-#ifdef USE_MPI
-#include "mpi.h"
-#endif
-
 #ifdef USE_TIMER
 #include "MemoryApp.h"
 #endif

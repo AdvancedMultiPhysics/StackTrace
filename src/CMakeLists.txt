@@ -115,9 +115,9 @@ IF ( USE_MPI )
     ENDIF()
     ADD_DEFINITIONS( -DUSE_MPI )
     INCLUDE_DIRECTORIES( ${MPI_CXX_INCLUDE_PATH} )
-    SET( MPI_COMM "#include \"mpi.h\"" )
+    SET( SET_USE_MPI "1" )
 ELSE()
-    SET( MPI_COMM "typedef int MPI_Comm;" )
+    SET( SET_USE_MPI "0" )
 ENDIF()
 
 
@@ -141,10 +141,11 @@ ENDIF()
 
 
 # Set compiler flags
+IF ( NOT CMAKE_CXX_STANDARD )
+    SET( CMAKE_CXX_STANDARD 17 )
+ENDIF()
 IF ( "${CMAKE_CXX_STANDARD}" LESS "17" )
     MESSAGE( FATAL_ERROR "C++17 or newer required" )
-ELSEIF ( NOT CMAKE_CXX_STANDARD )
-    SET( CMAKE_CXX_STANDARD 17 )
 ENDIF()
 SET_WARNINGS()
 

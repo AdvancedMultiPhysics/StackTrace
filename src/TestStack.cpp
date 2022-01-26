@@ -172,7 +172,7 @@ void sleep_s( int N )
 }
 
 
-// Funcion to add pass/fail
+// Function to add pass/fail
 void addMessage( UnitTest &ut, bool pass, const std::string &msg )
 {
     if ( pass )

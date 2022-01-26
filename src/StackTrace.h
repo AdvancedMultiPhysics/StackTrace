@@ -145,7 +145,7 @@ std::vector<stack_info> getCallStack( std::thread::native_handle_type id );
  * @brief  Get the current call stack for all threads
  * @details  This function returns the current call stack for all threads
  *    in the current process.
- *    Note: This functionality may not be availible on all platforms
+ *    Note: This functionality may not be available on all platforms
  * @return          Returns vector containing the stack
  */
 multi_stack_info getAllCallStacks();
@@ -157,7 +157,7 @@ multi_stack_info getAllCallStacks();
  *    for all processes in the current process.  This function requires
  *    the user to call globalCallStackInitialize() before calling this
  *    routine, and globalCallStackFinalize() before exiting.
- *    Note: This functionality may not be availible on all platforms
+ *    Note: This functionality may not be available on all platforms
  * @return          Returns vector containing the stack
  */
 multi_stack_info getGlobalCallStacks();
