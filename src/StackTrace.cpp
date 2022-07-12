@@ -1,6 +1,8 @@
 #include "StackTrace/StackTrace.h"
 #include "StackTrace/ErrorHandlers.h"
+#include "StackTrace/StaticVector.h"
 #include "StackTrace/Utilities.h"
+#include "StackTrace/Utilities.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -86,6 +88,9 @@
         }                                          \
     } while ( 0 )
 #endif
+
+
+using namespace StackTrace::Utilities;
 
 
 // Mutex for StackTrace opertions that need blocking
@@ -240,62 +245,6 @@ void LoadModules();
 
 
 /****************************************************************************
- *  Class to replace a std::vector with a fixed capacity                     *
- ****************************************************************************/
-template<class TYPE, std::size_t CAPACITY>
-class staticVector final
-{
-public:
-    staticVector() : d_size( 0 ) {}
-    size_t size() const { return d_size; }
-    bool empty() const { return d_size == 0; }
-    void push_back( const TYPE &v )
-    {
-        if ( d_size < CAPACITY )
-            d_data[d_size++] = v;
-    }
-    TYPE &operator[]( size_t i ) { return d_data[i]; }
-    TYPE *begin() { return d_data; }
-    TYPE *end() { return d_data + d_size; }
-    TYPE &back() { return d_data[d_size - 1]; }
-    TYPE *data() { return d_size == 0 ? nullptr : d_data; }
-    void pop_back() { d_size = std::max<size_t>( d_size, 1 ) - 1; }
-    const TYPE *begin() const { return d_data; }
-    const TYPE *end() const { return d_data + d_size; }
-    const TYPE &back() const { return d_data[d_size - 1]; }
-    void clear() { d_size = 0; }
-    void resize( size_t N, TYPE x = TYPE() )
-    {
-        if ( N > CAPACITY )
-            throw std::logic_error( "Invalid size" );
-        for ( size_t i = d_size; i < N; i++ )
-            d_data[i] = x;
-        d_size = N;
-    }
-    void erase( const TYPE &x )
-    {
-        size_t N = 0;
-        for ( size_t i = 0; i < d_size; i++ ) {
-            if ( d_data[i] != x )
-                d_data[N++] = d_data[i];
-        }
-        d_size = N;
-    }
-    void insert( const TYPE &x )
-    {
-        if ( std::find( begin(), end(), x ) == end() ) {
-            push_back( x );
-            std::sort( begin(), end() );
-        }
-    }
-
-private:
-    size_t d_size;
-    TYPE d_data[CAPACITY];
-};
-
-
-/****************************************************************************
  *  Utility to temporarily clear a signal in a thread-safe manner            *
  *  If multiple threads attempt to clear a signal, then it will be cleared   *
  *  until all threads are finished                                           *
@@ -326,34 +275,6 @@ static void resetSignal( int sig )
 /****************************************************************************
  *  Utility to call system command and return output                         *
  ****************************************************************************/
-#ifdef USE_WINDOWS
-#define popen _popen
-#define pclose _pclose
-#endif
-template<class FUNCTION>
-static inline int exec3( const char *cmd, FUNCTION &fun )
-{
-    clearSignal( SIGCHLD ); // Clear child exited
-    auto pipe = popen( cmd, "r" );
-    if ( pipe == nullptr )
-        return -1;
-    while ( !feof( pipe ) ) {
-        char buffer[0x2000];
-        buffer[0] = 0;
-        auto ptr  = fgets( buffer, sizeof( buffer ), pipe );
-        NULL_USE( ptr );
-        if ( buffer[0] != 0 )
-            fun( buffer );
-    }
-    int code = pclose( pipe );
-    if ( errno == ECHILD ) {
-        errno = 0;
-        code  = 0;
-    }
-    std::this_thread::yield(); // Allow any signals to process
-    resetSignal( SIGCHLD );    // Clear child exited
-    return code;
-}
 template<std::size_t blockSize>
 static void exec2( const char *cmd, staticVector<std::array<char, 512>, blockSize> &out )
 {
@@ -370,14 +291,7 @@ static void exec2( const char *cmd, staticVector<std::array<char, 512>, blockSiz
         if ( out[k][N - 1] == '\n' )
             out[k][N - 1] = 0;
     };
-    exec3( cmd, fun );
-}
-std::string StackTrace::exec( const std::string &cmd, int &code )
-{
-    std::string result;
-    auto fun = [&result]( const char *line ) { result += line; };
-    code     = exec3( cmd.data(), fun );
-    return result;
+    exec2( cmd, fun );
 }
 
 
@@ -716,7 +630,7 @@ static std::vector<StackTrace::symbols_struct> getSymbolData()
             copy( c, data[k].obj, data[k].objPath );
         };
         // Call nm
-        exec3( cmd, fun );
+        StackTrace::Utilities::exec2( cmd, fun );
     } catch ( ... ) {
     }
 #endif
@@ -1080,181 +994,10 @@ static int get_thread_callstack_signal()
         return 39;
     return std::min<int>( SIGRTMIN+4, SIGRTMAX );
 }
-static int thread_callstack_signal = get_thread_callstack_signal();
+int thread_callstack_signal = get_thread_callstack_signal();
+#else
+int thread_callstack_signal = 0;
 #endif
-
-
-/****************************************************************************
-*  Function to get the list of all active threads                           *
-****************************************************************************/
-#if defined( USE_LINUX ) || defined( USE_MAC )
-static volatile std::thread::native_handle_type thread_handle;
-static volatile bool thread_id_finished;
-static void _activeThreads_signal_handler( int )
-{
-    auto handle = StackTrace::thisThread( );
-    thread_handle = handle;
-    thread_id_finished = true;
-}
-#endif
-#ifdef USE_LINUX
-static constexpr int get_tid( int pid, const char *line )
-{
-    char buf2[128]={0};
-    int i1 = 0;
-    while ( line[i1]==' ' ) { i1++; }
-    int i2 = i1;
-    while ( line[i2]!=' ' ) { i2++; }
-    memcpy(buf2,&line[i1],i2-i1);
-    buf2[i2-i1+1] = 0;
-    int pid2 = atoi(buf2);
-    if ( pid2 != pid )
-        return -1;
-    i1 = i2;
-    while ( line[i1]==' ' ) { i1++; }
-    i2 = i1;
-    while ( line[i2]!=' ' ) { i2++; }
-    memcpy(buf2,&line[i1],i2-i1);
-    buf2[i2-i1+1] = 0;
-    int tid = atoi(buf2);
-    return tid;
-}
-#endif
-std::thread::native_handle_type StackTrace::thisThread( )
-{
-    #if defined( USE_LINUX ) || defined( USE_MAC )
-        return pthread_self();
-    #elif defined( USE_WINDOWS )
-        return GetCurrentThread();
-    #else
-        #warning Stack trace is not supported on this compiler/OS
-        return std::thread::native_handle_type();
-    #endif
-}
-static staticVector<std::thread::native_handle_type,1024> getActiveThreads( )
-{
-    staticVector<std::thread::native_handle_type,1024> threads;
-    #if defined( USE_LINUX )
-        // Get the system thread ids
-        int N_tid = 0, tid[1024];
-        int pid = getpid();
-        char cmd[128];
-        sprintf( cmd, "ps -T -p %i", pid );
-        auto fun = [&N_tid,&tid,pid]( const char* line ) {
-            int id = get_tid( pid, line );
-            if ( id != -1 && N_tid < 1024 )
-                tid[N_tid++] = id;
-        };
-        exec3( cmd, fun );
-        int myid = syscall(SYS_gettid);
-        for ( int i=0; i<N_tid; i++) {
-            if ( tid[i] == myid )
-                std::swap( tid[i], tid[--N_tid] );
-        }
-        // Get the thread id using signaling
-        StackTrace_mutex.lock();
-        auto thread0 = StackTrace::thisThread();
-        auto old     = signal( thread_callstack_signal, _activeThreads_signal_handler );
-        for ( int i=0; i<N_tid; i++) {
-            thread_id_finished = false;
-            thread_handle = thread0;
-            syscall( SYS_tgkill, pid, tid[i], thread_callstack_signal );
-            auto t1 = std::chrono::high_resolution_clock::now();
-            auto t2 = t1;
-            while ( !thread_id_finished && std::chrono::duration<double>(t2-t1).count()<0.1 ) {
-                std::this_thread::yield();
-                t2 = std::chrono::high_resolution_clock::now();
-            }
-            if ( thread_handle != thread0 ) {
-                std::thread::native_handle_type tmp = thread_handle;
-                threads.push_back( tmp );
-            }
-        }
-        signal( thread_callstack_signal, old );
-        StackTrace_mutex.unlock();
-    #elif defined( USE_MAC )
-        thread_act_port_array_t thread_list;
-        mach_msg_type_number_t thread_count = 0;
-        task_threads(mach_task_self(), &thread_list, &thread_count);
-        auto old = signal( thread_callstack_signal, _activeThreads_signal_handler );
-        for ( int i=0; i<static_cast<int>(thread_count); i++) {
-            if ( thread_list[i] == mach_thread_self() )
-                continue;
-            static bool called = false;
-            if ( !called ) {
-                called = true;
-                std::cerr << "activeThreads not finished for MAC\n";
-            }
-            /*
-            StackTrace_mutex.lock();
-            thread_id_finished = false;
-            thread_handle = thisThread();
-            x86_thread_state64_t state;
-            unsigned int count = MACHINE_THREAD_STATE_COUNT;
-            thread_abort( thread_list[i] );  // Abort system calls
-            thread_suspend( thread_list[i] );
-            thread_get_state( thread_list[i], MACHINE_THREAD_STATE, (thread_state_t) &state, &count );
-            state.__rip = (uint64_t) _activeThreads2;
-            thread_set_state( thread_list[i], MACHINE_THREAD_STATE, (thread_state_t) &state, MACHINE_THREAD_STATE_COUNT );
-            thread_resume( thread_list[i] );
-            //pthread_kill( thread_list[i], CALLSTACK_SIG );
-            //syscall( SYS___pthread_kill, getpid(), thread_list[i], CALLSTACK_SIG );
-            //syscall( SYS_kill, thread_list[i], CALLSTACK_SIG );
-            auto t1 = std::chrono::high_resolution_clock::now();
-            auto t2 = std::chrono::high_resolution_clock::now();
-            while ( !thread_id_finished && std::chrono::duration<double>(t2-t1).count()<0.1 ) {
-                std::this_thread::yield();
-                t2 = std::chrono::high_resolution_clock::now();
-            }
-            threads.push_back( thread_handle );
-            StackTrace_mutex.unlock();*/
-        }
-        signal( thread_callstack_signal, old );
-    #elif defined( USE_WINDOWS )
-        HANDLE hThreadSnap = CreateToolhelp32Snapshot( TH32CS_SNAPTHREAD, 0 ); 
-        if( hThreadSnap != INVALID_HANDLE_VALUE ) {
-            // Fill in the size of the structure before using it
-            THREADENTRY32 te32
-            te32.dwSize = sizeof(THREADENTRY32 );
-            // Retrieve information about the first thread, and exit if unsuccessful
-            if( !Thread32First( hThreadSnap, &te32 ) ) {
-                printError( TEXT("Thread32First") );    // Show cause of failure
-                CloseHandle( hThreadSnap );             // Must clean up the snapshot object!
-                return( FALSE );
-            }
-            // Now walk the thread list of the system
-            do { 
-                if ( te32.th32OwnerProcessID == dwOwnerPID )
-                    threads.push_back( te32.th32ThreadID );
-            } while( Thread32Next(hThreadSnap, &te32 ) );
-            CloseHandle( hThreadSnap );                 // Must clean up the snapshot object!
-        }
-    #else
-        #warning activeThreads is not yet supported on this compiler/OS
-    #endif
-    // Add the current thread
-    threads.push_back( StackTrace::thisThread() );
-    // Remove the globalMonitorThread
-    if ( globalMonitorThread ) {
-        auto globalThreadId = globalMonitorThread->native_handle();
-        for ( int i = threads.size() - 1; i >= 0; i-- ) {
-            if ( threads[i] == globalThreadId ) {
-                std::swap( threads[i], threads.back() );
-                threads.pop_back();
-            }
-        }
-    }
-    // Sort the threads, remove any duplicates and remove the globalMonitorThread
-    std::sort( threads.begin(), threads.end() );
-    return threads;
-}
-// clang-format on
-std::vector<std::thread::native_handle_type> StackTrace::activeThreads()
-{
-    auto threads = getActiveThreads();
-    std::sort( threads.begin(), threads.end() );
-    return std::vector<std::thread::native_handle_type>( threads.begin(), threads.end() );
-}
 
 
 /****************************************************************************
@@ -1372,7 +1115,7 @@ std::vector<void *> StackTrace::backtrace()
 std::vector<std::vector<void *>> StackTrace::backtraceAll()
 {
     // Get the list of threads
-    auto threads = getActiveThreads();
+    auto threads = registeredThreads();
     // Get the backtrace of each thread
     std::vector<std::vector<void *>> trace( threads.size() );
     for ( size_t i = 0; i < threads.size(); i++ ) {
@@ -1449,7 +1192,7 @@ static StackTrace::multi_stack_info generateMultiStack(
     return multistack;
 }
 static StackTrace::multi_stack_info generateMultiStack(
-    const staticVector<std::thread::native_handle_type, 1024> &threads )
+    const std::vector<std::thread::native_handle_type> &threads )
 {
     // Get the stack data for all pointers
     std::vector<std::vector<void *>> trace( threads.size() );
@@ -1462,8 +1205,8 @@ static StackTrace::multi_stack_info generateMultiStack(
 StackTrace::multi_stack_info StackTrace::getAllCallStacks()
 {
     // Get the list of active thread
-    auto threads = getActiveThreads();
-    // Create the multi-stack strucutre
+    auto& threads = registeredThreads();
+    // Create the multi-stack structure
     auto stack = generateMultiStack( threads );
     return stack;
 }
@@ -1735,7 +1478,8 @@ std::vector<int> StackTrace::allSignalsToCatch()
 template<class TYPE>
 static inline void erase( std::vector<TYPE> &x, TYPE y )
 {
-    x.erase( std::find( x.begin(), x.end(), y ) );
+    auto it = std::remove( x.begin(), x.end(), y );
+    x.erase( it, x.end() );
 }
 std::vector<int> StackTrace::defaultSignalsToCatch()
 {
@@ -1904,7 +1648,7 @@ void StackTrace::clearMPIErrorHandler( MPI_Comm comm )
 
 
 /****************************************************************************
- *  Global call stack functionallity                                         *
+ *  Global call stack functionality                                          *
  ****************************************************************************/
 #ifdef USE_MPI
 static MPI_Comm globalCommForGlobalCommStack  = MPI_COMM_NULL;
@@ -1929,7 +1673,7 @@ static void runGlobalMonitorThread()
             int tag;
             MPI_Recv( &tag, 1, MPI_INT, src_rank, 1, globalCommForGlobalCommStack, &status );
             // Get the list of threads (except this)
-            auto threads = getActiveThreads();
+            auto& threads = StackTrace::registeredThreads();
             if ( threads.empty() )
                 continue;
             // Get the stack info for the threads
@@ -1968,7 +1712,7 @@ void StackTrace::globalCallStackInitialize( MPI_Comm comm )
     if ( rank == 0 ) {
         std::thread thread( StackTrace::Utilities::sleep_ms, 200 );
         std::this_thread::yield();
-        auto thread_ids = getActiveThreads();
+        auto thread_ids = registeredThreads();
         N_threads       = thread_ids.size();
         thread.join();
     }
@@ -2063,7 +1807,7 @@ StackTrace::multi_stack_info getRemoteCallStacks() { return StackTrace::multi_st
 #endif
 StackTrace::multi_stack_info StackTrace::getGlobalCallStacks()
 {
-    auto threads    = getActiveThreads();
+    auto threads    = registeredThreads();
     auto multistack = generateMultiStack( threads );
     multistack.add( getRemoteCallStacks() );
     return multistack;
@@ -2467,10 +2211,7 @@ StackTrace::multi_stack_info StackTrace::generateFromString( const std::vector<s
 /****************************************************************************
  *  abort_error                                                              *
  ****************************************************************************/
-StackTrace::abort_error::abort_error()
-    : type( terminateType::unknown ), signal( 0 ), line( -1 ), bytes( 0 )
-{
-}
+StackTrace::abort_error::abort_error() : type( terminateType::unknown ), signal( 0 ), bytes( 0 ) {}
 const char *StackTrace::abort_error::what() const noexcept
 {
     d_msg.clear();
@@ -2485,10 +2226,11 @@ const char *StackTrace::abort_error::what() const noexcept
     } else {
         d_msg += "Unknown error called";
     }
+    std::string_view filename( source.file_name() );
     if ( !filename.empty() ) {
-        d_msg += " in file '" + filename + "'";
-        if ( line > 0 ) {
-            d_msg += " at line " + std::to_string( line );
+        d_msg += " in file '" + std::string( filename ) + "'";
+        if ( source.line() > 0 ) {
+            d_msg += " at line " + std::to_string( source.line() );
         }
     }
     d_msg += ":\n";
@@ -2512,8 +2254,8 @@ const char *StackTrace::abort_error::what() const noexcept
             std::vector<std::vector<void *>> trace;
             trace.push_back( stack );
             // Get the call stack for all threads except the current one
-            auto threads = getActiveThreads();
-            threads.erase( thisThread() );
+            auto threads = StackTrace::registeredThreads();
+            erase( threads, thisThread() );
             for ( auto tid : threads )
                 trace.push_back( backtrace( tid ) );
             // Generate call stack

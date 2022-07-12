@@ -9,15 +9,14 @@
 #include "StackTrace/StackTrace.h"
 
 
-namespace StackTrace {
-namespace Utilities {
+namespace StackTrace::Utilities {
 
 
 /*!
  * Aborts the run after printing an error message with file and
  * line number information.
  */
-void abort( const std::string &message, const std::string &filename, const int line );
+void abort( const std::string &message, const source_location &source );
 
 
 /*!
@@ -96,6 +95,20 @@ void cause_segfault();
  */
 std::string exec( const std::string &cmd, int &exit_code );
 
+/*!
+ * @brief  Call system command
+ * @details  This function calls a system command, waits for the program
+ *   to execute, captures, and processes the output.
+ *   This version is different from the previous version in that it takes a
+ *   user-supplied function to process the output one line at a time.
+ *   This will also avoid internal dynamic memory allocations.
+ * @param[in] cmd           Command to execute
+ * @param[in] fun           Function to process the output one line at a time
+ * @return                  Returns exit code
+ */
+template<class FUNCTION>
+int exec2( const char *cmd, FUNCTION &fun );
+
 
 //! Return the hopefully demangled name of the given type
 std::string getTypeName( const std::type_info &id );
@@ -109,8 +122,25 @@ inline std::string getTypeName()
 }
 
 
-} // namespace Utilities
-} // namespace StackTrace
+//! Enum for the operating system
+enum class OS { macOS, Linux, Windows, Unknown };
 
+
+//! Return the OS
+constexpr OS getOS()
+{
+#if defined( WIN32 ) || defined( _WIN32 ) || defined( WIN64 ) || defined( _WIN64 )
+    return OS::Windows;
+#elif defined( __APPLE__ )
+    return OS::macOS;
+#elif defined( __linux ) || defined( __linux__ ) || defined( __unix ) || defined( __posix )
+    return OS::Linux;
+#else
+    return OS::Unknown;
+#endif
+}
+
+
+} // namespace StackTrace::Utilities
 
 #endif

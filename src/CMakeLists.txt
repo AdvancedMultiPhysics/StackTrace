@@ -126,7 +126,7 @@ GET_SYSTEM_LIBS()
 
 
 # Add distclean target
-ADD_DISTCLEAN( libstacktrace* FindStackTrace.cmake TestStack TestTerminate ExampleStack.txt )
+ADD_DISTCLEAN( libstacktrace* FindStackTrace.cmake TestStack TestTerminate TestUtilities ExampleStack.txt )
 
 
 # Check if we want to enable coverage
@@ -168,7 +168,7 @@ ENDIF()
 
 # Create a target to copy headers
 ADD_CUSTOM_TARGET( StackTrace-include ALL )
-FILE(GLOB headers "${CMAKE_CURRENT_SOURCE_DIR}/*.h")
+FILE(GLOB headers "${CMAKE_CURRENT_SOURCE_DIR}/*.h" "${CMAKE_CURRENT_SOURCE_DIR}/*.hpp" )
 FILE( GLOB hfiles RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" ${headers} )
 FOREACH( tmp ${hfiles} )
     SET( SRC_FILE "${CMAKE_CURRENT_SOURCE_DIR}/${tmp}" )
@@ -178,7 +178,7 @@ ENDFOREACH()
 
 
 # Add a static library
-ADD_LIBRARY( stacktrace ${LIB_TYPE} Utilities.cpp StackTrace.cpp )
+ADD_LIBRARY( stacktrace ${LIB_TYPE} Utilities.cpp StackTrace.cpp StackTraceThreads.cpp )
 ADD_DEPENDENCIES( stacktrace StackTrace-include )
 TARGET_LINK_LIBRARIES(stacktrace ${CMAKE_DL_LIBS} ${TPL_LIBRARIES} )
 INSTALL( TARGETS stacktrace DESTINATION "${${PROJ}_INSTALL_DIR}/lib" )
@@ -188,13 +188,17 @@ TARGET_COMPILE_DEFINITIONS( stacktrace PUBLIC ${COVERAGE_FLAGS} )
 # Add the tests
 ADD_EXE( TestStack TestStack.cpp )
 ADD_EXE( TestTerminate TestTerminate.cpp )
+ADD_EXE( TestUtilities TestUtilities.cpp )
 CONFIGURE_FILE( "data/ExampleStack.txt" "${CMAKE_CURRENT_BINARY_DIR}/ExampleStack.txt" @ONLY )
 CONFIGURE_FILE( "data/ExampleStack.txt" "${${PROJ}_INSTALL_DIR}/bin/ExampleStack.txt" @ONLY )
 IF ( USE_MPI )
     ADD_TEST( NAME TestStack COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 1 $<TARGET_FILE:TestStack> )
     ADD_TEST( NAME TestStack-4procs COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4 $<TARGET_FILE:TestStack> )
+    ADD_TEST( NAME TestUtilities COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 1 $<TARGET_FILE:TestUtilities> )
+    ADD_TEST( NAME TestUtilities-4procs COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4 $<TARGET_FILE:TestUtilities> )
 ELSE()
     ADD_TEST( NAME TestStack COMMAND $<TARGET_FILE:TestStack> )
+ADD_TEST( NAME TestUtilities COMMAND $<TARGET_FILE:TestUtilities> )
 ENDIF()
 
 

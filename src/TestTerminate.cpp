@@ -21,7 +21,7 @@ int main( int argc, char *argv[] )
     if ( strcmp( argv[1], "signal" ) == 0 )
         std::raise( 6 );
     else if ( strcmp( argv[1], "abort" ) == 0 )
-        StackTrace::Utilities::abort( "StackTrace::Utilities::abort", __FILE__, __LINE__ );
+        StackTrace::Utilities::abort( "StackTrace::Utilities::abort", SOURCE_LOCATION_CURRENT() );
     else if ( strcmp( argv[1], "throw" ) == 0 )
         throw std::logic_error( "test throw" );
     else if ( strcmp( argv[1], "segfault" ) == 0 )

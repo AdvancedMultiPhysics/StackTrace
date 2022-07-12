@@ -8,6 +8,8 @@
 #include <thread>
 #include <vector>
 
+#include "StackTrace/source_location.h"
+
 
 namespace StackTrace {
 
@@ -98,11 +100,10 @@ class abort_error : public std::exception
 {
 public:
     std::string message;       //!< Abort message
-    std::string filename;      //!< File where abort was called
+    source_location source;    //!< Source where the error occured
     terminateType type;        //!< What caused the termination
     printStackType stackType;  //!< Print the local stack, all threads, or global call stack
     uint8_t signal;            //!< Signal number
-    int line;                  //!< Line number where abort was called
     size_t bytes;              //!< Memory in use during abort
     std::vector<void *> stack; //!< Local call stack for abort
 public:
@@ -179,7 +180,7 @@ std::vector<void *> backtrace();
 //! Function to return the current call stack for the given thread
 std::vector<void *> backtrace( std::thread::native_handle_type id );
 
-//! Function to return the current call stack for all threads
+//! Function to return the current call stack for all registered threads
 std::vector<std::vector<void *>> backtraceAll();
 
 
@@ -255,22 +256,23 @@ std::vector<int> allSignalsToCatch();
 std::vector<int> defaultSignalsToCatch();
 
 
-//! Get a list of the active threads
-std::vector<std::thread::native_handle_type> activeThreads();
-
 //! Get a handle to this thread
 std::thread::native_handle_type thisThread();
 
+//! Register the current thread for the stack trace (no need to call unregister)
+void registerThread();
 
-/*!
- * @brief  Call system command
- * @details  This function calls a system command, waits for the program
- *   to execute, captures and returns the output and exit code.
- * @param[in] cmd           Command to execute
- * @param[out] exit_code    Exit code returned from child process
- * @return                  Returns string containing the output
- */
-std::string exec( const std::string &cmd, int &exit_code );
+//! Register a thread for the stack trace (need to call unregister at thread destruction)
+void registerThread( std::thread::native_handle_type );
+
+//! Unregister a thread for the stack trace
+void unregisterThread( std::thread::native_handle_type );
+
+//! Get a list of the registered threads
+const std::vector<std::thread::native_handle_type> &registeredThreads();
+
+//! Get a list of the active threads (may be undefined for some operating systems)
+std::vector<std::thread::native_handle_type> activeThreads();
 
 
 /*!

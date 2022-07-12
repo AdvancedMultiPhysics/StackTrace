@@ -2,6 +2,7 @@
 #include "StackTrace/Utilities.h"
 #include "StackTrace/ErrorHandlers.h"
 #include "StackTrace/StackTrace.h"
+#include "StackTrace/Utilities.hpp"
 
 #include <algorithm>
 #include <csignal>
@@ -73,6 +74,17 @@ extern "C" void __gcov_flush( void );
 #endif
 
 
+#ifndef NULL_USE
+#define NULL_USE( variable )                       \
+    do {                                           \
+        if ( 0 ) {                                 \
+            auto static temp = (char *) &variable; \
+            temp++;                                \
+        }                                          \
+    } while ( 0 )
+#endif
+
+
 namespace StackTrace {
 
 
@@ -111,13 +123,12 @@ void Utilities::setAbortBehavior( bool throwException, int stackType )
     abort_throwException = throwException;
     StackTrace::setDefaultStackType( static_cast<printStackType>( stackType ) );
 }
-void Utilities::abort( const std::string &message, const std::string &filename, const int line )
+void Utilities::abort( const std::string &message, const source_location &source )
 {
     abort_error err;
     err.message   = message;
-    err.filename  = filename;
+    err.source    = source;
     err.type      = terminateType::abort;
-    err.line      = line;
     err.bytes     = Utilities::getMemoryUsage();
     err.stackType = StackTrace::getDefaultStackType();
     err.stack     = StackTrace::backtrace();
@@ -303,11 +314,14 @@ void Utilities::cause_segfault()
 
 
 /****************************************************************************
- *  Call system command                                                      *
+ *  Utility to call system command and return output                         *
  ****************************************************************************/
-std::string Utilities::exec( const std::string &cmd, int &exit_code )
+std::string Utilities::exec( const std::string &cmd, int &code )
 {
-    return StackTrace::exec( cmd, exit_code );
+    std::string result;
+    auto fun = [&result]( const char *line ) { result += line; };
+    code     = exec2( cmd.data(), fun );
+    return result;
 }
 
 

@@ -1,5 +1,6 @@
 // Supression file for cppcheck
 
+missingInclude:*
 unmatchedSuppression:*
 operatorEq:*
 unusedFunction:*
@@ -11,3 +12,7 @@ noExplicitConstructor:*/string_view.h
 arrayIndexOutOfBounds:*/StackTrace.cpp
 uninitMemberVar:*/StackTrace.cpp
 knownConditionTrueFalse:*/TestStack.cpp
+memleak:*/TestUtilities.cpp
+nullPointerRedundantCheck:*/TestUtilities.cpp
+rethrowNoCurrentException:*/StackTrace.cpp
+constParameter:*/StackTrace.cpp
