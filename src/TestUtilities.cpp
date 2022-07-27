@@ -139,6 +139,27 @@ void fill( void *x, uint8_t value, size_t bytes )
 }
 
 
+// Test source_location::current
+void test_source_location( UnitTest &ut, source_location source = source_location::current() )
+{
+    std::cout << "Testing StackTrace::source_location::current:\n";
+    auto source2 = SOURCE_LOCATION_CURRENT();
+    std::cout << "   file: " << source.file_name() << "(" << source.line() << ":" << source.column()
+              << ")  " << source.function_name() << '\n';
+    std::cout << "   file: " << source2.file_name() << "(" << source2.line() << ":"
+              << source2.column() << ")  " << source2.function_name() << '\n';
+    bool test1 = std::string( source.function_name() ).find( "main" ) != std::string::npos;
+    bool test2 =
+        std::string( source2.function_name() ).find( "test_source_location" ) != std::string::npos;
+    if ( test1 && test2 )
+        ut.passes( "source_location::current()" );
+    else if ( test2 && source.empty() )
+        ut.expected( "source_location::current()" );
+    else
+        ut.failure( "source_location::current()" );
+}
+
+
 /****************************************************************
  * Run some basic utility tests                                  *
  ****************************************************************/
@@ -161,6 +182,9 @@ int main( int argc, char *argv[] )
             ut.passes( "OS: macOS" );
         else
             ut.failure( "Known OS" );
+
+        // Test source_location
+        test_source_location( ut );
 
         // Test getSystemMemory
         size_t system_bytes = Utilities::getSystemMemory();
