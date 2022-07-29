@@ -140,7 +140,8 @@ void fill( void *x, uint8_t value, size_t bytes )
 
 
 // Test source_location::current
-void test_source_location( UnitTest &ut, source_location source = source_location::current() )
+void test_source_location(
+    UnitTest &ut, const source_location &source = source_location::current() )
 {
     std::cout << "Testing StackTrace::source_location::current:\n";
     auto source2 = SOURCE_LOCATION_CURRENT();
@@ -174,11 +175,11 @@ int main( int argc, char *argv[] )
 
         // Check the OS
         constexpr auto OS = Utilities::getOS();
-        if constexpr ( OS == Utilities::OS::Linux )
+        if ( OS == Utilities::OS::Linux )
             ut.passes( "OS: Linux" );
-        else if constexpr ( OS == Utilities::OS::Windows )
+        else if ( OS == Utilities::OS::Windows )
             ut.passes( "OS: Windows" );
-        else if constexpr ( OS == Utilities::OS::macOS )
+        else if ( OS == Utilities::OS::macOS )
             ut.passes( "OS: macOS" );
         else
             ut.failure( "Known OS" );

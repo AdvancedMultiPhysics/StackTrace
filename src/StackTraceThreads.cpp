@@ -1,6 +1,7 @@
 #include "StackTrace/StackTrace.h"
 #include "StackTrace/Utilities.hpp"
 
+#include <algorithm>
 #include <cstring>
 #include <mutex>
 #include <thread>

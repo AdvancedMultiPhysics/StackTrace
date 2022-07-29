@@ -1,6 +1,7 @@
 #ifndef included_StackTrace_StaticVector
 #define included_StackTrace_StaticVector
 
+#include <algorithm>
 #include <stdexcept>
 #include <string>
 #include <thread>

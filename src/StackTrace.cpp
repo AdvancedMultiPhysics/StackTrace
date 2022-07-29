@@ -3,6 +3,7 @@
 #include "StackTrace/StaticVector.h"
 #include "StackTrace/Utilities.h"
 #include "StackTrace/Utilities.hpp"
+#include "StackTrace/string_view.h"
 
 #include <algorithm>
 #include <atomic>
@@ -17,7 +18,6 @@
 #include <set>
 #include <sstream>
 #include <stdexcept>
-#include <string_view>
 #include <thread>
 
 
@@ -90,6 +90,7 @@
 #endif
 
 
+using StackTrace::string_view;
 using namespace StackTrace::Utilities;
 
 
@@ -103,7 +104,7 @@ static std::shared_ptr<std::thread> globalMonitorThread;
 
 // Function to replace all instances of a string with another
 static constexpr size_t replace(
-    char *str, size_t N, size_t pos, size_t len, const std::string_view &r ) noexcept
+    char *str, size_t N, size_t pos, size_t len, const string_view &r ) noexcept
 {
     size_t Nr = r.size();
     auto tmp  = str;
@@ -118,18 +119,18 @@ static constexpr size_t replace(
 }
 template<std::size_t N>
 static constexpr size_t replace(
-    std::array<char, N> &str, size_t pos, size_t len, const std::string_view &r ) noexcept
+    std::array<char, N> &str, size_t pos, size_t len, const string_view &r ) noexcept
 {
     return replace( str.data(), N, pos, len, r );
 }
 static constexpr void strrep(
-    char *str, size_t &N, const std::string_view &s, const std::string_view &r ) noexcept
+    char *str, size_t &N, const string_view &s, const string_view &r ) noexcept
 {
     size_t Ns  = s.size();
-    size_t pos = std::string_view( str, N ).find( s );
+    size_t pos = string_view( str, N ).find( s );
     while ( pos != std::string::npos ) {
         N   = replace( str, N, pos, Ns, r );
-        pos = std::string_view( str, N ).find( s );
+        pos = string_view( str, N ).find( s );
     }
 }
 
@@ -1846,8 +1847,8 @@ static void cleanupFunctionName( char *function )
     // Remove std::__1::
     strrep( function, N, "std::__1::", "std::" );
     // Replace std::ratio with abbriviated version
-    auto find = [&function, &N]( const std::string_view &str, size_t pos = 0 ) {
-        return std::string_view( function, N ).find( str, pos );
+    auto find = [&function, &N]( const string_view &str, size_t pos = 0 ) {
+        return string_view( function, N ).find( str, pos );
     };
     if ( find( "std::ratio<" ) != npos ) {
         strrep( function, N, "std::ratio<1l, 1000000000000000000000000l>", "std::yocto" );
@@ -1953,9 +1954,9 @@ static void cleanupFunctionName( char *function )
 static bool keep( const StackTrace::stack_info &info )
 {
     const size_t npos = std::string::npos;
-    std::string_view object( info.object.data() );
-    std::string_view function( info.function.data() );
-    std::string_view filename( info.filename.data() );
+    string_view object( info.object.data() );
+    string_view function( info.function.data() );
+    string_view filename( info.filename.data() );
     // Remove backtrace_thread from StackTrace.cpp
     if ( filename == "StackTrace.cpp" && function.find( "backtrace_thread" ) != npos )
         return false;
@@ -2043,9 +2044,9 @@ void StackTrace::cleanupStackTrace( multi_stack_info &stack )
     auto it           = stack.children.begin();
     const size_t npos = std::string::npos;
     while ( it != stack.children.end() ) {
-        std::string_view object( it->stack.object.data() );
-        std::string_view function( it->stack.function.data() );
-        std::string_view filename( it->stack.filename.data() );
+        string_view object( it->stack.object.data() );
+        string_view function( it->stack.function.data() );
+        string_view filename( it->stack.filename.data() );
         // Remove callstack (and all children) for threads that are just contributing
         if ( filename == "StackTrace.cpp" ) {
             bool test = function.find( "_callstack_signal_handler" ) != npos ||
@@ -2226,7 +2227,7 @@ const char *StackTrace::abort_error::what() const noexcept
     } else {
         d_msg += "Unknown error called";
     }
-    std::string_view filename( source.file_name() );
+    string_view filename( source.file_name() );
     if ( !filename.empty() ) {
         d_msg += " in file '" + std::string( filename ) + "'";
         if ( source.line() > 0 ) {

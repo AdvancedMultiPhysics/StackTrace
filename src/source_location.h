@@ -2,9 +2,11 @@
 #ifndef included_StackTrace_source_location
 #define included_StackTrace_source_location
 
+#include "StackTrace/std.h"
+
 #include <cstdio>
 
-#if __has_include( <version> )
+#if STACTRACE_CXX_STANDARD >= 20
 #include <version>
 #if __cpp_lib_source_location
 #include <source_location>
