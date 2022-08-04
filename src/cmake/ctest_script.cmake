@@ -12,29 +12,29 @@ SET( PROJ StackTrace )
 # Set platform specific variables
 SITE_NAME( HOSTNAME )
 STRING( REGEX REPLACE  "-(ext|login)(..|.)"  ""  HOSTNAME  "${HOSTNAME}" )
-SET( USE_MPI            $ENV{USE_MPI}           )
-SET( CC                 $ENV{CC}                )
-SET( CXX                $ENV{CXX}               )
-SET( CFLAGS             $ENV{CFLAGS}            )
-SET( CXXFLAGS           $ENV{CXXFLAGS}          )
-SET( CXX_STD            $ENV{CXX_STD}           )
-SET( MPIEXEC            $ENV{MPIEXEC}           )
-SET( TIMER_DIRECTORY   "$ENV{TIMER_DIRECTORY}"  )
-SET( COVERAGE_COMMAND   $ENV{COVERAGE_COMMAND}  )
-SET( VALGRIND_COMMAND   $ENV{VALGRIND_COMMAND}  )
-SET( CMAKE_MAKE_PROGRAM $ENV{CMAKE_MAKE_PROGRAM} )
+SET( USE_MPI             $ENV{USE_MPI}            )
+SET( CC                  $ENV{CC}                 )
+SET( CXX                 $ENV{CXX}                )
+SET( CFLAGS              $ENV{CFLAGS}             )
+SET( CXXFLAGS            $ENV{CXXFLAGS}           )
+SET( CXX_STD             $ENV{CXX_STD}            )
+SET( MPIEXEC             $ENV{MPIEXEC}            )
+SET( TIMER_DIRECTORY    "$ENV{TIMER_DIRECTORY}"   )
+SET( COVERAGE_COMMAND    $ENV{COVERAGE_COMMAND}   )
+SET( VALGRIND_COMMAND    $ENV{VALGRIND_COMMAND}   )
+SET( CMAKE_MAKE_PROGRAM  $ENV{CMAKE_MAKE_PROGRAM} )
 SET( CTEST_CMAKE_GENERATOR $ENV{CTEST_CMAKE_GENERATOR} )
-SET( LDLIBS             $ENV{LDLIBS}            )
-SET( LDFLAGS            $ENV{LDFLAGS}           )
-SET( MPI_DIRECTORY      $ENV{MPI_DIRECTORY}     )
-SET( MPI_INCLUDE        $ENV{MPI_INCLUDE}       )
-SET( MPI_LINK_FLAGS     "$ENV{MPI_LINK_FLAGS}"  )
-SET( MPI_LIBRARIES      $ENV{MPI_LIBRARIES}     )
-SET( MPIEXEC            $ENV{MPIEXEC}           )
-SET( BUILD_SERIAL       $ENV{BUILD_SERIAL}      )
-SET( SKIP_TESTS         $ENV{SKIP_TESTS}        )
-SET( BUILDNAME_POSTFIX "$ENV{BUILDNAME_POSTFIX}" )
-SET( CTEST_SITE        "$ENV{CTEST_SITE}"       )
+SET( LDLIBS              $ENV{LDLIBS}             )
+SET( LDFLAGS             $ENV{LDFLAGS}            )
+SET( MPI_DIRECTORY       $ENV{MPI_DIRECTORY}      )
+SET( MPI_INCLUDE         $ENV{MPI_INCLUDE}        )
+SET( MPI_LINK_FLAGS     "$ENV{MPI_LINK_FLAGS}"    )
+SET( MPI_LIBRARIES       $ENV{MPI_LIBRARIES}      )
+SET( MPIEXEC             $ENV{MPIEXEC}            )
+SET( BUILD_SERIAL        $ENV{BUILD_SERIAL}       )
+SET( SKIP_TESTS          $ENV{SKIP_TESTS}         )
+SET( BUILDNAME_POSTFIX  "$ENV{BUILDNAME_POSTFIX}" )
+SET( CTEST_URL          "$ENV{CTEST_URL}"         )
 
 
 # Get the source directory based on the current directory
@@ -94,7 +94,7 @@ ENDIF()
 IF( NOT DEFINED N_PROCS )
     SET( N_PROCS $ENV{N_PROCS} )
 ENDIF()
-IF( NOT DEFINED N_PROCS )
+IF ( NOT DEFINED N_PROCS )
     SET(N_PROCS 1)
     # Linux:
     SET(cpuinfo_file "/proc/cpuinfo")
@@ -207,8 +207,15 @@ MESSAGE("Configure options:")
 MESSAGE("   ${CTEST_OPTIONS}")
 
 
+# Configure the drop site
+IF ( NOT CTEST_URL )
+    MESSAGE( FATAL_ERROR "CTEST_URL is not set" )
+ENDIF()
+STRING( REPLACE "PROJECT" "AMR-MHD" CTEST_URL "${CTEST_URL}" )
+SET( CTEST_SUBMIT_URL "${CTEST_URL}" )
+
+
 # Configure and run the tests
-SET( CTEST_SITE ${HOSTNAME} )
 CTEST_START( "${CTEST_DASHBOARD}" )
 CTEST_UPDATE()
 CTEST_CONFIGURE(
@@ -217,8 +224,7 @@ CTEST_CONFIGURE(
     OPTIONS "${CTEST_OPTIONS}"
 )
 
-
-# Run the configure, build and tests
+# Run the configure/build 
 CTEST_BUILD()
 IF ( SKIP_TESTS )
     # Do not run tests
@@ -236,11 +242,6 @@ ENDIF()
 
 
 # Submit the results to CDash
-SET( CTEST_DROP_METHOD "http" )
-SET( CTEST_DROP_LOCATION "/CDash/submit.php?project=AMR-MHD" )
-SET( CTEST_DROP_SITE_CDASH TRUE )
-SET( DROP_SITE_CDASH TRUE )
-SET( CTEST_DROP_SITE ${CTEST_SITE} )
 CTEST_SUBMIT()
 
 
