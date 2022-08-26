@@ -215,9 +215,7 @@ CONFIGURE_FILE( cmake/FindStackTrace.template.cmake "${${PROJ}_INSTALL_DIR}/Find
 
 
 # Add the cppcheck tests
-SET( CPPCHECK_INCLUDE "-I${${PROJ}_INSTALL_DIR}/include" )
-SET( CPPCHECK_SERIALIZE TRUE )
-SET( CPPCHECK_SUPRESSION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/cmake/cppcheckSuppressionFile" )
+SET( CPPCHECK_USE_JSON TRUE )
 FIND_PACKAGE( Cppcheck )
 
 

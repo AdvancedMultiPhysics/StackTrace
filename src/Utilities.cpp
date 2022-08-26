@@ -135,7 +135,7 @@ void Utilities::abort( const std::string &message, const source_location &source
     throw err;
 }
 static std::mutex terminate_mutex;
-static inline void callAbort()
+[[noreturn]] static inline void callAbort()
 {
 #ifdef USE_GCOV
     __gcov_flush();

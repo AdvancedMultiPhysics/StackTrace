@@ -34,6 +34,7 @@ SET( MPIEXEC             $ENV{MPIEXEC}            )
 SET( BUILD_SERIAL        $ENV{BUILD_SERIAL}       )
 SET( SKIP_TESTS          $ENV{SKIP_TESTS}         )
 SET( BUILDNAME_POSTFIX  "$ENV{BUILDNAME_POSTFIX}" )
+SET( CTEST_SITE         "$ENV{CTEST_SITE}"        )
 SET( CTEST_URL          "$ENV{CTEST_URL}"         )
 
 
@@ -208,6 +209,9 @@ MESSAGE("   ${CTEST_OPTIONS}")
 
 
 # Configure the drop site
+IF ( NOT CTEST_SITE )
+    SET( CTEST_SITE ${HOSTNAME} )
+ENDIF()
 IF ( NOT CTEST_URL )
     MESSAGE( FATAL_ERROR "CTEST_URL is not set" )
 ENDIF()
@@ -224,7 +228,8 @@ CTEST_CONFIGURE(
     OPTIONS "${CTEST_OPTIONS}"
 )
 
-# Run the configure/build 
+
+# Run the configure/build/test
 CTEST_BUILD()
 IF ( SKIP_TESTS )
     # Do not run tests

@@ -16,7 +16,7 @@ namespace StackTrace::Utilities {
  * Aborts the run after printing an error message with file and
  * line number information.
  */
-void abort( const std::string &message, const source_location &source );
+[[noreturn]] void abort( const std::string &message, const source_location &source );
 
 
 /*!
@@ -28,7 +28,7 @@ void setAbortBehavior( bool throwException, int stackType = 2 );
 
 
 //! Function to terminate the application
-void terminate( const StackTrace::abort_error &err );
+[[noreturn]] void terminate( const StackTrace::abort_error &err );
 
 
 //! Function to set the error handlers
