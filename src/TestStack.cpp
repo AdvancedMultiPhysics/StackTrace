@@ -344,8 +344,10 @@ void testGlobalStack(
 
 
 // Test finding the active threads
-void testActivethreads( UnitTest &results )
+void testActiveThreads( UnitTest &results )
 {
+    if ( getRank() != 0 )
+        return;
     // Test getting a list of all active threads
     int status[2] = { 0, 0 };
     // Start the threads
@@ -378,12 +380,22 @@ void testActivethreads( UnitTest &results )
     for ( auto id : thread_ids )
         found_all = found_all && std::count( active.begin(), active.end(), id );
     int N = active.size();
-    if ( found_all )
+    if ( found_all ) {
         results.passes( "StackTrace::activeThreads" );
-    else if ( active.size() == 1 && active[0] == self )
+    } else if ( active.size() == 1 && active[0] == self ) {
         results.expected( "StackTrace::activeThreads only is able to return self" );
-    else
-        results.failure( "StackTrace::activeThreads does not find all active threads" );
+    } else {
+        std::cout << "activeThreads does not find all threads\n";
+        std::cout << "   self: " << self << std::endl;
+        std::cout << "   t1:   " << thread_ids[0] << std::endl;
+        std::cout << "   t2:   " << thread_ids[0] << std::endl;
+        std::cout << "   t3:   " << thread_ids[0] << std::endl;
+        std::cout << "found:\n";
+        for ( auto id : active )
+            std::cout << "   " << id << std::endl;
+        std::cout << std::endl;
+        results.expected( "StackTrace::activeThreads does not find all active threads" );
+    }
 }
 
 
@@ -548,7 +560,7 @@ int main( int argc, char *argv[] )
         testTypeName( results );
 
         // Test getting a list of all active threads
-        testActivethreads( results );
+        testActiveThreads( results );
 
         // Test getting the current call stack
         bool decoded_symbols = false;
