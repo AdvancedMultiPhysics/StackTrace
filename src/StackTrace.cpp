@@ -1485,9 +1485,12 @@ static inline void erase( std::vector<TYPE> &x, TYPE y )
 std::vector<int> StackTrace::defaultSignalsToCatch()
 {
     auto signals = allSignalsToCatch();
-    erase( signals, SIGWINCH ); // Don't catch window changed by default
-    erase( signals, SIGCONT );  // Don't catch continue by default
-    erase( signals, SIGCHLD );  // Don't catch child exited by default
+    erase( signals, SIGWINCH );  // Don't catch window changed by default
+    erase( signals, SIGCONT );   // Don't catch continue by default
+    erase( signals, SIGCHLD );   // Don't catch child exited by default
+    erase( signals, SIGALRM );   // Don't catch alarm signals by default
+    erase( signals, SIGVTALRM ); // Don't catch virtual alarm signals by default
+    erase( signals, SIGPROF );   // Don't catch profile signals by default
     return signals;
 }
 

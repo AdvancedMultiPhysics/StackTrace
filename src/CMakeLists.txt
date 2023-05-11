@@ -185,6 +185,14 @@ FOREACH( tmp ${hfiles} )
 ENDFOREACH()
 
 
+# Check for mallinfo2
+INCLUDE(CheckSymbolExists)
+CHECK_SYMBOL_EXISTS( mallinfo2 malloc.h HAVE_MALLINFO2 )
+IF ( HAVE_MALLINFO2 )
+    ADD_DEFINITIONS( -DHAVE_MALLINFO2 )
+ENDIF()
+
+
 # Add a static library
 ADD_LIBRARY( stacktrace ${LIB_TYPE} Utilities.cpp StackTrace.cpp StackTraceThreads.cpp )
 ADD_DEPENDENCIES( stacktrace StackTrace-include )
