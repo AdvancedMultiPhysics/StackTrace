@@ -140,8 +140,8 @@ void fill( void *x, uint8_t value, size_t bytes )
 
 
 // Test source_location::current
-void test_source_location(
-    UnitTest &ut, const source_location &source = source_location::current() )
+void test_source_location( UnitTest &ut,
+                           const source_location &source = source_location::current() )
 {
     std::cout << "Testing StackTrace::source_location::current:\n";
     auto source2 = SOURCE_LOCATION_CURRENT();

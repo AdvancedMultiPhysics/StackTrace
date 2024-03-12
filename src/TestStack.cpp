@@ -15,8 +15,8 @@
 
 
 #ifdef USE_TIMER
-#include "MemoryApp.h"
-#include "ProfilerApp.h"
+    #include "MemoryApp.h"
+    #include "ProfilerApp.h"
 #endif
 
 
@@ -313,8 +313,8 @@ void testFullStack( UnitTest & )
 
 
 // Test stack trace of another thread
-void testGlobalStack(
-    UnitTest &, bool all, const std::basic_string<wchar_t> & = std::basic_string<wchar_t>() )
+void testGlobalStack( UnitTest &, bool all,
+                      const std::basic_string<wchar_t> & = std::basic_string<wchar_t>() )
 {
     barrier();
     const int rank = getRank();
@@ -549,7 +549,7 @@ int main( int argc, char *argv[] )
         // Set the value of rootPath
         rootPath     = argv[0];
         size_t index = rootPath.rfind( "TestStack" );
-        rootPath     = rootPath.substr( 0, index );
+        rootPath     = rootPath.resize( index );
         if ( rootPath.empty() )
             rootPath = "./";
 

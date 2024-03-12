@@ -74,19 +74,19 @@
 
 
 #ifdef __GNUC__
-#define USE_ABI
-#include <cxxabi.h>
+    #define USE_ABI
+    #include <cxxabi.h>
 #endif
 
 
 #ifndef NULL_USE
-#define NULL_USE( variable )                       \
-    do {                                           \
-        if ( 0 ) {                                 \
-            auto static temp = (char *) &variable; \
-            temp++;                                \
-        }                                          \
-    } while ( 0 )
+    #define NULL_USE( variable )                       \
+        do {                                           \
+            if ( 0 ) {                                 \
+                auto static temp = (char *) &variable; \
+                temp++;                                \
+            }                                          \
+        } while ( 0 )
 #endif
 
 
@@ -103,8 +103,8 @@ static std::shared_ptr<std::thread> globalMonitorThread;
 
 
 // Function to replace all instances of a string with another
-static constexpr size_t replace(
-    char *str, size_t N, size_t pos, size_t len, const string_view &r ) noexcept
+static constexpr size_t replace( char *str, size_t N, size_t pos, size_t len,
+                                 const string_view &r ) noexcept
 {
     size_t Nr = r.size();
     auto tmp  = str;
@@ -118,13 +118,13 @@ static constexpr size_t replace(
     return k;
 }
 template<std::size_t N>
-static constexpr size_t replace(
-    std::array<char, N> &str, size_t pos, size_t len, const string_view &r ) noexcept
+static constexpr size_t replace( std::array<char, N> &str, size_t pos, size_t len,
+                                 const string_view &r ) noexcept
 {
     return replace( str.data(), N, pos, len, r );
 }
-static constexpr void strrep(
-    char *str, size_t &N, const string_view &s, const string_view &r ) noexcept
+static constexpr void strrep( char *str, size_t &N, const string_view &s,
+                              const string_view &r ) noexcept
 {
     size_t Ns  = s.size();
     size_t pos = string_view( str, N ).find( s );
@@ -137,19 +137,6 @@ static constexpr void strrep(
 static void cleanupFunctionName( char * );
 
 
-// Utility to strip the path from a filename
-static constexpr const char *stripPath( const char *filename ) noexcept
-{
-    const char *s = filename;
-    while ( *s ) {
-        if ( *s == 47 || *s == 92 )
-            filename = s + 1;
-        ++s;
-    }
-    return filename;
-}
-
-
 // Functions to hash strings
 constexpr uint32_t hashString( const char *s )
 {
@@ -160,56 +147,13 @@ constexpr uint32_t hashString( const char *s )
     return hash;
 }
 template<std::size_t N1, std::size_t N2>
-static constexpr uint64_t objHash(
-    const std::array<char, N1> &obj, const std::array<char, N2> &objPath )
+static constexpr uint64_t objHash( const std::array<char, N1> &obj,
+                                   const std::array<char, N2> &objPath )
 {
     uint32_t v1  = hashString( obj.data() );
     uint32_t v2  = hashString( objPath.data() );
     uint64_t key = ( static_cast<uint64_t>( v1 ) << 32 ) + static_cast<uint64_t>( v1 ^ v2 );
     return key;
-}
-
-
-//! Assign a string to a std::array
-template<std::size_t N2>
-static constexpr void copy( const char *in, std::array<char, N2> &out ) noexcept
-{
-    size_t N1 = strlen( in );
-    out.fill( 0 );
-    if ( N1 < N2 ) {
-        memcpy( out.data(), in, N1 );
-    } else {
-        memcpy( out.data(), in, N2 - 4 );
-        out[N2 - 4] = out[N2 - 3] = out[N2 - 2] = '.';
-    }
-}
-template<std::size_t N1, std::size_t N2>
-static constexpr void copy( const std::array<char, N1> &in, std::array<char, N2> &out ) noexcept
-{
-    out.fill( 0 );
-    if ( N1 < N2 ) {
-        memcpy( out.data(), in.data(), N1 );
-    } else {
-        memcpy( out.data(), in.data(), N2 - 4 );
-        out[N2 - 4] = out[N2 - 3] = out[N2 - 2] = '.';
-    }
-}
-template<std::size_t N2, std::size_t N3>
-static constexpr void copy(
-    const char *in, std::array<char, N2> &out, std::array<char, N3> &outPath ) noexcept
-{
-    auto ptr = stripPath( in );
-    copy( ptr, out );
-    outPath.fill( 0 );
-    if ( ptr != in ) {
-        size_t N = ptr - in - 1;
-        if ( N < N3 ) {
-            memcpy( outPath.data(), in, N );
-        } else {
-            memcpy( outPath.data(), in, N3 - 4 );
-            outPath[N3 - 4] = outPath[N3 - 3] = outPath[N3 - 2] = '.';
-        }
-    }
 }
 
 
@@ -223,7 +167,7 @@ static inline void *subtractAddress( void *a, void *b ) noexcept
 
 #ifdef USE_WINDOWS
 static BOOL __stdcall readProcMem( HANDLE hProcess, DWORD64 qwBaseAddress, PVOID lpBuffer,
-    DWORD nSize, LPDWORD lpNumberOfBytesRead )
+                                   DWORD nSize, LPDWORD lpNumberOfBytesRead )
 {
     SIZE_T st;
     BOOL bRet = ReadProcessMemory( hProcess, (LPVOID) qwBaseAddress, lpBuffer, nSize, &st );
@@ -246,30 +190,77 @@ void LoadModules();
 
 
 /****************************************************************************
- *  Utility to temporarily clear a signal in a thread-safe manner            *
- *  If multiple threads attempt to clear a signal, then it will be cleared   *
- *  until all threads are finished                                           *
+ *  Utility to strip the path from a filename                                *
  ****************************************************************************/
-typedef void ( *handle_type )( int );
-static std::atomic_int reset_signal_count[128];
-static handle_type reset_signal_handler[128] = { nullptr };
-static bool initialize_reset_signal_count()
+static constexpr const char *stripPath( const char *filename ) noexcept
 {
-    for ( int i = 0; i < 128; i++ )
-        reset_signal_count[i].store( 0 );
-    return true;
+    if ( filename == nullptr )
+        return nullptr;
+    const char *s = filename;
+    while ( *s ) {
+        if ( *s == 47 || *s == 92 )
+            filename = s + 1;
+        ++s;
+    }
+    return filename;
 }
-static bool reset_signal_vars_initialize = initialize_reset_signal_count();
-static void clearSignal( int sig )
+
+
+/****************************************************************************
+ *  Assign a string to a std::array                                          *
+ *  Note: this is intended to be a secure copy routine                       *
+ ****************************************************************************/
+static constexpr size_t strlen2( const char *in ) noexcept
 {
-    NULL_USE( reset_signal_vars_initialize );
-    if ( reset_signal_count[sig].fetch_add( 1 ) == 0 )
-        reset_signal_handler[sig] = signal( sig, SIG_IGN );
+    if ( !in )
+        return 0;
+    return strlen( in );
 }
-static void resetSignal( int sig )
+template<std::size_t N>
+static constexpr size_t strlen2( const std::array<char, N> &s ) noexcept
 {
-    if ( reset_signal_count[sig].fetch_add( -1 ) == 1 )
-        signal( sig, reset_signal_handler[sig] );
+    for ( size_t i = 0; i < N; i++ )
+        if ( s[i] == 0 )
+            return i;
+    return N;
+}
+template<std::size_t N2>
+static constexpr void copy( const char *in, std::array<char, N2> &out ) noexcept
+{
+    size_t N1 = strlen2( in );
+    out.fill( 0 );
+    memcpy( out.data(), in, std::min( N1, N2 ) );
+    if ( N1 >= N2 ) {
+        out[N2 - 4] = out[N2 - 3] = out[N2 - 2] = '.';
+        out[N2 - 1]                             = 0;
+    }
+}
+template<std::size_t N1, std::size_t N2>
+static constexpr void copy( const std::array<char, N1> &in, std::array<char, N2> &out ) noexcept
+{
+    out.fill( 0 );
+    size_t N = strlen2( in );
+    memcpy( out.data(), in.data(), std::min( N, N2 - 1 ) );
+    if ( N >= N2 ) {
+        out[N2 - 4] = out[N2 - 3] = out[N2 - 2] = '.';
+        out[N2 - 1]                             = 0;
+    }
+}
+template<std::size_t N2, std::size_t N3>
+static constexpr void copy( const char *in, std::array<char, N2> &out,
+                            std::array<char, N3> &outPath ) noexcept
+{
+    auto ptr = stripPath( in );
+    copy( ptr, out );
+    outPath.fill( 0 );
+    if ( ptr != in ) {
+        size_t N = ptr - in - 1;
+        memcpy( outPath.data(), in, std::min( N, N3 - 1 ) );
+        if ( N >= N3 ) {
+            outPath[N3 - 4] = outPath[N3 - 3] = outPath[N3 - 2] = '.';
+            outPath[N2 - 1]                                     = 0;
+        }
+    }
 }
 
 
@@ -341,8 +332,8 @@ std::string StackTrace::stack_info::print( int w1, int w2, int w3 ) const
     print2( out, w1, w2, w3 );
     return std::string( out );
 }
-void StackTrace::stack_info::print(
-    std::ostream &out, const std::vector<stack_info> &stack, const std::string &prefix )
+void StackTrace::stack_info::print( std::ostream &out, const std::vector<stack_info> &stack,
+                                    const std::string &prefix )
 {
     char buf[32 + sizeof( stack_info )];
     for ( const auto &tmp : stack ) {
@@ -387,8 +378,8 @@ StackTrace::multi_stack_info::multi_stack_info( const std::vector<stack_info> &r
 {
     operator=( rhs );
 }
-StackTrace::multi_stack_info &StackTrace::multi_stack_info::operator=(
-    const std::vector<stack_info> &rhs )
+StackTrace::multi_stack_info &
+StackTrace::multi_stack_info::operator=( const std::vector<stack_info> &rhs )
 {
     clear();
     if ( rhs.empty() )
@@ -558,18 +549,18 @@ static std::array<char, 1000> getExecutableName()
         int len           = ::readlink( "/proc/self/exe", buf, 0x10000 );
         if ( len != -1 ) {
             buf[len] = '\0';
-            strcpy( exe.data(), buf );
+            copy( buf, exe );
         }
 #elif defined( USE_MAC )
         uint32_t size     = 0x10000;
         char buf[0x10000] = { 0 };
         if ( _NSGetExecutablePath( buf, &size ) == 0 )
-            strcpy( exe.data(), buf );
+            copy( buf, exe );
 #elif defined( USE_WINDOWS )
         DWORD size        = 0x10000;
         char buf[0x10000] = { 0 };
         GetModuleFileName( nullptr, buf, size );
-        strcpy( exe.data(), buf );
+        copy( buf, exe );
 #endif
     } catch ( ... ) {
     }
@@ -598,13 +589,13 @@ static std::vector<StackTrace::symbols_struct> getSymbolData()
 #ifdef USE_NM
     try {
         char cmd[1024];
-#ifdef USE_LINUX
+    #ifdef USE_LINUX
         sprintf( cmd, "nm -n --demangle %s", getExecutable2() );
-#elif defined( USE_MAC )
+    #elif defined( USE_MAC )
         sprintf( cmd, "nm -n %s | c++filt", getExecutable2() );
-#else
-#error Unknown OS using nm
-#endif
+    #else
+        #error Unknown OS using nm
+    #endif
         // Function to process a line of nm output
         auto fun = [&data]( char *line ) {
             if ( line[0] == ' ' )
@@ -1445,20 +1436,19 @@ void StackTrace::LoadModules()
 /****************************************************************************
  *  Get the signal name                                                      *
  ****************************************************************************/
-static char signalNames[128][32];
+static std::array<char,64> signalNames[128];
 const char *StackTrace::signalName( int sig )
 {
     static bool initialized = false;
     if ( !initialized ) {
         StackTrace_mutex.lock();
-        memset( signalNames, 0, sizeof( signalNames ) );
         for ( int i = 0; i < 128; i++ )
-            strcpy( signalNames[i], strsignal( i + 1 ) );
+            copy( strsignal( i + 1 ), signalNames[i] );
         StackTrace_mutex.unlock();
         initialized = true;
     }
     bool valid = sig > 0 && sig <= 128;
-    return valid ? signalNames[sig - 1] : nullptr;
+    return valid ? signalNames[sig - 1].data():nullptr;
 }
 std::vector<int> StackTrace::allSignalsToCatch()
 {
@@ -1904,17 +1894,17 @@ static void cleanupFunctionName( char *function )
         strrep( function, N, "::sleep_for<long, std::ratio<60>>", "::sleep_for<minutes>" );
         strrep( function, N, "::sleep_for<long, std::ratio<3600>>", "::sleep_for<hours>" );
         strrep( function, N, "::sleep_for<nanoseconds>(std::chrono::nanoseconds",
-            "::sleep_for(std::chrono::nanoseconds" );
+                "::sleep_for(std::chrono::nanoseconds" );
         strrep( function, N, "::sleep_for<microseconds>(std::chrono::microseconds",
-            "::sleep_for(std::chrono::microseconds" );
+                "::sleep_for(std::chrono::microseconds" );
         strrep( function, N, "::sleep_for<milliseconds>(std::chrono::milliseconds",
-            "::sleep_for(std::chrono::milliseconds" );
+                "::sleep_for(std::chrono::milliseconds" );
         strrep( function, N, "::sleep_for<seconds>(std::chrono::seconds",
-            "::sleep_for(std::chrono::seconds" );
+                "::sleep_for(std::chrono::seconds" );
         strrep( function, N, "::sleep_for<milliseconds>(std::chrono::minutes",
-            "::sleep_for(std::chrono::milliseconds" );
+                "::sleep_for(std::chrono::milliseconds" );
         strrep( function, N, "::sleep_for<milliseconds>(std::chrono::hours",
-            "::sleep_for(std::chrono::hours" );
+                "::sleep_for(std::chrono::hours" );
     }
     // Replace std::basic_string with abbriviated version
     strrep( function, N, "std::__cxx11::basic_string<", "std::basic_string<" );
@@ -2215,7 +2205,10 @@ StackTrace::multi_stack_info StackTrace::generateFromString( const std::vector<s
 /****************************************************************************
  *  abort_error                                                              *
  ****************************************************************************/
-StackTrace::abort_error::abort_error() : type( terminateType::unknown ), signal( 0 ), bytes( 0 ) {}
+StackTrace::abort_error::abort_error()
+    : type( terminateType::unknown ), stackType( printStackType::local ), signal( 0 ), bytes( 0 )
+{
+}
 const char *StackTrace::abort_error::what() const noexcept
 {
     d_msg.clear();

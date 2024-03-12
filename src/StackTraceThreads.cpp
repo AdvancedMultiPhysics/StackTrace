@@ -196,7 +196,7 @@ std::vector<std::thread::native_handle_type> activeThreads()
         CloseHandle( hThreadSnap ); // Must clean up the snapshot object!
     }
 #else
-#warning activeThreads is not yet supported on this compiler/OS
+    #warning activeThreads is not yet supported on this compiler/OS
 #endif
     // Add the current thread
     threads.push_back( StackTrace::thisThread() );

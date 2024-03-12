@@ -11,8 +11,8 @@
  ****************************************************************************/
 #if defined( WIN32 ) || defined( _WIN32 ) || defined( WIN64 ) || defined( _WIN64 ) || \
     defined( _MSC_VER )
-#define popen _popen
-#define pclose _pclose
+    #define popen _popen
+    #define pclose _pclose
 #endif
 template<class FUNCTION>
 int StackTrace::Utilities::exec2( const char *cmd, FUNCTION &fun )

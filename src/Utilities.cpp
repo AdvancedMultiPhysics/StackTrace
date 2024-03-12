@@ -15,7 +15,7 @@
 #include <typeinfo>
 
 #ifdef USE_TIMER
-#include "MemoryApp.h"
+    #include "MemoryApp.h"
 #endif
 
 #ifdef USE_GCOV
@@ -69,19 +69,8 @@ extern "C" void __gcov_dump();
 
 
 #ifdef __GNUC__
-#define USE_ABI
-#include <cxxabi.h>
-#endif
-
-
-#ifndef NULL_USE
-#define NULL_USE( variable )                       \
-    do {                                           \
-        if ( 0 ) {                                 \
-            auto static temp = (char *) &variable; \
-            temp++;                                \
-        }                                          \
-    } while ( 0 )
+    #define USE_ABI
+    #include <cxxabi.h>
 #endif
 
 
@@ -258,10 +247,6 @@ size_t Utilities::getMemoryUsage()
             size_t size_hblkhd   = static_cast<unsigned int>( meminfo.hblkhd );
             size_t size_uordblks = static_cast<unsigned int>( meminfo.uordblks );
             size_t N_bytes       = size_hblkhd + size_uordblks;
-            // Correct for possible 32-bit wrap around
-            size_t N_bytes_new = d_bytes_allocated - d_bytes_deallocated;
-            while ( N_bytes < N_bytes_new )
-                N_bytes += 0x100000000;
         #endif
     #endif
     return N_bytes;
@@ -308,7 +293,7 @@ double Utilities::tick()
     return resolution;
 }
 #else
-#error Unknown OS
+    #error Unknown OS
 #endif
 
 
