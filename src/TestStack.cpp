@@ -549,7 +549,7 @@ int main( int argc, char *argv[] )
         // Set the value of rootPath
         rootPath     = argv[0];
         size_t index = rootPath.rfind( "TestStack" );
-        rootPath     = rootPath.resize( index );
+        rootPath.resize( index );
         if ( rootPath.empty() )
             rootPath = "./";
 
