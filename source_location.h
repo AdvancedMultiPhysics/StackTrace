@@ -4,6 +4,7 @@
 
 #include "StackTrace/std.h"
 
+#include <cstdint>
 #include <cstdio>
 
 #if STACTRACE_CXX_STANDARD >= 20

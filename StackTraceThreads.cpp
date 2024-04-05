@@ -1,4 +1,5 @@
 #include "StackTrace/StackTrace.h"
+#include "StackTrace/StaticVector.h"
 #include "StackTrace/Utilities.hpp"
 
 #include <algorithm>
@@ -210,7 +211,7 @@ std::vector<std::thread::native_handle_type> activeThreads()
  *  Register threads with the StackTrace                                     *
  ****************************************************************************/
 static std::mutex globalThreadMutex;
-static std::vector<std::thread::native_handle_type> globalRegisteredThreads;
+static Utilities::staticVector<std::thread::native_handle_type, 1024> globalRegisteredThreads;
 thread_local struct ThreadExiter {
     void registerThread(){};
     ~ThreadExiter() { unregisterThread( thisThread() ); }
@@ -223,21 +224,25 @@ void registerThread()
 void registerThread( std::thread::native_handle_type id )
 {
     globalThreadMutex.lock();
-    auto it = std::find( globalRegisteredThreads.begin(), globalRegisteredThreads.end(), id );
-    if ( it != globalRegisteredThreads.end() )
+    auto i = globalRegisteredThreads.find( id );
+    if ( i == globalRegisteredThreads.size() )
         globalRegisteredThreads.push_back( id );
     globalThreadMutex.unlock();
 }
 void unregisterThread( std::thread::native_handle_type id )
 {
-    auto it = std::find( globalRegisteredThreads.begin(), globalRegisteredThreads.end(), id );
-    if ( it != globalRegisteredThreads.end() )
-        globalRegisteredThreads.erase( it );
+    globalThreadMutex.lock();
+    auto i = globalRegisteredThreads.find( id );
+    if ( i != globalRegisteredThreads.size() ) {
+        std::swap( globalRegisteredThreads[i], globalRegisteredThreads.back() );
+        globalRegisteredThreads.resize( globalRegisteredThreads.size() - 1 );
+    }
     globalThreadMutex.unlock();
 }
-const std::vector<std::thread::native_handle_type>& registeredThreads()
+std::vector<std::thread::native_handle_type> registeredThreads()
 {
-    return globalRegisteredThreads;
+    return std::vector<std::thread::native_handle_type>( globalRegisteredThreads.begin(),
+                                                         globalRegisteredThreads.end() );
 }
 
 

@@ -1,41 +1,52 @@
-# Macro to set the proper warnings
-MACRO( SET_WARNINGS )
-  IF ( USING_GCC )
-    # Add gcc specific compiler options
-    # Note: adding -Wlogical-op causes a wierd linking error on Titan using the nvcc wrapper:
-    #    /usr/bin/ld: cannot find gical-op: No such file or directory
-    SET(CMAKE_C_FLAGS     "${CMAKE_C_FLAGS} -Wall -Wextra") 
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic -Woverloaded-virtual -Wsign-compare -Wformat-security -Wformat-overflow=2")
-  ELSEIF ( USING_MSVC )
-    # Add Microsoft specifc compiler options
-    SET(CMAKE_C_FLAGS     "${CMAKE_C_FLAGS} /D _SCL_SECURE_NO_WARNINGS /D _CRT_SECURE_NO_WARNINGS /D _ITERATOR_DEBUG_LEVEL=0 /wd4267" )
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /D _SCL_SECURE_NO_WARNINGS /D _CRT_SECURE_NO_WARNINGS /D _ITERATOR_DEBUG_LEVEL=0 /wd4267" )
-  ELSEIF ( USING_ICC )
-    # Add Intel specifc compiler options
-    SET(CMAKE_C_FLAGS     " ${CMAKE_C_FLAGS} -Wall" )
-    SET(CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -Wall -wd1011" )
-  ELSEIF ( USING_CRAY )
-    # Add default compiler options
-    SET(CMAKE_C_FLAGS     " ${CMAKE_C_FLAGS}")
-    SET(CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS}")
-  ELSEIF ( USING_PGCC )
-    # Add default compiler options
-    SET(CMAKE_C_FLAGS     " ${CMAKE_C_FLAGS} -lpthread")
-    SET(CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -lpthread -Minform=inform -Mlist --display_error_number")
-    # Suppress unreachable code warning, it causes non-useful warnings with some tests/templates
-    SET(CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} --diag_suppress 111,128,185")
-  ELSEIF ( USING_CLANG )
-    # Add default compiler options
-    SET(CMAKE_C_FLAGS     " ${CMAKE_C_FLAGS} -Wall -Wextra")
-    SET(CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic -Wno-missing-braces -Wmissing-field-initializers -ftemplate-depth=1024")
-  ELSEIF ( USING_XL )
-    # Add default compiler options
-    SET(CMAKE_C_FLAGS     " ${CMAKE_C_FLAGS} -Wall")
-    SET(CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -Wall -ftemplate-depth=512")
-  ELSE ( )
-    MESSAGE("Compiler specific features are not set for this compiler")
-  ENDIF()
+# Identify the C++ compiler
+MACRO( SET_COMPILER_FLAGS )
+    IF ( USING_GCC OR CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX OR (${CMAKE_CXX_COMPILER_ID} MATCHES "GNU") )
+        SET( USING_GCC TRUE )
+        ADD_DEFINITIONS( -DUSING_GCC )
+        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic -Woverloaded-virtual -Wsign-compare -Wformat-security -Wformat-overflow=2 -Wno-aggressive-loop-optimizations")
+        MESSAGE("Using gcc")
+    ELSEIF ( USING_MSVC OR MSVC OR MSVC_IDE OR MSVC60 OR MSVC70 OR MSVC71 OR MSVC80 OR CMAKE_COMPILER_2005 OR MSVC90 OR MSVC10 )
+        IF ( NOT ${CMAKE_SYSTEM_NAME} STREQUAL "Windows" )
+            MESSAGE( FATAL_ERROR "Using microsoft compilers on non-windows system?" )
+        ENDIF()
+        SET( USING_MSVC TRUE )
+        ADD_DEFINITIONS( -DUSING_MSVC )
+        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /D _SCL_SECURE_NO_WARNINGS /D _CRT_SECURE_NO_WARNINGS /D _ITERATOR_DEBUG_LEVEL=0 /wd4267" )
+        MESSAGE("Using Microsoft")
+    ELSEIF ( USING_ICC OR (${CMAKE_CXX_COMPILER_ID} MATCHES "Intel") ) 
+        SET(USING_ICC TRUE)
+        ADD_DEFINITIONS( -DUSING_ICC )
+        SET(CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -Wall -wd1011" )
+        MESSAGE("Using icc")
+    ELSEIF ( USING_PGCC OR (${CMAKE_CXX_COMPILER_ID} MATCHES "PGI") )
+        SET(USING_PGCC TRUE)
+        ADD_DEFINITIONS( -DUSING_PGCC )
+        # Add default compiler options
+        SET(CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -lpthread -Minform=inform -Mlist --display_error_number --diag_suppress 111,128,185")
+        MESSAGE("Using pgCC")
+    ELSEIF ( USING_CRAY OR (${CMAKE_CXX_COMPILER_ID} MATCHES "CRAY") OR (${CMAKE_CXX_COMPILER_ID} MATCHES "Cray") )
+        SET(USING_CRAY TRUE)
+        ADD_DEFINITIONS( -DUSING_CRAY )
+        SET(CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS}")
+        MESSAGE("Using Cray")
+    ELSEIF ( USING_CLANG OR (${CMAKE_CXX_COMPILER_ID} MATCHES "CLANG") OR (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang") )
+        SET(USING_CLANG TRUE)
+        ADD_DEFINITIONS( -DUSING_CLANG )
+        SET(CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic -Wno-missing-braces -Wmissing-field-initializers -ftemplate-depth=1024")
+        MESSAGE("Using Clang")
+    ELSEIF ( USING_XL OR (${CMAKE_CXX_COMPILER_ID} MATCHES "XL") )
+        SET(USING_XL TRUE)
+        ADD_DEFINITIONS( -DUSING_XL )
+        SET(CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -Wall -ftemplate-depth=512")
+        MESSAGE("Using XL")
+    ELSE()
+        MESSAGE( "CMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}")
+        MESSAGE( "CMAKE_CXX_COMPILER_ID=${CMAKE_CXX_COMPILER_ID}")
+        MESSAGE(FATAL_ERROR "Unknown C/C++ compiler")
+    ENDIF()
+    MESSAGE( "CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 ENDMACRO()
+
 
 
 # Macro to add user compile flags

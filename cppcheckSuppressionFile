@@ -1,4 +1,6 @@
 // CppCheck suppression file
+unmatchedSuppression:*
 *:*/mpicxx.h
 nullPointer:*/Utilities.cpp:306
-rethrowNoCurrentException:*/StackTrace.cpp:1502
+rethrowNoCurrentException:*/StackTrace.cpp
+

@@ -62,6 +62,10 @@ public:
             std::sort( begin(), end() );
         }
     }
+    size_t find( const TYPE &x )
+    {
+        return std::distance( begin(), std::find( begin(), end(), x ) );
+    }
 
 private:
     size_t d_size;

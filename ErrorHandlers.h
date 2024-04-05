@@ -17,8 +17,9 @@ namespace StackTrace {
 /*!
  * Set the error handler
  * @param[in] abort     Function to terminate the program: abort(msg,type)
+ * @param[in] signals   List of signals to catch
  */
-void setErrorHandler( std::function<void( StackTrace::abort_error& )> abort );
+void setErrorHandler( std::function<void( StackTrace::abort_error& )> abort, const std::vector<int> &signals = StackTrace::defaultSignalsToCatch() );
 
 //! Clear the error handler
 void clearErrorHandler();

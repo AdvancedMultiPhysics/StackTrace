@@ -379,7 +379,6 @@ void testActiveThreads( UnitTest &results )
     bool found_all = true;
     for ( auto id : thread_ids )
         found_all = found_all && std::count( active.begin(), active.end(), id );
-    int N = active.size();
     if ( found_all ) {
         results.passes( "StackTrace::activeThreads" );
     } else if ( active.size() == 1 && active[0] == self ) {

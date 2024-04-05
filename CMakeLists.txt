@@ -151,7 +151,7 @@ ELSE()
     FILE( WRITE "${STACKTRACE_INCLUDE}/string_view.h" "namespace StackTrace {\nusing std::string_view;\n}\n" )
 ENDIF()
 FILE( WRITE "${STACKTRACE_INCLUDE}/std.h" "#define STACTRACE_CXX_STANDARD ${CMAKE_CXX_STANDARD}\n" )
-SET_WARNINGS()
+SET_COMPILER_FLAGS()
 
 
 # Check if we are using the timer (allows a more accurate memory usage)

@@ -262,6 +262,9 @@ static constexpr void copy( const char *in, std::array<char, N2> &out,
         }
     }
 }
+static_assert( strlen2( "" ) == 0 );
+static_assert( strlen2( nullptr ) == 0 );
+static_assert( stripPath( nullptr ) == nullptr );
 
 
 /****************************************************************************
@@ -343,7 +346,7 @@ void StackTrace::stack_info::print( std::ostream &out, const std::vector<stack_i
 }
 void StackTrace::stack_info::print2( char *out, int w1, int w2, int w3 ) const
 {
-    char tmp1[16], tmp2[16];
+    char tmp1[32], tmp2[32];
     sprintf( tmp1, "0x%%0%illx:  ", w1 );
     sprintf( tmp2, "%%%is  %%%is", w2, w3 );
     size_t pos = 0;
@@ -768,7 +771,7 @@ static void getFileAndLineObject( staticVector<StackTrace::stack_info*,blockSize
                 info[i]->line = atoi( &buf[j + 1] );
             }
         }
-    #elif defined( USE_MAC ) 
+    #elif defined( USE_MAC )
         // Create the call command
         void* load_address = loadAddress( hashString( info[0]->object.data() ) );
         if ( load_address == nullptr )
@@ -1197,7 +1200,7 @@ static StackTrace::multi_stack_info generateMultiStack(
 StackTrace::multi_stack_info StackTrace::getAllCallStacks()
 {
     // Get the list of active thread
-    auto& threads = registeredThreads();
+    auto threads = registeredThreads();
     // Create the multi-stack structure
     auto stack = generateMultiStack( threads );
     return stack;
@@ -1573,11 +1576,11 @@ void StackTrace::setSignals( const std::vector<int> &signals, void ( *handler )(
     std::this_thread::yield();
 }
 void StackTrace::raiseSignal( int signal ) { std::raise( signal ); }
-void StackTrace::setErrorHandler( std::function<void( StackTrace::abort_error & )> abort )
+void StackTrace::setErrorHandler( std::function<void( StackTrace::abort_error & )> abort, const std::vector<int> &signals )
 {
     abort_fun = abort;
     std::set_terminate( term_func );
-    setSignals( defaultSignalsToCatch(), &terminateFunctionSignal );
+    setSignals( signals, &terminateFunctionSignal );
     std::set_unexpected( term_func );
 }
 void StackTrace::clearErrorHandler()
@@ -1667,7 +1670,7 @@ static void runGlobalMonitorThread()
             int tag;
             MPI_Recv( &tag, 1, MPI_INT, src_rank, 1, globalCommForGlobalCommStack, &status );
             // Get the list of threads (except this)
-            auto& threads = StackTrace::registeredThreads();
+            auto threads = StackTrace::registeredThreads();
             if ( threads.empty() )
                 continue;
             // Get the stack info for the threads

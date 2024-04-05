@@ -52,7 +52,7 @@ struct stack_info {
 
 //! Class to contain stack trace info for multiple threads/processes
 struct multi_stack_info {
-    int N;                                  // Number of threads/processes
+    int N = 0;                              // Number of threads/processes
     stack_info stack;                       // Current stack item
     std::vector<multi_stack_info> children; // Children
     //! Default constructor
@@ -95,6 +95,7 @@ private:
 enum class terminateType : uint8_t { signal, exception, abort, MPI, unknown };
 enum class printStackType : uint8_t { local = 1, threaded = 2, global = 3 };
 
+
 //!< Class to contain exception info from abort
 class abort_error : public std::exception
 {
@@ -118,8 +119,8 @@ private:
 
 //!< Class to contain symbol information
 struct symbols_struct {
-    char type;
-    void *address;
+    char type     = 0;
+    void *address = nullptr;
     std::array<char, 56> obj;
     std::array<char, 56> objPath;
 };
@@ -269,7 +270,7 @@ void registerThread( std::thread::native_handle_type );
 void unregisterThread( std::thread::native_handle_type );
 
 //! Get a list of the registered threads
-const std::vector<std::thread::native_handle_type> &registeredThreads();
+std::vector<std::thread::native_handle_type> registeredThreads();
 
 //! Get a list of the active threads (may be undefined for some operating systems)
 std::vector<std::thread::native_handle_type> activeThreads();
