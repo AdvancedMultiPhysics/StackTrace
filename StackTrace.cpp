@@ -210,11 +210,14 @@ static constexpr const char *stripPath( const char *filename ) noexcept
  *  Assign a string to a std::array                                          *
  *  Note: this is intended to be a secure copy routine                       *
  ****************************************************************************/
-static constexpr size_t strlen2( const char *in ) noexcept
+static constexpr size_t strlen2( const char *start ) noexcept
 {
-    if ( !in )
+    if ( !start )
         return 0;
-    return strlen( in );
+    const char* end = start;
+    while (*end != '\0')
+        ++end;
+    return end - start;
 }
 template<std::size_t N>
 static constexpr size_t strlen2( const std::array<char, N> &s ) noexcept
