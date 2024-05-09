@@ -40,9 +40,17 @@ PROJECT( ${PROJ} LANGUAGES CXX )
 # Include CMake files
 INCLUDE( cmake/macros.cmake )
 
+
 # Enable testing
 ENABLE_TESTING()
 INCLUDE( CTest )
+
+
+# Create a release target
+INCLUDE( cmake/WriteRepoVersion.cmake )
+WRITE_REPO_VERSION()
+CREATE_RELEASE()
+
 
 # Create the target for documentation
 IF ( NOT DEFINED USE_DOXYGEN )

@@ -2241,7 +2241,7 @@ const char *StackTrace::abort_error::what() const noexcept
     if ( bytes > 0 ) {
         d_msg += "Bytes used = " + std::to_string( bytes ) + "\n";
     }
-    if ( !stack.empty() ) {
+    if ( !stack.empty() && stackType != printStackType::none ) {
         d_msg += "Stack Trace:\n";
         if ( stackType == printStackType::local ) {
             for ( const auto &item : getStackInfo( stack ) ) {

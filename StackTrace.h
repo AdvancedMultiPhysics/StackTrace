@@ -93,7 +93,7 @@ private:
 
 //!< Terminate type
 enum class terminateType : uint8_t { signal, exception, abort, MPI, unknown };
-enum class printStackType : uint8_t { local = 1, threaded = 2, global = 3 };
+enum class printStackType : uint8_t { local = 1, threaded = 2, global = 3, none = 0 };
 
 
 //!< Class to contain exception info from abort
