@@ -1,0 +1,275 @@
+# To run valgrind:
+# valgrind --leak-check=yes --show-reachable=yes --track-origins=yes --log-file=memory.log --suppressions=ValgrindSuppresionFile --gen-suppressions=all ./TestStack
+
+
+# Suppress some libraries
+{
+   libdbus_leak
+   Memcheck:Leak
+   ...
+   obj:/lib/x86_64-linux-gnu/libdbus-1.so.3.7.6
+   ...
+}
+{
+   libcairo_leak
+   Memcheck:Leak
+   ...
+   obj:/usr/lib/x86_64-linux-gnu/libcairo.so.2.11301.0
+   ...
+}
+{
+   libpangocairo_leak
+   Memcheck:Leak
+   ...
+   obj:/usr/lib/x86_64-linux-gnu/libpangocairo-1.0.so.0.3600.3
+   ...
+}
+{
+   libpango_leak
+   Memcheck:Leak
+   ...
+   obj:/usr/lib/x86_64-linux-gnu/libpango-1.0.so.0.3600.3
+   ...
+}
+{
+   libgtk_x11_leak
+   Memcheck:Leak
+   ...
+   obj:/usr/lib/x86_64-linux-gnu/libgtk-x11-2.0.so.0.2400.23
+   ...
+}
+{
+   libX11_leak
+   Memcheck:Leak
+   ...
+   obj:/usr/lib/x86_64-linux-gnu/libX11.so.6.3.0
+   ...
+}
+{
+   libexpat_leak
+   Memcheck:Leak
+   ...
+   obj:/lib/x86_64-linux-gnu/libexpat.so.1.6.0
+   ...
+}
+{
+   libgio_leak
+   Memcheck:Leak
+   ...
+   obj:/usr/lib/x86_64-linux-gnu/libgio-2.0.so.0.4002.0
+   ...
+}
+{
+   libdbus_leak
+   Memcheck:Leak
+   ...
+   obj:/lib/x86_64-linux-gnu/libdbus-1.so.3.7.6
+   ...
+}
+{
+   libgobject_leak
+   Memcheck:Leak
+   ...
+   obj:/usr/lib/x86_64-linux-gnu/libgobject-2.0.so.0.4002.0
+   ...
+}
+{
+   libicuuc_leak
+   Memcheck:Leak
+   ...
+   obj:/usr/lib/x86_64-linux-gnu/libicuuc.so.52.1
+   ...
+}
+{
+   libpixman_leak
+   Memcheck:Leak
+   ...
+   obj:/usr/lib/x86_64-linux-gnu/libpixman-1.so.0.30.2
+   ...
+}
+{
+   libpixman_leak
+   Memcheck:Leak
+   ...
+   obj:/usr/lib/x86_64-linux-gnu/libfontconfig.so.1.8.0
+   ...
+}
+{
+   libfreetype_leak
+   Memcheck:Leak
+   ...
+   obj:/usr/lib/x86_64-linux-gnu/libfreetype.so.6.11.1
+   ...
+}
+{
+   ucol_leak
+   Memcheck:Leak
+   ...
+   fun:ucol_initCollator_52
+   ...
+   fun:ucol_open_internal_52
+   ...
+}
+
+
+# ACML supressions
+{
+   IdentifyCPUCond
+   Memcheck:Cond
+   ...
+   fun:acmlcpuid2
+   ...
+}
+{
+   IdentifyCPUValue
+   Memcheck:Value8
+   ...
+   fun:acmlcpuid_once
+   fun:acmlcpuid2
+   ...
+}
+{
+   acmlfma3_cond
+   Memcheck:Cond
+   fun:acmlfma3_supported_
+   ...
+}
+{
+   acmlfma4_cond
+   Memcheck:Cond
+   fun:acmlfma4_supported_
+   ...
+}
+
+
+# System errors
+{
+   map_doit_memory
+   Memcheck:Cond
+   fun:index
+   fun:expand_dynamic_string_token
+   fun:_dl_map_object
+   fun:map_doit
+   fun:_dl_catch_error
+   ...
+}
+{
+   expand_dynamic_string_token
+   Memcheck:Cond
+   fun:index
+   fun:expand_dynamic_string_token
+   ...
+   fun:dl_main
+   fun:_dl_sysdep_start
+   fun:_dl_start
+   ...
+}
+{
+   call_init
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:call_init
+   fun:_dl_init
+   ...
+}
+
+
+# std
+{
+   libc_cond
+   Memcheck:Cond
+   ...
+   fun:_dl_init_paths
+   fun:_dl_non_dynamic_init
+   fun:__libc_init_first
+   fun:(below main)
+}
+{
+   libc_val8
+   Memcheck:Value8
+   ...
+   fun:_dl_init_paths
+   fun:_dl_non_dynamic_init
+   fun:__libc_init_first
+   fun:(below main)
+}
+{
+   mallinfo_cond
+   Memcheck:Cond
+   fun:int_mallinfo
+   fun:mallinfo
+   ...
+}
+{
+   mallinfo_value
+   Memcheck:Value8
+   fun:int_mallinfo
+   fun:mallinfo
+   ...
+}
+{
+   int_free_cond
+   Memcheck:Cond
+   fun:_int_free
+   ...
+}
+{
+   string_len_cond
+   Memcheck:Cond
+   fun:strlen
+   ...
+}
+{
+   int_malloc_cond
+   Memcheck:Cond
+   fun:_int_malloc
+   fun:malloc
+   ...
+}
+{
+   malloc_consolidate_malloc
+   Memcheck:Cond
+   fun:malloc_consolidate
+   fun:_int_malloc
+   ...
+}
+{
+   malloc_consolidate_free
+   Memcheck:Cond
+   fun:malloc_consolidate
+   fun:_int_free
+   ...
+}
+{
+   catch_cond
+   Memcheck:Cond
+   fun:__cxa_begin_catch
+   ...
+}
+{
+   popen
+   Memcheck:Param
+   set_robust_list(head)
+   fun:__nptl_set_robust
+   fun:__libc_fork
+   fun:_IO_proc_open
+   fun:popen
+   ...
+}
+{
+   exit
+   Memcheck:Value8
+   fun:__run_exit_handlers
+   ...
+   fun:exit
+   ...
+}
+{
+   sse42
+   Memcheck:Cond
+   fun:__strstr_sse42
+   ...
+}
+
+
