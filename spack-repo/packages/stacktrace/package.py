@@ -3,15 +3,15 @@ from spack.package import *
 
 class Stacktrace(CMakePackage):
 
-    homepage = "https://re-git.lanl.gov/xcap/oss/solvers/stacktrace"
-    git = "ssh://git@re-git.lanl.gov:10022/xcap/oss/solvers/stacktrace.git"
+    homepage = "https://bitbucket.org/mberrill/stacktrace/src/master/"
+    git = "https://bitbucket.org/mberrill/stacktrace.git"
 
     version("0.0.90", tag="0.0.90")
 
     
     variant("mpi", default=True, description="build with mpi")
 
-    depends_on("cmake@3.29.2", type="build")
+    depends_on("cmake@3.26.0:", type="build")
     depends_on("mpi", when="+mpi")
 
     def cmake_args(self):
