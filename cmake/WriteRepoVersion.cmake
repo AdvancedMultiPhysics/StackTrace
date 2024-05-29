@@ -15,6 +15,25 @@ FUNCTION( WRITE_REPO_VERSION )
     ENDIF()
     SET( src_dir "${${PROJ}_SOURCE_DIR}" )
 
+    # Set the output filename
+    SET( filename "${${PROJ}_INSTALL_DIR}/include/${${PROJ}_INC}/${PROJ}_Version.h" )
+    set(extra_args ${ARGN})
+    LIST( LENGTH extra_args extra_count )
+    if ( ${extra_count} GREATER 0 )
+        LIST( GET extra_args 0 optional_arg )
+        SET( filename "${optional_arg}" )
+    endif ()
+
+    # Get version info
+    GET_VERSION_INFO()
+    SET( ${PROJ}_MAJOR_VERSION  ${${PROJ}_MAJOR_VERSION}  PARENT_SCOPE )
+    SET( ${PROJ}_MINOR_VERSION  ${${PROJ}_MINOR_VERSION}  PARENT_SCOPE )
+    SET( ${PROJ}_BUILD_VERSION  ${${PROJ}_BUILD_VERSION}  PARENT_SCOPE )
+    SET( ${PROJ}_SHORT_HASH     ${${PROJ}_SHORT_HASH}     PARENT_SCOPE )
+    SET( ${PROJ}_LONG_HASH      ${${PROJ}_LONG_HASH}      PARENT_SCOPE )
+    SET( ${PROJ}_BRANCH         ${${PROJ}_BRANCH}         PARENT_SCOPE )
+    SET( ${PROJ}_VERSION        ${${PROJ}_VERSION}        PARENT_SCOPE )
+
     # Save the version info
     SAVE_VERSION_INFO( )
 
@@ -23,7 +42,7 @@ FUNCTION( WRITE_REPO_VERSION )
     MESSAGE("${PROJ} Version = ${${PROJ}_MAJOR_VERSION}.${${PROJ}_MINOR_VERSION}.${${PROJ}_BUILD_VERSION}")
 
     # Write the version info to the file
-    SET( filename "${${PROJ}_INSTALL_DIR}/include/${${PROJ}_INC}/${PROJ}_Version.h" )
+
     SET( tmp_file "${CMAKE_CURRENT_BINARY_DIR}/tmp/version.h" )
     STRING(REGEX REPLACE " " "_" namespace "${${PROJ}_NAMESPACE}")
     FILE(WRITE  "${tmp_file}" "#ifndef ${PROJ}_VERSION_INCLUDE\n#define ${PROJ}_VERSION_INCLUDE\n\n" )
@@ -106,43 +125,69 @@ FUNCTION( SAVE_VERSION_INFO )
     # Set the output filename
     SET( filename "${${PROJ}_INSTALL_DIR}/${PROJ}_Version.cmake" )
 
-    # Check if a version file exists in the src tree
-    IF ( EXISTS "${src_dir}/${PROJ}_Version.cmake" )
-        EXECUTE_PROCESS( COMMAND ${CMAKE_COMMAND} -E copy_if_different "${src_dir}/${PROJ}_Version.cmake" "${filename}" )
-        RETURN()
-    ENDIF()
-
-    # Get version info from mercurial
-    EXECUTE_PROCESS( COMMAND hg head  WORKING_DIRECTORY "${src_dir}"  OUTPUT_VARIABLE HG_INFO ERROR_VARIABLE HG_ERR )
-    IF ( "${HG_INFO}" MATCHES "changeset")
-        WRITE_HG_INFO()
-        RETURN()
-    ENDIF()
-
-    # Get version info from git
-    EXECUTE_PROCESS( COMMAND git log -n 1  WORKING_DIRECTORY "${src_dir}"  OUTPUT_VARIABLE GIT_INFO ERROR_VARIABLE GIT_ERR )
-    IF ( "${GIT_INFO}" MATCHES "commit ")
-        WRITE_GIT_INFO()
-        RETURN()
-    ENDIF()
-
-    # Write default info
+    # Write version info
     STRING(REGEX REPLACE " " "_" namespace "${${PROJ}_NAMESPACE}")
     SET( tmp_file "${CMAKE_CURRENT_BINARY_DIR}/tmp/version.cmake" )
     FILE(WRITE  "${tmp_file}" "SET( ${PROJ}_MAJOR_VERSION ${${PROJ}_MAJOR_VERSION} )\n" )
     FILE(APPEND "${tmp_file}" "SET( ${PROJ}_MINOR_VERSION ${${PROJ}_MINOR_VERSION} )\n" )
-    FILE(APPEND "${tmp_file}" "SET( ${PROJ}_BUILD_VERSION 0 )\n" )
-    FILE(APPEND "${tmp_file}" "SET( ${PROJ}_SHORT_HASH_VERSION \"\" )\n" )
-    FILE(APPEND "${tmp_file}" "SET( ${PROJ}_LONG_HASH_VERSION  \"\" )\n" )
-    FILE(APPEND "${tmp_file}" "SET( ${PROJ}_BRANCH  \"\" )\n" )
+    FILE(APPEND "${tmp_file}" "SET( ${PROJ}_BUILD_VERSION ${${PROJ}_BUILD_VERSION} )\n" )
+    FILE(APPEND "${tmp_file}" "SET( ${PROJ}_SHORT_HASH_VERSION \"${${PROJ}_SHORT_HASH}\" )\n" )
+    FILE(APPEND "${tmp_file}" "SET( ${PROJ}_LONG_HASH_VERSION  \"${${PROJ}_LONG_HASH}\" )\n" )
+    FILE(APPEND "${tmp_file}" "SET( ${PROJ}_BRANCH  \"${${PROJ}_BRANCH}\" )\n" )
+
+    # Copy the file only if it is different (to avoid rebuilding project)
+    EXECUTE_PROCESS( COMMAND ${CMAKE_COMMAND} -E copy_if_different "${tmp_file}" "${filename}" )
 
 ENDFUNCTION()
 
 
 
-FUNCTION( WRITE_HG_INFO )
+# Get version info
+FUNCTION( GET_VERSION_INFO )
 
-    # Get the repo version
+    # Set the major/minor versions if they are not set
+    IF ( NOT ${PROJ}_MAJOR_VERSION )
+        SET( ${PROJ}_MAJOR_VERSION 0 )
+    ENDIF()
+    IF ( NOT ${PROJ}_MINOR_VERSION )
+        SET( ${PROJ}_MINOR_VERSION 0 )
+    ENDIF()
+
+    # Check if a version file exists in the src tree
+    IF ( EXISTS "${src_dir}/${PROJ}_Version.cmake" )
+        EXECUTE_PROCESS( COMMAND ${CMAKE_COMMAND} -E copy_if_different "${src_dir}/${PROJ}_Version.cmake" "${filename}" )
+    ENDIF()
+
+    # Get version info from mercurial
+    GET_HG_INFO()
+
+    # Get version info from git
+    GET_GIT_INFO()
+
+    # Get the build version
+    IF ( NOT ${PROJ}_BUILD_VERSION )
+        SET( ${PROJ}_BUILD_VERSION ${${PROJ}_REVISION} )
+    ENDIF()
+
+    # Save the version info
+    SET( ${PROJ}_MAJOR_VERSION  ${${PROJ}_MAJOR_VERSION}  PARENT_SCOPE )
+    SET( ${PROJ}_MINOR_VERSION  ${${PROJ}_MINOR_VERSION}  PARENT_SCOPE )
+    SET( ${PROJ}_BUILD_VERSION  ${${PROJ}_BUILD_VERSION}  PARENT_SCOPE )
+    SET( ${PROJ}_SHORT_HASH     ${${PROJ}_SHORT_HASH}     PARENT_SCOPE )
+    SET( ${PROJ}_LONG_HASH      ${${PROJ}_LONG_HASH}      PARENT_SCOPE )
+    SET( ${PROJ}_BRANCH         ${${PROJ}_BRANCH}         PARENT_SCOPE )
+    SET( ${PROJ}_VERSION "${${PROJ}_MAJOR_VERSION}.${${PROJ}_MINOR_VERSION}.${${PROJ}_BUILD_VERSION}" PARENT_SCOPE )
+ENDFUNCTION()
+
+
+# Get the repo version for mecurial
+FUNCTION( GET_HG_INFO )
+
+    EXECUTE_PROCESS( COMMAND hg head  WORKING_DIRECTORY "${src_dir}"  OUTPUT_VARIABLE HG_INFO ERROR_VARIABLE HG_ERR )
+    IF ( NOT ( "${HG_INFO}" MATCHES "changeset" ) )
+        RETURN()
+    ENDIF()
+
     EXECUTE_PROCESS( COMMAND hg id -i  WORKING_DIRECTORY "${src_dir}"  OUTPUT_VARIABLE VERSION_OUT )
     EXECUTE_PROCESS( COMMAND hg log --limit 1 --template "{rev};{node}"  WORKING_DIRECTORY "${src_dir}" OUTPUT_VARIABLE VERSION_REV_OUT  )
     EXECUTE_PROCESS( COMMAND hg identify -b  WORKING_DIRECTORY "${src_dir}" OUTPUT_VARIABLE branch  )
@@ -151,40 +196,22 @@ FUNCTION( WRITE_HG_INFO )
     LIST(GET VERSION_REV_OUT 0 rev )
     LIST(GET VERSION_REV_OUT 1 long_hash )
 
-    # Write the results to the file
-    STRING(REGEX REPLACE " " "_" namespace "${${PROJ}_NAMESPACE}")
-    SET( tmp_file "${CMAKE_CURRENT_BINARY_DIR}/tmp/version.cmake" )
-    FILE(WRITE  "${tmp_file}" "SET( ${PROJ}_MAJOR_VERSION ${${PROJ}_MAJOR_VERSION} )\n" )
-    FILE(APPEND "${tmp_file}" "SET( ${PROJ}_MINOR_VERSION ${${PROJ}_MINOR_VERSION} )\n" )
-    FILE(APPEND "${tmp_file}" "SET( ${PROJ}_BUILD_VERSION ${rev} )\n" )
-    FILE(APPEND "${tmp_file}" "SET( ${PROJ}_SHORT_HASH_VERSION \"${short_hash}\" )\n" )
-    FILE(APPEND "${tmp_file}" "SET( ${PROJ}_LONG_HASH_VERSION  \"${long_hash}\" )\n" )
-    FILE(APPEND "${tmp_file}" "SET( ${PROJ}_BRANCH  \"${branch}\" )\n" )
-
-    # Optional write of all changesets
-    IF ( WRITE_ALL_CHANGESETS )
-        # Get all changesets
-        EXECUTE_PROCESS( COMMAND hg log --template "{rev}\n"  WORKING_DIRECTORY "${src_dir}"  OUTPUT_VARIABLE VERSION_REV_OUT  )
-        EXECUTE_PROCESS( COMMAND hg log --template "{node}\n" WORKING_DIRECTORY "${src_dir}"  OUTPUT_VARIABLE VERSION_NODE_OUT )
-        STRING(REGEX REPLACE "\n" ", " VERSION_REV_OUT "${VERSION_REV_OUT}")
-        STRING(REGEX REPLACE "\n" "\", \"" VERSION_NODE_OUT "\"${VERSION_NODE_OUT}")
-        STRING(REGEX REPLACE ", ;"   "" VERSION_REV_OUT  "${VERSION_REV_OUT};"  )
-        STRING(REGEX REPLACE ", \";" "" VERSION_NODE_OUT "${VERSION_NODE_OUT};" )
-        LIST( LENGTH VERSION_REV_OUT OUTPUT_LENGTH )
-        # Write the results to the file
-        FILE(APPEND "SET( ${PROJ}_REPO_VERSION_REV ${VERSION_REV_OUT} )\n" )
-        FILE(APPEND "SET( ${PROJ}_REPO_VERSION_REV ${VERSION_NODE_OUT} )\n" )
-    ENDIF()
-
-    # Copy the file only if it is different (to avoid rebuilding project)
-    EXECUTE_PROCESS( COMMAND ${CMAKE_COMMAND} -E copy_if_different "${tmp_file}" "${filename}" )
+    MESSAGE("SET( ${PROJ}_REVISION    ${${rev}}         PARENT_SCOPE )")
+    SET( ${PROJ}_REVISION    ${rev}         PARENT_SCOPE )
+    SET( ${PROJ}_SHORT_HASH  ${short_hash}  PARENT_SCOPE )
+    SET( ${PROJ}_LONG_HASH   ${long_hash}   PARENT_SCOPE )
+    SET( ${PROJ}_BRANCH      ${branch}      PARENT_SCOPE )
 
 ENDFUNCTION()
 
 
-FUNCTION( WRITE_GIT_INFO )
+# Get the repo version for git
+FUNCTION( GET_GIT_INFO )
+    EXECUTE_PROCESS( COMMAND git log -n 1  WORKING_DIRECTORY "${src_dir}"  OUTPUT_VARIABLE GIT_INFO ERROR_VARIABLE GIT_ERR )
+    IF ( NOT ( "${GIT_INFO}" MATCHES "commit " ) )
+        RETURN()
+    ENDIF()
 
-    # Get the repo version
     EXECUTE_PROCESS( COMMAND git rev-list --count HEAD  WORKING_DIRECTORY "${src_dir}"  OUTPUT_VARIABLE rev )
     EXECUTE_PROCESS( COMMAND git rev-parse --short HEAD  WORKING_DIRECTORY "${src_dir}"  OUTPUT_VARIABLE short_hash )
     EXECUTE_PROCESS( COMMAND git rev-parse HEAD  WORKING_DIRECTORY "${src_dir}"  OUTPUT_VARIABLE long_hash )
@@ -194,18 +221,11 @@ FUNCTION( WRITE_GIT_INFO )
     STRING(REGEX REPLACE "(\r?\n)+$" "" short_hash "${short_hash}")
     STRING(REGEX REPLACE "(\r?\n)+$" "" long_hash "${long_hash}")
     STRING(REGEX REPLACE "(\r?\n)+$" "" branch "${branch}")
-
-    # Write the results to the file
-    STRING(REGEX REPLACE " " "_" namespace "${${PROJ}_NAMESPACE}")
-    SET( tmp_file "${CMAKE_CURRENT_BINARY_DIR}/tmp/version.cmake" )
-    FILE(WRITE  "${tmp_file}" "SET( ${PROJ}_MAJOR_VERSION ${${PROJ}_MAJOR_VERSION} )\n" )
-    FILE(APPEND "${tmp_file}" "SET( ${PROJ}_MINOR_VERSION ${${PROJ}_MINOR_VERSION} )\n" )
-    FILE(APPEND "${tmp_file}" "SET( ${PROJ}_BUILD_VERSION ${rev} )\n" )
-    FILE(APPEND "${tmp_file}" "SET( ${PROJ}_SHORT_HASH_VERSION \"${short_hash}\" )\n" )
-    FILE(APPEND "${tmp_file}" "SET( ${PROJ}_LONG_HASH_VERSION  \"${long_hash}\" )\n" )
-    FILE(APPEND "${tmp_file}" "SET( ${PROJ}_BRANCH  \"${branch}\" )\n" )
-
-    # Copy the file only if it is different (to avoid rebuilding project)
-    EXECUTE_PROCESS( COMMAND ${CMAKE_COMMAND} -E copy_if_different "${tmp_file}" "${filename}" )
+    SET( ${PROJ}_REVISION    ${rev}         PARENT_SCOPE )
+    SET( ${PROJ}_SHORT_HASH  ${short_hash}  PARENT_SCOPE )
+    SET( ${PROJ}_LONG_HASH   ${long_hash}   PARENT_SCOPE )
+    SET( ${PROJ}_BRANCH      ${branch}      PARENT_SCOPE )
 
 ENDFUNCTION()
+
+

@@ -135,7 +135,7 @@ GET_SYSTEM_LIBS()
 
 
 # Add distclean target
-ADD_DISTCLEAN( libstacktrace* FindStackTrace.cmake TestStack TestTerminate TestUtilities ExampleStack.txt )
+ADD_DISTCLEAN( libstacktrace* FindStackTrace.cmake TestStack TestTerminate TestUtilities ExampleStack.txt cppcheck-build STACKTRACE-*.*.*.tar.gz )
 
 
 # Check if we want to enable coverage
@@ -173,14 +173,14 @@ ENDIF()
 IF ( USE_TIMER )
     ADD_DEFINITIONS( -DUSE_TIMER )
     INCLUDE_DIRECTORIES( "${TIMER_DIRECTORY}/include" )
-    FIND_LIBRARY( TIMER_LIB timerutility PATHS "${TIMER_DIRECTORY}/lib" NO_DEFAULT_PATH )
-    SET( CMAKE_INSTALL_RPATH "${TIMER_DIRECTORY}/lib" ${CMAKE_INSTALL_RPATH} )
+    FIND_PACKAGE( Timer REQUIRED PATHS "${TIMER_DIRECTORY}/lib/cmake" )
+    SET( TIMER_LIB TIMER::timerutility )
 ENDIF()
 
 
 # Create a target to copy headers
 ADD_CUSTOM_TARGET( StackTrace-include ALL )
-FILE(GLOB headers "${CMAKE_CURRENT_SOURCE_DIR}/*.h" "${CMAKE_CURRENT_SOURCE_DIR}/*.hpp" )
+FILE( GLOB headers "${CMAKE_CURRENT_SOURCE_DIR}/*.h" "${CMAKE_CURRENT_SOURCE_DIR}/*.hpp" )
 FILE( GLOB hfiles RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" ${headers} )
 FOREACH( tmp ${hfiles} )
     SET( SRC_FILE "${CMAKE_CURRENT_SOURCE_DIR}/${tmp}" )
@@ -200,9 +200,32 @@ ENDIF()
 # Add a static library
 ADD_LIBRARY( stacktrace ${LIB_TYPE} Utilities.cpp StackTrace.cpp StackTraceThreads.cpp )
 ADD_DEPENDENCIES( stacktrace StackTrace-include )
-TARGET_LINK_LIBRARIES(stacktrace ${CMAKE_DL_LIBS} ${TPL_LIBRARIES} )
+TARGET_LINK_LIBRARIES( stacktrace ${CMAKE_DL_LIBS} ${TIMER_LIB} )
 INSTALL( TARGETS stacktrace DESTINATION "${${PROJ}_INSTALL_DIR}/lib" )
+INSTALL( TARGETS stacktrace EXPORT StackTraceTargets DESTINATION "${${PROJ}_INSTALL_DIR}/lib" )
+INSTALL( EXPORT StackTraceTargets
+         FILE StackTraceTargets.cmake
+         NAMESPACE StackTrace::
+         DESTINATION ${${PROJ}_INSTALL_DIR}/lib/cmake
+)
 TARGET_COMPILE_DEFINITIONS( stacktrace PUBLIC ${COVERAGE_FLAGS} )
+
+
+# Generate a Package Configuration File
+INCLUDE( CMakePackageConfigHelpers )
+SET( INCLUDE_INSTALL_DIR  "${${PROJ}_INSTALL_DIR}/include" CACHE PATH "Location of header files" )
+SET( SYSCONFIG_INSTALL_DIR "${${PROJ}_INSTALL_DIR}/lib/cmake" CACHE PATH "Location of configuration files" )
+CONFIGURE_PACKAGE_CONFIG_FILE( cmake/StackTrace.cmake.in
+    "${CMAKE_CURRENT_BINARY_DIR}/cmake/StackTraceConfig.cmake"
+    INSTALL_DESTINATION "${${PROJ}_INSTALL_DIR}/lib/cmake"
+    PATH_VARS INCLUDE_INSTALL_DIR SYSCONFIG_INSTALL_DIR )
+WRITE_BASIC_PACKAGE_VERSION_FILE(
+    "${CMAKE_CURRENT_BINARY_DIR}/cmake/StackTraceVersion.cmake"
+    VERSION ${${PROJ}_VERSION}
+    COMPATIBILITY SameMajorVersion )
+INSTALL( FILES "${CMAKE_CURRENT_BINARY_DIR}/cmake/StackTraceConfig.cmake"
+               "${CMAKE_CURRENT_BINARY_DIR}/cmake/StackTraceVersion.cmake"
+         DESTINATION ${${PROJ}_INSTALL_DIR}/lib/cmake )
 
 
 # Add the tests
@@ -218,12 +241,8 @@ IF ( USE_MPI )
     ADD_TEST( NAME TestUtilities-4procs COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4 $<TARGET_FILE:TestUtilities> )
 ELSE()
     ADD_TEST( NAME TestStack COMMAND $<TARGET_FILE:TestStack> )
-ADD_TEST( NAME TestUtilities COMMAND $<TARGET_FILE:TestUtilities> )
+    ADD_TEST( NAME TestUtilities COMMAND $<TARGET_FILE:TestUtilities> )
 ENDIF()
-
-
-# Create FindStackTrace.cmake
-CONFIGURE_FILE( cmake/FindStackTrace.template.cmake "${${PROJ}_INSTALL_DIR}/FindStackTrace.cmake" @ONLY )
 
 
 # Add the cppcheck tests
