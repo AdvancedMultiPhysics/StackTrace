@@ -213,18 +213,18 @@ TARGET_COMPILE_DEFINITIONS( stacktrace PUBLIC ${COVERAGE_FLAGS} )
 
 # Generate a Package Configuration File
 INCLUDE( CMakePackageConfigHelpers )
-SET( INCLUDE_INSTALL_DIR  "${CMAKE_INSTALL_PREFIX}/include" CACHE PATH "Location of header files" )
-SET( SYSCONFIG_INSTALL_DIR ${${PROJ}_INSTALL_DIR}/lib/cmake CACHE PATH "Location of configuration files" )
+SET( INCLUDE_INSTALL_DIR  "${${PROJ}_INSTALL_DIR}/include" CACHE PATH "Location of header files" )
+SET( SYSCONFIG_INSTALL_DIR "${${PROJ}_INSTALL_DIR}/lib/cmake" CACHE PATH "Location of configuration files" )
 CONFIGURE_PACKAGE_CONFIG_FILE( cmake/StackTrace.cmake.in
-    ${CMAKE_CURRENT_BINARY_DIR}/cmake/StackTraceConfig.cmake
+    "${CMAKE_CURRENT_BINARY_DIR}/cmake/StackTraceConfig.cmake"
     INSTALL_DESTINATION "${${PROJ}_INSTALL_DIR}/lib/cmake"
     PATH_VARS INCLUDE_INSTALL_DIR SYSCONFIG_INSTALL_DIR )
 WRITE_BASIC_PACKAGE_VERSION_FILE(
-    ${CMAKE_CURRENT_BINARY_DIR}/cmake/StackTraceVersion.cmake
+    "${CMAKE_CURRENT_BINARY_DIR}/cmake/StackTraceVersion.cmake"
     VERSION ${${PROJ}_VERSION}
     COMPATIBILITY SameMajorVersion )
-INSTALL( FILES ${CMAKE_CURRENT_BINARY_DIR}/cmake/StackTraceConfig.cmake
-               ${CMAKE_CURRENT_BINARY_DIR}/cmake/StackTraceVersion.cmake
+INSTALL( FILES "${CMAKE_CURRENT_BINARY_DIR}/cmake/StackTraceConfig.cmake"
+               "${CMAKE_CURRENT_BINARY_DIR}/cmake/StackTraceVersion.cmake"
          DESTINATION ${${PROJ}_INSTALL_DIR}/lib/cmake )
 
 
