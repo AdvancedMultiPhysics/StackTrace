@@ -6,6 +6,7 @@ class Stacktrace(CMakePackage):
     homepage = "https://github.com/berrill/StackTrace"
     git = "https://github.com/berrill/StackTrace.git"
 
+    version("master", branch="master")
     version("0.0.92", tag="0.0.92")
     version("0.0.90", tag="0.0.90")
 
