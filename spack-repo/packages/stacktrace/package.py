@@ -3,12 +3,12 @@ from spack.package import *
 
 class Stacktrace(CMakePackage):
 
-    homepage = "ssh://git@asc-git.lanl.gov:10022/xcap/oss/solvers/stacktrace"
-    git = "ssh://git@asc-git.lanl.gov:10022/xcap/oss/solvers/stacktrace.git"
+    homepage = "https://github.com/berrill/StackTrace"
+    git = "https://github.com/berrill/StackTrace.git"
 
     version("0.0.92", tag="0.0.92")
     version("0.0.90", tag="0.0.90")
-    
+
     variant("mpi", default=True, description="build with mpi")
     variant("timer", default=False, description="include timerutility as a dependency")
 
