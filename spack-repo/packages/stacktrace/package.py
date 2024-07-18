@@ -3,10 +3,10 @@ from spack.package import *
 
 class Stacktrace(CMakePackage):
 
-    homepage = "https://bitbucket.org/mberrill/stacktrace/src/master/"
-    git = "https://bitbucket.org/mberrill/stacktrace.git"
+    homepage = "https://github.com/berrill/StackTrace"
+    git = "https://github.com/berrill/StackTrace.git"
 
-    version("0.0.90", tag="0.0.90")
+    version("0.0.92", tag="0.0.92")
 
     
     variant("mpi", default=True, description="build with mpi")
