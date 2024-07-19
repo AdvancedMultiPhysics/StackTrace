@@ -174,7 +174,7 @@ IF ( USE_TIMER )
     ADD_DEFINITIONS( -DUSE_TIMER )
     INCLUDE_DIRECTORIES( "${TIMER_DIRECTORY}/include" )
     FIND_PACKAGE( Timer REQUIRED PATHS "${TIMER_DIRECTORY}/lib/cmake" )
-    SET( TIMER_LIB TIMER::timerutility )
+    SET( TIMER_LIB Timer::timerutility )
 ENDIF()
 
 
@@ -206,7 +206,7 @@ INSTALL( TARGETS stacktrace EXPORT StackTraceTargets DESTINATION "${${PROJ}_INST
 INSTALL( EXPORT StackTraceTargets
          FILE StackTraceTargets.cmake
          NAMESPACE StackTrace::
-         DESTINATION ${${PROJ}_INSTALL_DIR}/lib/cmake
+         DESTINATION ${${PROJ}_INSTALL_DIR}/lib/cmake/StackTrace
 )
 TARGET_COMPILE_DEFINITIONS( stacktrace PUBLIC ${COVERAGE_FLAGS} )
 
