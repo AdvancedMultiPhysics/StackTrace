@@ -10,7 +10,7 @@ MESSAGE( "===========================" )
 
 
 # Set the project name
-SET( PROJ STACKTRACE )              # Set the project name for CMake
+SET( PROJ StackTrace )              # Set the project name for CMake
 
 
 # Prevent users from building in place
@@ -214,10 +214,10 @@ TARGET_COMPILE_DEFINITIONS( stacktrace PUBLIC ${COVERAGE_FLAGS} )
 # Generate a Package Configuration File
 INCLUDE( CMakePackageConfigHelpers )
 SET( INCLUDE_INSTALL_DIR  "${${PROJ}_INSTALL_DIR}/include" CACHE PATH "Location of header files" )
-SET( SYSCONFIG_INSTALL_DIR "${${PROJ}_INSTALL_DIR}/lib/cmake" CACHE PATH "Location of configuration files" )
+SET( SYSCONFIG_INSTALL_DIR "${${PROJ}_INSTALL_DIR}/lib/cmake/StackTrace" CACHE PATH "Location of configuration files" )
 CONFIGURE_PACKAGE_CONFIG_FILE( cmake/StackTrace.cmake.in
     "${CMAKE_CURRENT_BINARY_DIR}/cmake/StackTraceConfig.cmake"
-    INSTALL_DESTINATION "${${PROJ}_INSTALL_DIR}/lib/cmake"
+    INSTALL_DESTINATION "${${PROJ}_INSTALL_DIR}/lib/cmake/StackTrace"
     PATH_VARS INCLUDE_INSTALL_DIR SYSCONFIG_INSTALL_DIR )
 WRITE_BASIC_PACKAGE_VERSION_FILE(
     "${CMAKE_CURRENT_BINARY_DIR}/cmake/StackTraceVersion.cmake"
@@ -225,7 +225,7 @@ WRITE_BASIC_PACKAGE_VERSION_FILE(
     COMPATIBILITY SameMajorVersion )
 INSTALL( FILES "${CMAKE_CURRENT_BINARY_DIR}/cmake/StackTraceConfig.cmake"
                "${CMAKE_CURRENT_BINARY_DIR}/cmake/StackTraceVersion.cmake"
-         DESTINATION ${${PROJ}_INSTALL_DIR}/lib/cmake )
+         DESTINATION ${${PROJ}_INSTALL_DIR}/lib/cmake/StackTrace )
 
 
 # Add the tests
