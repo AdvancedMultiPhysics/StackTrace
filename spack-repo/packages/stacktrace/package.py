@@ -22,7 +22,7 @@ class Stacktrace(CMakePackage):
 
     def cmake_args(self):
         args = [
-            self.define("STACKTRACE_INSTALL_DIR", self.prefix),
+            self.define("StackTrace_INSTALL_DIR", self.prefix),
             self.define_from_variant("USE_MPI", "mpi"),
             self.define_from_variant("BUILD_SHARED_LIBS", "shared"),
             self.define_from_variant("CMAKE_POSITION_INDEPENDENT_CODE", "pic"),
