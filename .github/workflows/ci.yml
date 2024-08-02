@@ -1,0 +1,19 @@
+name: CI
+on:
+  push:
+    branches:
+      - master
+      - minimal_github_ci
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  spack_build:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/spack/ubuntu-noble:develop
+    steps:
+      - name: Check Spack version 
+        run: spack --version
