@@ -197,10 +197,10 @@ IF ( HAVE_MALLINFO2 )
 ENDIF()
 
 
-# Add a static library
+# Add library
 ADD_LIBRARY( stacktrace ${LIB_TYPE} Utilities.cpp StackTrace.cpp StackTraceThreads.cpp )
 ADD_DEPENDENCIES( stacktrace StackTrace-include )
-TARGET_LINK_LIBRARIES( stacktrace ${CMAKE_DL_LIBS} ${TIMER_LIB} )
+TARGET_LINK_LIBRARIES( stacktrace ${CMAKE_DL_LIBS} ${SYSTEM_LIBS} ${TIMER_LIB} )
 INSTALL( TARGETS stacktrace DESTINATION "${${PROJ}_INSTALL_DIR}/lib" )
 INSTALL( TARGETS stacktrace EXPORT StackTraceTargets DESTINATION "${${PROJ}_INSTALL_DIR}/lib" )
 INSTALL( EXPORT StackTraceTargets
