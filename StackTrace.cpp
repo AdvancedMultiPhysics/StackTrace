@@ -214,8 +214,8 @@ static constexpr size_t strlen2( const char *start ) noexcept
 {
     if ( !start )
         return 0;
-    const char* end = start;
-    while (*end != '\0')
+    const char *end = start;
+    while ( *end != '\0' )
         ++end;
     return end - start;
 }
