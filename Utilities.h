@@ -40,6 +40,22 @@ void clearErrorHandlers();
 
 
 /*!
+ * Set an environmental variable
+ * @param name              The name of the environmental variable
+ * @param value             The value to set
+ */
+void setenv( const char *name, const char *value );
+
+
+/*!
+ * Get an environmental variable
+ * @param name              The name of the environmental variable
+ * @return                  The value of the enviornmental variable
+ */
+std::string getenv( const char *name );
+
+
+/*!
  * Function to get the memory availible.
  * This function will return the total memory availible
  * Note: depending on the implimentation, this number may be rounded to
@@ -83,6 +99,10 @@ inline void sleep_s( int N ) { std::this_thread::sleep_for( std::chrono::seconds
 
 //! Cause a segfault
 void cause_segfault();
+
+
+//! Return true if we are running within valgrind
+bool running_valgrind();
 
 
 /*!

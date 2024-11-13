@@ -130,6 +130,13 @@ ELSE()
 ENDIF()
 
 
+# Configure valgrind (optional)
+FIND_PACKAGE( Valgrind )
+IF ( Valgrind_INCLUDE_DIR )
+    INCLUDE_DIRECTORIES( "${Valgrind_INCLUDE_DIR}" )
+ENDIF()
+
+
 # Add system specific libraries
 GET_SYSTEM_LIBS()
 

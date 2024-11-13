@@ -74,7 +74,7 @@ extern "C" void __gcov_dump();
 #endif
 
 
-namespace StackTrace {
+namespace StackTrace::Utilities {
 
 
 /****************************************************************************
@@ -107,18 +107,18 @@ inline size_t findfirst( const std::vector<TYPE> &X, TYPE Y )
  ****************************************************************************/
 static bool abort_throwException = false;
 static int force_exit            = 0;
-void Utilities::setAbortBehavior( bool throwException, int stackType )
+void setAbortBehavior( bool throwException, int stackType )
 {
     abort_throwException = throwException;
     StackTrace::setDefaultStackType( static_cast<printStackType>( stackType ) );
 }
-void Utilities::abort( const std::string &message, const source_location &source )
+void abort( const std::string &message, const source_location &source )
 {
     abort_error err;
     err.message   = message;
     err.source    = source;
     err.type      = terminateType::abort;
-    err.bytes     = Utilities::getMemoryUsage();
+    err.bytes     = getMemoryUsage();
     err.stackType = StackTrace::getDefaultStackType();
     err.stack     = StackTrace::backtrace();
     throw err;
@@ -132,7 +132,7 @@ static std::mutex terminate_mutex;
     terminate_mutex.unlock();
     std::abort();
 }
-void Utilities::terminate( const StackTrace::abort_error &err )
+void terminate( const StackTrace::abort_error &err )
 {
     // Lock mutex to ensure multiple threads do not try to abort simultaneously
     terminate_mutex.lock();
@@ -166,7 +166,7 @@ void Utilities::terminate( const StackTrace::abort_error &err )
 /****************************************************************************
  *  Functions to set the error handler                                       *
  ****************************************************************************/
-void Utilities::setErrorHandlers( std::function<void( StackTrace::abort_error & )> abort )
+void setErrorHandlers( std::function<void( StackTrace::abort_error & )> abort )
 {
 #ifdef USE_MPI
     setMPIErrorHandler( MPI_COMM_WORLD );
@@ -175,9 +175,9 @@ void Utilities::setErrorHandlers( std::function<void( StackTrace::abort_error & 
     if ( abort )
         StackTrace::setErrorHandler( abort );
     else
-        StackTrace::setErrorHandler( Utilities::terminate );
+        StackTrace::setErrorHandler( terminate );
 }
-void Utilities::clearErrorHandlers()
+void clearErrorHandlers()
 {
 #ifdef USE_MPI
     clearMPIErrorHandler( MPI_COMM_WORLD );
@@ -195,7 +195,7 @@ void Utilities::clearErrorHandlers()
     // Get the page size on mac or linux
     static size_t page_size = static_cast<size_t>( sysconf( _SC_PAGESIZE ) );
 #endif
-size_t Utilities::getSystemMemory()
+size_t getSystemMemory()
 {
     #if defined( USE_LINUX )
         static long pages = sysconf( _SC_PHYS_PAGES );
@@ -218,7 +218,7 @@ size_t Utilities::getSystemMemory()
     #endif
     return N_bytes;
 }
-size_t Utilities::getMemoryUsage()
+size_t getMemoryUsage()
 {
     #ifdef USE_TIMER
         size_t N_bytes = MemoryApp::getTotalMemoryUsage();
@@ -258,7 +258,7 @@ size_t Utilities::getMemoryUsage()
  *  Functions to get the time and timer resolution                           *
  ****************************************************************************/
 #if defined( USE_WINDOWS )
-double Utilities::time()
+double time()
 {
     LARGE_INTEGER end, f;
     QueryPerformanceFrequency( &f );
@@ -266,7 +266,7 @@ double Utilities::time()
     double time = ( (double) end.QuadPart ) / ( (double) f.QuadPart );
     return time;
 }
-double Utilities::tick()
+double tick()
 {
     LARGE_INTEGER f;
     QueryPerformanceFrequency( &f );
@@ -274,14 +274,14 @@ double Utilities::tick()
     return resolution;
 }
 #elif defined( USE_LINUX ) || defined( USE_MAC )
-double Utilities::time()
+double time()
 {
     timeval current_time;
     gettimeofday( &current_time, nullptr );
     double time = ( (double) current_time.tv_sec ) + 1e-6 * ( (double) current_time.tv_usec );
     return time;
 }
-double Utilities::tick()
+double tick()
 {
     timeval start, end;
     gettimeofday( &start, nullptr );
@@ -300,7 +300,7 @@ double Utilities::tick()
 /****************************************************************************
  *  Cause a segfault                                                         *
  ****************************************************************************/
-void Utilities::cause_segfault()
+void cause_segfault()
 {
     int *ptr = nullptr;
     ptr[0]   = 0;
@@ -310,7 +310,7 @@ void Utilities::cause_segfault()
 /****************************************************************************
  *  Utility to call system command and return output                         *
  ****************************************************************************/
-std::string Utilities::exec( const std::string &cmd, int &code )
+std::string exec( const std::string &cmd, int &code )
 {
     std::string result;
     auto fun = [&result]( const char *line ) { result += line; };
@@ -322,7 +322,7 @@ std::string Utilities::exec( const std::string &cmd, int &code )
 /****************************************************************************
  *  Get the type name                                                        *
  ****************************************************************************/
-std::string Utilities::getTypeName( const std::type_info &id )
+std::string getTypeName( const std::type_info &id )
 {
     std::string name = id.name();
 #if defined( USE_ABI )
@@ -334,5 +334,60 @@ std::string Utilities::getTypeName( const std::type_info &id )
     return name;
 }
 
+/****************************************************************************
+ *  Function to set an environemental variable                               *
+ ****************************************************************************/
+static std::mutex env_mutex;
+void setenv( const char *name, const char *value )
+{
+    env_mutex.lock();
+#if defined( WIN32 ) || defined( _WIN32 ) || defined( WIN64 ) || defined( _WIN64 ) || \
+    defined( _MSC_VER )
+    bool pass = SetEnvironmentVariable( name, value ) != 0;
+#else
+    bool pass = false;
+    if ( value == nullptr )
+        pass = ::unsetenv( name ) == 0;
+    else
+        pass = ::setenv( name, value, 1 ) == 0;
+#endif
+    env_mutex.unlock();
+    if ( !pass ) {
+        char msg[1024];
+        if ( value != nullptr )
+            sprintf( msg, "Error setting environmental variable: %s=%s", name, value );
+        else
+            sprintf( msg, "Error clearing environmental variable: %s\n", name );
+        throw std::logic_error( msg );
+    }
+}
+std::string getenv( const char *name )
+{
+    std::string var;
+    env_mutex.lock();
+    auto tmp = std::getenv( name );
+    if ( tmp )
+        var = std::string( tmp );
+    env_mutex.unlock();
+    return var;
+}
 
-} // namespace StackTrace
+
+/****************************************************************************
+ *  Check if we are running withing valgrind                                 *
+ ****************************************************************************/
+// clang-format off
+#if __has_include( "valgrind.h" )
+    #include "valgrind.h"
+    bool running_valgrind() { return RUNNING_ON_VALGRIND; }
+#else
+    bool running_valgrind()
+    {
+        auto x = getenv( "LD_PRELOAD" );
+        return std::min( x.find("/valgrind/"), x.find("/vgpreload") ) != std::string::npos;
+    }
+#endif
+// clang-format on
+
+
+} // namespace StackTrace::Utilities

@@ -310,6 +310,12 @@ int main( int argc, char *argv[] )
             ut.failure( "Caught unknown exception type" );
         }
 
+        // Check if we are running through valgrind and print the result
+        if ( Utilities::running_valgrind() )
+            std::cout << "Running through valgrind\n";
+        else
+            std::cout << "Not running through valgrind\n";
+
         // Finished testing, report the results
         ut.print();
         num_failed = ut.N_failed();
