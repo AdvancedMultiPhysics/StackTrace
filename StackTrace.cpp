@@ -232,7 +232,7 @@ static constexpr void copy( const char *in, std::array<char, N2> &out ) noexcept
 {
     size_t N1 = strlen2( in );
     out.fill( 0 );
-    memcpy( out.data(), in, std::min( N1, N2 ) );
+    memcpy( out.data(), in, std::min( N1, N2 - 1 ) );
     if ( N1 >= N2 ) {
         out[N2 - 4] = out[N2 - 3] = out[N2 - 2] = '.';
         out[N2 - 1]                             = 0;
@@ -261,7 +261,7 @@ static constexpr void copy( const char *in, std::array<char, N2> &out,
         memcpy( outPath.data(), in, std::min( N, N3 - 1 ) );
         if ( N >= N3 ) {
             outPath[N3 - 4] = outPath[N3 - 3] = outPath[N3 - 2] = '.';
-            outPath[N2 - 1]                                     = 0;
+            outPath[N3 - 1]                                     = 0;
         }
     }
 }
