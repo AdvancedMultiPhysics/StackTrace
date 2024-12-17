@@ -155,6 +155,7 @@ FUNCTION( GET_VERSION_INFO PROJ SOURCE_DIR )
     IF ( NOT ${PROJ}_MINOR_VERSION )
         SET( ${PROJ}_MINOR_VERSION 0 )
     ENDIF()
+    SET( ${PROJ}_REVISION 0 )
 
     # Get default version info from source version file (if it exists)
     IF ( EXISTS "${SOURCE_DIR}/${PROJ}_Version.cmake" )
@@ -168,9 +169,7 @@ FUNCTION( GET_VERSION_INFO PROJ SOURCE_DIR )
     GET_GIT_INFO( ${PROJ} ${SOURCE_DIR} )
 
     # Get the build version
-    IF ( NOT ${PROJ}_REVISION )
-        SET( ${PROJ}_BUILD_VERSION ${${PROJ}_REVISION} )
-    ENDIF()
+    SET( ${PROJ}_BUILD_VERSION ${${PROJ}_REVISION} )
 
     # Save the version info
     SET( ${PROJ}_MAJOR_VERSION  ${${PROJ}_MAJOR_VERSION}  PARENT_SCOPE )
@@ -199,7 +198,6 @@ FUNCTION( GET_HG_INFO PROJ SOURCE_DIR )
     LIST(GET VERSION_REV_OUT 0 rev )
     LIST(GET VERSION_REV_OUT 1 long_hash )
 
-    MESSAGE("SET( ${PROJ}_REVISION    ${${rev}}         PARENT_SCOPE )")
     SET( ${PROJ}_REVISION    ${rev}         PARENT_SCOPE )
     SET( ${PROJ}_SHORT_HASH  ${short_hash}  PARENT_SCOPE )
     SET( ${PROJ}_LONG_HASH   ${long_hash}   PARENT_SCOPE )
