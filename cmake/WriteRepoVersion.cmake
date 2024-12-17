@@ -25,7 +25,7 @@ FUNCTION( WRITE_REPO_VERSION )
     endif ()
 
     # Get version info
-    GET_VERSION_INFO()
+    GET_VERSION_INFO( ${PROJ} ${src_dir} )
     SET( ${PROJ}_MAJOR_VERSION  ${${PROJ}_MAJOR_VERSION}  PARENT_SCOPE )
     SET( ${PROJ}_MINOR_VERSION  ${${PROJ}_MINOR_VERSION}  PARENT_SCOPE )
     SET( ${PROJ}_BUILD_VERSION  ${${PROJ}_BUILD_VERSION}  PARENT_SCOPE )
@@ -146,7 +146,7 @@ ENDFUNCTION()
 
 
 # Get version info
-FUNCTION( GET_VERSION_INFO )
+FUNCTION( GET_VERSION_INFO PROJ SOURCE_DIR )
 
     # Set the major/minor versions if they are not set
     IF ( NOT ${PROJ}_MAJOR_VERSION )
@@ -156,19 +156,19 @@ FUNCTION( GET_VERSION_INFO )
         SET( ${PROJ}_MINOR_VERSION 0 )
     ENDIF()
 
-    # Check if a version file exists in the src tree
-    IF ( EXISTS "${src_dir}/${PROJ}_Version.cmake" )
-        EXECUTE_PROCESS( COMMAND ${CMAKE_COMMAND} -E copy_if_different "${src_dir}/${PROJ}_Version.cmake" "${filename}" )
+    # Get default version info from source version file (if it exists)
+    IF ( EXISTS "${SOURCE_DIR}/${PROJ}_Version.cmake" )
+        INCLUDE( "${SOURCE_DIR}/${PROJ}_Version.cmake" )
     ENDIF()
 
     # Get version info from mercurial
-    GET_HG_INFO()
+    GET_HG_INFO( ${PROJ} ${SOURCE_DIR} )
 
     # Get version info from git
-    GET_GIT_INFO()
+    GET_GIT_INFO( ${PROJ} ${SOURCE_DIR} )
 
     # Get the build version
-    IF ( NOT ${PROJ}_BUILD_VERSION )
+    IF ( NOT ${PROJ}_REVISION )
         SET( ${PROJ}_BUILD_VERSION ${${PROJ}_REVISION} )
     ENDIF()
 
@@ -184,16 +184,16 @@ ENDFUNCTION()
 
 
 # Get the repo version for mecurial
-FUNCTION( GET_HG_INFO )
+FUNCTION( GET_HG_INFO PROJ SOURCE_DIR )
 
-    EXECUTE_PROCESS( COMMAND hg head  WORKING_DIRECTORY "${src_dir}"  OUTPUT_VARIABLE HG_INFO ERROR_VARIABLE HG_ERR )
+    EXECUTE_PROCESS( COMMAND hg head  WORKING_DIRECTORY "${SOURCE_DIR}"  OUTPUT_VARIABLE HG_INFO ERROR_VARIABLE HG_ERR )
     IF ( NOT ( "${HG_INFO}" MATCHES "changeset" ) )
         RETURN()
     ENDIF()
 
-    EXECUTE_PROCESS( COMMAND hg id -i  WORKING_DIRECTORY "${src_dir}"  OUTPUT_VARIABLE VERSION_OUT )
-    EXECUTE_PROCESS( COMMAND hg log --limit 1 --template "{rev};{node}"  WORKING_DIRECTORY "${src_dir}" OUTPUT_VARIABLE VERSION_REV_OUT  )
-    EXECUTE_PROCESS( COMMAND hg identify -b  WORKING_DIRECTORY "${src_dir}" OUTPUT_VARIABLE branch  )
+    EXECUTE_PROCESS( COMMAND hg id -i  WORKING_DIRECTORY "${SOURCE_DIR}"  OUTPUT_VARIABLE VERSION_OUT )
+    EXECUTE_PROCESS( COMMAND hg log --limit 1 --template "{rev};{node}"  WORKING_DIRECTORY "${SOURCE_DIR}" OUTPUT_VARIABLE VERSION_REV_OUT  )
+    EXECUTE_PROCESS( COMMAND hg identify -b  WORKING_DIRECTORY "${SOURCE_DIR}" OUTPUT_VARIABLE branch  )
 
     STRING(REGEX REPLACE "(\r?\n)+$" "" short_hash "${VERSION_OUT}")
     LIST(GET VERSION_REV_OUT 0 rev )
@@ -209,16 +209,16 @@ ENDFUNCTION()
 
 
 # Get the repo version for git
-FUNCTION( GET_GIT_INFO )
-    EXECUTE_PROCESS( COMMAND git log -n 1  WORKING_DIRECTORY "${src_dir}"  OUTPUT_VARIABLE GIT_INFO ERROR_VARIABLE GIT_ERR )
+FUNCTION( GET_GIT_INFO PROJ SOURCE_DIR )
+    EXECUTE_PROCESS( COMMAND git log -n 1  WORKING_DIRECTORY "${SOURCE_DIR}"  OUTPUT_VARIABLE GIT_INFO ERROR_VARIABLE GIT_ERR )
     IF ( NOT ( "${GIT_INFO}" MATCHES "commit " ) )
         RETURN()
     ENDIF()
 
-    EXECUTE_PROCESS( COMMAND git rev-list --count HEAD  WORKING_DIRECTORY "${src_dir}"  OUTPUT_VARIABLE rev )
-    EXECUTE_PROCESS( COMMAND git rev-parse --short HEAD  WORKING_DIRECTORY "${src_dir}"  OUTPUT_VARIABLE short_hash )
-    EXECUTE_PROCESS( COMMAND git rev-parse HEAD  WORKING_DIRECTORY "${src_dir}"  OUTPUT_VARIABLE long_hash )
-    EXECUTE_PROCESS( COMMAND git rev-parse --abbrev-ref HEAD  WORKING_DIRECTORY "${src_dir}"  OUTPUT_VARIABLE branch )
+    EXECUTE_PROCESS( COMMAND git rev-list --count HEAD  WORKING_DIRECTORY "${SOURCE_DIR}"  OUTPUT_VARIABLE rev )
+    EXECUTE_PROCESS( COMMAND git rev-parse --short HEAD  WORKING_DIRECTORY "${SOURCE_DIR}"  OUTPUT_VARIABLE short_hash )
+    EXECUTE_PROCESS( COMMAND git rev-parse HEAD  WORKING_DIRECTORY "${SOURCE_DIR}"  OUTPUT_VARIABLE long_hash )
+    EXECUTE_PROCESS( COMMAND git rev-parse --abbrev-ref HEAD  WORKING_DIRECTORY "${SOURCE_DIR}"  OUTPUT_VARIABLE branch )
 
     STRING(REGEX REPLACE "(\r?\n)+$" "" rev "${rev}")
     STRING(REGEX REPLACE "(\r?\n)+$" "" short_hash "${short_hash}")
