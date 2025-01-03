@@ -91,7 +91,7 @@ static void _activeThreads_signal_handler( int )
 }
 #endif
 #ifdef USE_LINUX
-static constexpr int get_tid( int pid, const char* line )
+static int get_tid( int pid, const char* line )
 {
     char buf2[128] = { 0 };
     int i1         = 0;

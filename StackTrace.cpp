@@ -1584,14 +1584,14 @@ void StackTrace::setErrorHandler( std::function<void( StackTrace::abort_error & 
     abort_fun = abort;
     std::set_terminate( term_func );
     setSignals( signals, &terminateFunctionSignal );
-    std::set_unexpected( term_func );
+    // std::set_unexpected( term_func );  // Deprecated
 }
 void StackTrace::clearErrorHandler()
 {
     abort_fun = []( const StackTrace::abort_error & ) {};
     std::set_terminate( null_term_func );
     clearSignals();
-    std::set_unexpected( null_term_func );
+    // std::set_unexpected( term_func );  // Deprecated
 }
 
 
