@@ -4,11 +4,14 @@
 // clang-format off
 
 #include "StackTrace/StackTrace.h"
+#include "StackTrace/StackTraceMacros.h"
 
 #include <functional>
 
 #if @SET_USE_MPI@
+STACKTRACE_DISABLE_WARNINGS
 #include "mpi.h"
+STACKTRACE_ENABLE_WARNINGS
 #endif
 
 namespace StackTrace {

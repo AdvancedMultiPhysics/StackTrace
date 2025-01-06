@@ -213,7 +213,7 @@ std::vector<std::thread::native_handle_type> activeThreads()
 static std::mutex globalThreadMutex;
 static Utilities::staticVector<std::thread::native_handle_type, 1024> globalRegisteredThreads;
 thread_local struct ThreadExiter {
-    void registerThread(){};
+    void registerThread() {};
     ~ThreadExiter() { unregisterThread( thisThread() ); }
 } exiter;
 void registerThread()

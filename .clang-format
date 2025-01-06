@@ -102,10 +102,9 @@ SpaceInEmptyParentheses: false
 SpaceBeforeRangeBasedForLoopColon: true
 SpacesBeforeTrailingComments: 1
 SpacesInAngles: false
-SpacesInContainerLiterals: true
-SpacesInCStyleCastParentheses: false
 SpacesInConditionalStatement: true
 SpacesInContainerLiterals: true
+SpacesInCStyleCastParentheses: false
 SpacesInParentheses: true
 SpacesInSquareBrackets: false
 Standard:        c++17

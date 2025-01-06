@@ -79,14 +79,19 @@ ENDIF()
 
 
 # Configure MPI
-IF ( USE_MPI )
-    MESSAGE( "Configuring MPI" )
-    IF ( MPIEXEC )
-        SET( MPIEXEC_EXECUTABLE ${MPIEXEC} )
+MESSAGE( "Configuring MPI" )
+IF ( MPIEXEC )
+    SET( MPIEXEC_EXECUTABLE ${MPIEXEC} )
+ENDIF()
+IF ( ( NOT DEFINED USE_MPI ) OR ( USE_MPI AND NOT MPI_SKIP_SEARCH ) )
+    # Use CMake to find MPI
+    FIND_PACKAGE( MPI )
+    IF ( NOT DEFINED USE_MPI )
+        SET( USE_MPI ${MPI_FOUND} )
     ENDIF()
-    IF ( NOT MPI_SKIP_SEARCH )
-        FIND_PACKAGE( MPI )
-    ELSE()
+ENDIF()
+IF ( USE_MPI )
+    IF ( MPI_SKIP_SEARCH )
         # Write mpi test
         SET( MPI_TEST_SRC "${CMAKE_CURRENT_BINARY_DIR}/test_mpi.cpp" )
         FILE(WRITE  ${MPI_TEST_SRC} "#include <mpi.h>\n" )

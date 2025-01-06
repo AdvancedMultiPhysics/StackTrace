@@ -14,6 +14,8 @@
 
 #include "StackTrace/Utilities.h"
 
+#include <functional>
+
 
 using namespace StackTrace;
 
@@ -31,7 +33,10 @@ using namespace StackTrace;
 // Include MPI
 // clang-format off
 #ifdef USE_MPI
+    #include "StackTrace/StackTraceMacros.h"
+    STACKTRACE_DISABLE_WARNINGS
     #include "mpi.h"
+    STACKTRACE_ENABLE_WARNINGS
     int getRank() {
         int rank = 0;
         MPI_Comm_rank( MPI_COMM_WORLD, &rank );
