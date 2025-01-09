@@ -79,17 +79,6 @@
 #endif
 
 
-#ifndef NULL_USE
-    #define NULL_USE( variable )                       \
-        do {                                           \
-            if ( 0 ) {                                 \
-                auto static temp = (char *) &variable; \
-                temp++;                                \
-            }                                          \
-        } while ( 0 )
-#endif
-
-
 using StackTrace::string_view;
 using namespace StackTrace::Utilities;
 
@@ -347,7 +336,7 @@ void StackTrace::stack_info::print( std::ostream &out, const std::vector<stack_i
         out << prefix << buf << std::endl;
     }
 }
-void StackTrace::stack_info::print2( char *out, int w1, int w2, int w3 ) const
+size_t StackTrace::stack_info::print2( char *out, int w1, int w2, int w3 ) const
 {
     char tmp1[32], tmp2[32];
     sprintf( tmp1, "0x%%0%illx:  ", w1 );
@@ -362,7 +351,7 @@ void StackTrace::stack_info::print2( char *out, int w1, int w2, int w3 ) const
     } else if ( line > 0 ) {
         pos += sprintf( &out[pos], " : %u", line );
     }
-    NULL_USE( pos );
+    return pos;
 }
 size_t StackTrace::stack_info::size() const { return sizeof( *this ); }
 char *StackTrace::stack_info::pack( char *ptr ) const
@@ -548,7 +537,7 @@ const char *StackTrace::multi_stack_info::unpack( const char *ptr )
  ****************************************************************************/
 static std::array<char, 1000> getExecutableName()
 {
-    std::array<char, 1000> exe;
+    std::array<char, 1000> exe = { 0 };
     try {
 #ifdef USE_LINUX
         char buf[0x10000] = { 0 };

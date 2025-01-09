@@ -72,16 +72,6 @@ std::string rootPath;
 #define to_ms( x ) std::chrono::duration_cast<std::chrono::milliseconds>( x ).count()
 
 
-// NULL_USE function
-#define NULL_USE( variable )                       \
-    do {                                           \
-        if ( 0 ) {                                 \
-            auto static temp = (char *) &variable; \
-            temp++;                                \
-        }                                          \
-    } while ( 0 )
-
-
 // Class to store pass/failures
 class UnitTest
 {
@@ -106,7 +96,7 @@ public:
             printAll( failure_ );
         }
     }
-    static void printAll( std::vector<std::string> messages )
+    static void printAll( const std::vector<std::string> &messages )
     {
         int rank = getRank();
         int size = getSize();
@@ -135,9 +125,9 @@ private:
 
 
 // Function to return the call stack
-std::vector<StackTrace::stack_info> get_call_stack( const std::vector<int> &null = {} )
+std::vector<StackTrace::stack_info>
+get_call_stack( [[maybe_unused]] const std::vector<int> &null = {} )
 {
-    NULL_USE( null );
     auto stack = StackTrace::getCallStack();
     // Trick compiler to skip inline for this function with fake recursion
     if ( stack.size() > 10000 ) {

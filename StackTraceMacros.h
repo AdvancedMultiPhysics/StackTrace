@@ -9,7 +9,7 @@
     #define STACKTRACE_DISABLE_WARNINGS __pragma( warning( push, 0 ) )
     #define STACKTRACE_ENABLE_WARNINGS __pragma( warning( pop ) )
 #elif defined( __clang__ )
-    #define STACKTRACE_DISABLE_WARNINGS                                              \
+    #define STACKTRACE_DISABLE_WARNINGS                                           \
         _Pragma( "clang diagnostic push" )                                        \
         _Pragma( "clang diagnostic ignored \"-Wall\"" )                           \
         _Pragma( "clang diagnostic ignored \"-Wextra\"" )                         \
@@ -24,7 +24,7 @@
         #define STACKTRACE_DISABLE_WARNINGS _Pragma( "warning (push)" )
         #define STACKTRACE_ENABLE_WARNINGS _Pragma( "warning(pop)" )
     #else
-        #define STACKTRACE_DISABLE_WARNINGS      \
+        #define STACKTRACE_DISABLE_WARNINGS   \
             _Pragma( "warning (push)" )       \
             _Pragma( "warning disable 488" )  \
             _Pragma( "warning disable 1011" ) \
@@ -35,7 +35,7 @@
         #define STACKTRACE_ENABLE_WARNINGS _Pragma( "warning(pop)" )
     #endif
 #elif defined( __GNUC__ )
-    #define STACKTRACE_DISABLE_WARNINGS                                      \
+    #define STACKTRACE_DISABLE_WARNINGS                                   \
         _Pragma( "GCC diagnostic push" )                                  \
         _Pragma( "GCC diagnostic ignored \"-Wpragmas\"" )                 \
         _Pragma( "GCC diagnostic ignored \"-Wall\"" )                     \

@@ -39,8 +39,8 @@ struct stack_info {
     static void print( std::ostream &out, const std::vector<stack_info> &stack,
                        const std::string &prefix = "" );
     //! Print the stack info
-    void print2( char *txt, int widthAddress = 16, int widthObject = 20,
-                 int widthFunction = 32 ) const;
+    size_t print2( char *txt, int widthAddress = 16, int widthObject = 20,
+                   int widthFunction = 32 ) const;
     //! Compute the number of bytes needed to store the object
     size_t size() const;
     //! Pack the data to a byte array, returning a pointer to the end of the data

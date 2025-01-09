@@ -20,16 +20,6 @@
 using namespace StackTrace;
 
 
-// NULL_USE function
-#define NULL_USE( variable )                       \
-    do {                                           \
-        if ( 0 ) {                                 \
-            auto static temp = (char *) &variable; \
-            temp++;                                \
-        }                                          \
-    } while ( 0 )
-
-
 // Include MPI
 // clang-format off
 #ifdef USE_MPI
@@ -99,7 +89,7 @@ public:
             printAll( failure_ );
         }
     }
-    static void printAll( std::vector<std::string> messages )
+    static void printAll( const std::vector<std::string> &messages )
     {
         int rank = getRank();
         int size = getSize();
@@ -266,9 +256,9 @@ int main( int argc, char *argv[] )
         if ( system_bytes >= 8e9 && rank == 0 ) {
             // Test getting the memory usage for > 4 GB bytes
             // Note: we only run this test on machines with more than 8 GB of memory
-            n_bytes1    = Utilities::getMemoryUsage();
-            size_t size = 0x20000000;
-            auto *tmp2  = new uint64_t[size]; // Allocate 2^31+8 bytes
+            n_bytes1                    = Utilities::getMemoryUsage();
+            size_t size                 = 0x20000000;
+            [[maybe_unused]] auto *tmp2 = new uint64_t[size]; // Allocate 2^31+8 bytes
             if ( tmp2 == nullptr ) {
                 ut.expected( "Unable to allocate variable of size 4 GB" );
             } else {
@@ -279,8 +269,7 @@ int main( int argc, char *argv[] )
                         ut.failure( "Internal error" );
                 }
                 delete[] tmp2;
-                tmp2 = nullptr;
-                NULL_USE( tmp2 );
+                tmp2     = nullptr;
                 n_bytes3 = Utilities::getMemoryUsage();
                 if ( n_bytes2 > 0x100000000 && n_bytes2 < n_bytes1 + 0x110000000 &&
                      abs_diff( n_bytes1, n_bytes3 ) < 50e3 ) {
