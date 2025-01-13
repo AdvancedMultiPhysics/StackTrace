@@ -1819,11 +1819,6 @@ static constexpr size_t findMatching( const char *str, size_t N, size_t pos ) no
     }
     return pos2;
 }
-template<std::size_t N>
-static constexpr size_t findMatching( const std::array<char, N> &str, size_t pos ) noexcept
-{
-    return findMatching( str.data(), N );
-}
 static void cleanupFunctionName( char *function )
 {
     constexpr size_t npos = std::string::npos;
