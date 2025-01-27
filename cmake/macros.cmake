@@ -1,12 +1,21 @@
+# Append a list to a file
+FUNCTION( APPEND_LIST FILENAME VARS PREFIX POSTFIX )
+    FOREACH ( tmp ${VARS} )
+        FILE( APPEND "${FILENAME}" "${PREFIX}" )
+        FILE( APPEND "${FILENAME}" "${tmp}" )
+        FILE( APPEND "${FILENAME}" "${POSTFIX}" )
+    ENDFOREACH ()
+ENDFUNCTION()
+
+
 # Set compiler flags
 MACRO( SET_COMPILER_FLAGS )
     IF ( CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX OR (${CMAKE_CXX_COMPILER_ID} MATCHES "GNU") )
         SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic -Woverloaded-virtual -Wsign-compare -Wformat-security -Wformat-overflow=2 -Wno-aggressive-loop-optimizations")
     ELSEIF ( MSVC OR MSVC_IDE OR MSVC60 OR MSVC70 OR MSVC71 OR MSVC80 OR CMAKE_COMPILER_2005 OR MSVC90 OR MSVC10 )
-        IF ( NOT ${CMAKE_SYSTEM_NAME} STREQUAL "Windows" )
-            MESSAGE( FATAL_ERROR "Using microsoft compilers on non-windows system?" )
-        ENDIF()
-        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /D _SCL_SECURE_NO_WARNINGS /D _CRT_SECURE_NO_WARNINGS /D _ITERATOR_DEBUG_LEVEL=0 /wd4267" )
+        # Add Microsoft specifc compiler options
+        SET( CMAKE_C_FLAGS     "${CMAKE_C_FLAGS} /D _SCL_SECURE_NO_WARNINGS /D _CRT_SECURE_NO_WARNINGS /D _ITERATOR_DEBUG_LEVEL=0 /wd4267 /Zc:preprocessor" )
+        SET( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /D _SCL_SECURE_NO_WARNINGS /D _CRT_SECURE_NO_WARNINGS /D _ITERATOR_DEBUG_LEVEL=0 /wd4267 /Zc:preprocessor" )
     ELSEIF ( ${CMAKE_CXX_COMPILER_ID} MATCHES "Intel" ) 
         SET(CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -Wall" )
     ELSEIF ( ${CMAKE_CXX_COMPILER_ID} MATCHES "PGI" )
@@ -24,7 +33,7 @@ MACRO( SET_COMPILER_FLAGS )
         MESSAGE( "CMAKE_CXX_COMPILER_ID=${CMAKE_CXX_COMPILER_ID}")
         MESSAGE(FATAL_ERROR "Unknown C/C++ compiler")
     ENDIF()
-    IF ( ${CMAKE_BUILD_TYPE} STREQUAL "Debug" AND NOT ("${CMAKE_CXX_FLAGS_DEBUG}" MATCHES "-D_DEBUG") )
+    IF ( "${CMAKE_BUILD_TYPE}" STREQUAL "Debug" AND NOT ("${CMAKE_CXX_FLAGS_DEBUG}" MATCHES "-D_DEBUG") )
         SET( CMAKE_C_FLAGS_DEBUG   " ${CMAKE_C_FLAGS_DEBUG}   -DDEBUG -D_DEBUG" )
         SET( CMAKE_CXX_FLAGS_DEBUG " ${CMAKE_CXX_FLAGS_DEBUG} -DDEBUG -D_DEBUG" )        
     ENDIF()
@@ -48,15 +57,15 @@ MACRO( ADD_USER_FLAGS )
 ENDMACRO()
 
 
-# Macro to check if a flag is enabled
+# Check if a flag is enabled
 MACRO( CHECK_ENABLE_FLAG FLAG DEFAULT )
-    IF( NOT DEFINED ${FLAG} )
+    IF ( NOT DEFINED ${FLAG} )
         SET( ${FLAG} ${DEFAULT} )
-    ELSEIF( ${FLAG}  STREQUAL "" )
+    ELSEIF ( ${FLAG} STREQUAL "" )
         SET( ${FLAG} ${DEFAULT} )
-    ELSEIF( ( ${${FLAG}} STREQUAL "FALSE" ) OR ( ${${FLAG}} STREQUAL "false" ) OR ( ${${FLAG}} STREQUAL "0" ) OR ( ${${FLAG}} STREQUAL "OFF" ) )
+    ELSEIF ( ( ${${FLAG}} STREQUAL "FALSE" ) OR ( ${${FLAG}} STREQUAL "false" ) OR ( ${${FLAG}} STREQUAL "0" ) OR ( ${${FLAG}} STREQUAL "OFF" ) )
         SET( ${FLAG} 0 )
-    ELSEIF( ( ${${FLAG}} STREQUAL "TRUE" ) OR ( ${${FLAG}} STREQUAL "true" ) OR ( ${${FLAG}} STREQUAL "1" ) OR ( ${${FLAG}} STREQUAL "ON" ) )
+    ELSEIF ( ( ${${FLAG}} STREQUAL "TRUE" ) OR ( ${${FLAG}} STREQUAL "true" ) OR ( ${${FLAG}} STREQUAL "1" ) OR ( ${${FLAG}} STREQUAL "ON" ) )
         SET( ${FLAG} 1 )
     ELSE()
         MESSAGE( "Bad value for ${FLAG} (${${FLAG}}); use true or false" )
@@ -110,7 +119,7 @@ ENDMACRO()
 
 # add custom target distclean
 # cleans and removes cmake generated files etc.
-MACRO( ADD_DISTCLEAN ${ARGN} )
+FUNCTION( ADD_DISTCLEAN ${ARGN} )
     SET(DISTCLEANED
         assembly
         cmake.depends
@@ -122,6 +131,7 @@ MACRO( ADD_DISTCLEAN ${ARGN} )
         cmake.check_cache
         *.cmake
         compile.log
+        cppcheck-build
         Doxyfile
         Makefile
         core core.*
@@ -146,6 +156,7 @@ MACRO( ADD_DISTCLEAN ${ARGN} )
         cmake
         cppclean
         compile_commands.json
+        TPLs.h
         ${ARGN}
     )
     ADD_CUSTOM_TARGET(distclean @echo cleaning for source distribution)
@@ -177,7 +188,7 @@ MACRO( ADD_DISTCLEAN ${ARGN} )
             TARGET  distclean
         )
     ENDIF()
-ENDMACRO()
+ENDFUNCTION()
 
 
 # Add a test
