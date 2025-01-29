@@ -890,7 +890,7 @@ static void getStackInfo2( size_t N, void* const* address, StackTrace::stack_inf
                         info[i].function.fill( 0 );
                     }
                 } else {
-                    printf( "ERROR: SymGetSymFromAddr (%d,%p)\n", GetLastError(), address2 );
+                    printf( "ERROR: SymGetSymFromAddr (%d,%p)\n", GetLastError(), (void*) address2 );
                 }
 
                 // Get line number
@@ -1068,7 +1068,7 @@ static int backtrace_thread(
         BOOL rtn = StackWalk64( imageType, pid, tid, &frame, &context, readProcMem,
             SymFunctionTableAccess, SymGetModuleBase64, NULL );
         if ( !rtn ) {
-            printf( "ERROR: StackWalk64 (%p)\n", frame.AddrPC.Offset );
+            printf( "ERROR: StackWalk64 (%p)\n", (void*) frame.AddrPC.Offset );
             break;
         }
         if ( frame.AddrPC.Offset != 0 ) {
