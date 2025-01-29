@@ -182,10 +182,11 @@ std::vector<std::thread::native_handle_type> activeThreads()
     HANDLE hThreadSnap = CreateToolhelp32Snapshot( TH32CS_SNAPTHREAD, 0 );
     if ( hThreadSnap != INVALID_HANDLE_VALUE ) {
         // Fill in the size of the structure before using it
-        THREADENTRY32 te32 te32.dwSize = sizeof( THREADENTRY32 );
+        THREADENTRY32 te32;
+        te32.dwSize = sizeof( THREADENTRY32 );
         // Retrieve information about the first thread, and exit if unsuccessful
         if ( !Thread32First( hThreadSnap, &te32 ) ) {
-            printError( TEXT( "Thread32First" ) ); // Show cause of failure
+            std::cerr << "Unable to get info about first thread\n";
             CloseHandle( hThreadSnap );            // Must clean up the snapshot object!
             return {};
         }
