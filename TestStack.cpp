@@ -604,10 +604,6 @@ int main( int argc, char *argv[] )
         // Test the cost to throw using abort
         test_throw( results );
 
-        // Test tick
-        double tick = StackTrace::Utilities::tick();
-        addMessage( results, tick > 0 && tick < 1e-5, "tick" );
-
         // Test getSystemMemory
         auto bytes = StackTrace::Utilities::getSystemMemory();
         addMessage( results, bytes > 1e7 && bytes < 1e14, "getSystemMemory" );

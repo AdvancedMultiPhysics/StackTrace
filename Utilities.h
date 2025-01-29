@@ -3,7 +3,6 @@
 
 #include <stdexcept>
 #include <string>
-#include <thread>
 #include <typeinfo>
 
 #include "StackTrace/StackTrace.h"
@@ -75,26 +74,31 @@ size_t getSystemMemory();
 size_t getMemoryUsage();
 
 
-//! Function to get an arbitrary point in time
+/*!
+ * @brief  Function to get the time
+ * @details  This function will return the current time in seconds.
+ *     This is referenced with respect to a point during startup and
+ *     is not consistent across multiple ranks.
+ */
 double time();
 
 
 //! Function to get the resolution of time
-double tick();
+[[deprecated( "tick is deprecated and will be removed!!!" )]] double tick();
 
 
 /*!
  * Sleep for X ms
  * @param N         Time to sleep (ms)
  */
-inline void sleep_ms( int N ) { std::this_thread::sleep_for( std::chrono::milliseconds( N ) ); }
+void sleep_ms( int N );
 
 
 /*!
  * Sleep for X s
  * @param N         Time to sleep (s)
  */
-inline void sleep_s( int N ) { std::this_thread::sleep_for( std::chrono::seconds( N ) ); }
+void sleep_s( int N );
 
 
 //! Cause a segfault

@@ -5,6 +5,7 @@
 #include "StackTrace/Utilities.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <csignal>
 #include <cstring>
 #include <fstream>
@@ -12,6 +13,7 @@
 #include <mutex>
 #include <sstream>
 #include <stdexcept>
+#include <thread>
 #include <typeinfo>
 
 #ifdef USE_TIMER
@@ -45,10 +47,10 @@ extern "C" void __gcov_dump();
 // clang-format off
 #ifdef USE_WINDOWS
     #include <process.h>
-    #include <psapi.h>
     #include <stdio.h>
     #include <tchar.h>
     #include <windows.h>
+    #include <Psapi.h>  // Must be after windows.h
 #else
     #include <dlfcn.h>
     #include <execinfo.h>
@@ -257,45 +259,28 @@ size_t getMemoryUsage()
 /****************************************************************************
  *  Functions to get the time and timer resolution                           *
  ****************************************************************************/
-#if defined( USE_WINDOWS )
-double time()
+static auto d_t0 = std::chrono::steady_clock::now();
+template<class T>
+static constexpr int64_t diff_ns( std::chrono::time_point<T> t2, std::chrono::time_point<T> t1 )
 {
-    LARGE_INTEGER end, f;
-    QueryPerformanceFrequency( &f );
-    QueryPerformanceCounter( &end );
-    double time = ( (double) end.QuadPart ) / ( (double) f.QuadPart );
-    return time;
+    using PERIOD = typename std::chrono::time_point<T>::period;
+    if constexpr ( std::ratio_equal_v<PERIOD, std::nano> &&
+                   sizeof( std::chrono::time_point<T> ) == 8 ) {
+        return *reinterpret_cast<const int64_t *>( &t2 ) -
+               *reinterpret_cast<const int64_t *>( &t1 );
+    } else {
+        return std::chrono::duration_cast<std::chrono::nanoseconds>( t2 - t1 ).count();
+    }
 }
-double tick()
-{
-    LARGE_INTEGER f;
-    QueryPerformanceFrequency( &f );
-    double resolution = ( (double) 1.0 ) / ( (double) f.QuadPart );
-    return resolution;
-}
-#elif defined( USE_LINUX ) || defined( USE_MAC )
-double time()
-{
-    timeval current_time;
-    gettimeofday( &current_time, nullptr );
-    double time = ( (double) current_time.tv_sec ) + 1e-6 * ( (double) current_time.tv_usec );
-    return time;
-}
-double tick()
-{
-    timeval start, end;
-    gettimeofday( &start, nullptr );
-    gettimeofday( &end, nullptr );
-    while ( end.tv_sec == start.tv_sec && end.tv_usec == start.tv_usec )
-        gettimeofday( &end, nullptr );
-    double resolution = ( (double) ( end.tv_sec - start.tv_sec ) ) +
-                        1e-6 * ( (double) ( end.tv_usec - start.tv_usec ) );
-    return resolution;
-}
-#else
-    #error Unknown OS
-#endif
+double time() { return 1e-9 * diff_ns( std::chrono::steady_clock::now(), d_t0 ); }
+double tick() { throw std::logic_error( "tick is deprecated and will be removed!!!" ); }
 
+
+/****************************************************************************
+ *  Sleep                                                                    *
+ ****************************************************************************/
+void sleep_ms( int N ) { std::this_thread::sleep_for( std::chrono::milliseconds( N ) ); }
+void sleep_s( int N ) { std::this_thread::sleep_for( std::chrono::seconds( N ) ); }
 
 /****************************************************************************
  *  Cause a segfault                                                         *
