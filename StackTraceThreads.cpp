@@ -187,12 +187,12 @@ std::vector<std::thread::native_handle_type> activeThreads()
         if ( !Thread32First( hThreadSnap, &te32 ) ) {
             printError( TEXT( "Thread32First" ) ); // Show cause of failure
             CloseHandle( hThreadSnap );            // Must clean up the snapshot object!
-            return ( FALSE );
+            return {};
         }
         // Now walk the thread list of the system
         do {
-            if ( te32.th32OwnerProcessID == dwOwnerPID )
-                threads.push_back( te32.th32ThreadID );
+            // if ( te32.th32OwnerProcessID == dwOwnerPID )
+            //     threads.push_back( te32.th32ThreadID );
         } while ( Thread32Next( hThreadSnap, &te32 ) );
         CloseHandle( hThreadSnap ); // Must clean up the snapshot object!
     }

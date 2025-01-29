@@ -1024,7 +1024,7 @@ static int backtrace_thread(
 #if defined( DBGHELP )
 
     // Load the modules for the stack trace
-    LoadModules();
+    StackTrace::LoadModules();
 
     // Initialize stackframe for first call
     ::CONTEXT context;
@@ -1072,8 +1072,8 @@ static int backtrace_thread(
             break;
         }
         if ( frame.AddrPC.Offset != 0 ) {
-                    buffer[count] = reinterpret_cast<void*>( frame.AddrPC.Offset ) );
-                    count++;
+            buffer[count] = reinterpret_cast<void*>( frame.AddrPC.Offset );
+            count++;
         }
         if ( frame.AddrReturn.Offset == 0 )
             break;
@@ -1431,6 +1431,25 @@ void StackTrace::LoadModules()
 /****************************************************************************
  *  Get the signal name                                                      *
  ****************************************************************************/
+#ifdef USE_WINDOWS
+static char *strsignal(int sig)
+{
+    if ( sig == SIGABRT )
+        return "Abnormal termination";
+    else if ( sig == SIGFPE )
+        return "Floating-point error";
+    else if ( sig == SIGILL )
+        return "Illegal instruction";
+    else if ( sig == SIGINT )
+        return "CTRL+C signal";
+    else if ( sig == SIGSEGV )
+        return "Illegal storage access";
+    else if ( sig == SIGTERM )
+        return "Termination request";
+    else
+        return "Unknown";
+}
+#endif
 static std::array<char,64> signalNames[128];
 const char *StackTrace::signalName( int sig )
 {
@@ -1448,6 +1467,11 @@ const char *StackTrace::signalName( int sig )
 std::vector<int> StackTrace::allSignalsToCatch()
 {
     std::vector<int> signals;
+#ifdef USE_WINDOWS
+    signals.reserve( 32 );
+    for ( int i = 1; i < 32; i++ )
+        signals.push_back( i );
+#else
     signals.reserve( SIGRTMAX );
     for ( int i = 1; i < 32; i++ ) {
         if ( i == SIGKILL || i == SIGSTOP )
@@ -1459,6 +1483,7 @@ std::vector<int> StackTrace::allSignalsToCatch()
             continue;
         signals.push_back( i );
     }
+#endif
     return signals;
 }
 template<class TYPE>
@@ -1470,12 +1495,14 @@ static inline void erase( std::vector<TYPE> &x, TYPE y )
 std::vector<int> StackTrace::defaultSignalsToCatch()
 {
     auto signals = allSignalsToCatch();
+#ifndef USE_WINDOWS
     erase( signals, SIGWINCH );  // Don't catch window changed by default
     erase( signals, SIGCONT );   // Don't catch continue by default
     erase( signals, SIGCHLD );   // Don't catch child exited by default
     erase( signals, SIGALRM );   // Don't catch alarm signals by default
     erase( signals, SIGVTALRM ); // Don't catch virtual alarm signals by default
     erase( signals, SIGPROF );   // Don't catch profile signals by default
+#endif
     return signals;
 }
 
