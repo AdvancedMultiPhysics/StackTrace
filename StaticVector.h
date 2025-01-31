@@ -20,7 +20,7 @@ template<class TYPE, std::size_t CAPACITY>
 class staticVector final
 {
 public:
-    staticVector() : d_size( 0 ), d_data{ 0 } {}
+    staticVector() : d_size( 0 ), d_data{ TYPE() } {}
     size_t size() const { return d_size; }
     bool empty() const { return d_size == 0; }
     void push_back( const TYPE &v )
