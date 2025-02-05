@@ -154,6 +154,9 @@ static inline void *subtractAddress( void *a, void *b ) noexcept
 }
 
 
+/****************************************************************************
+ *  Windows specific functions                                               *
+ ****************************************************************************/
 #ifdef USE_WINDOWS
 static BOOL __stdcall readProcMem( HANDLE hProcess, DWORD64 qwBaseAddress, PVOID lpBuffer,
                                    DWORD nSize, LPDWORD lpNumberOfBytesRead )
@@ -168,6 +171,24 @@ static inline std::string getCurrentDirectory()
     char temp[1024] = { 0 };
     GetCurrentDirectoryA( sizeof( temp ), temp );
     return temp;
+}
+// Create a string with last error message
+static std::string getSystemErrorMessage( DWORD error )
+{
+    if ( error == 0 )
+        return ""; // No error
+    LPVOID lpMsgBuf;
+    DWORD flags =
+        FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS;
+    DWORD langID = MAKELANGID( LANG_NEUTRAL, SUBLANG_DEFAULT );
+    DWORD bufLen = FormatMessage( flags, NULL, error, langID, (LPTSTR) &lpMsgBuf, 0, NULL );
+    if ( bufLen ) {
+        LPCSTR lpMsgStr = (LPCSTR) lpMsgBuf;
+        std::string result( lpMsgStr, lpMsgStr + bufLen );
+        LocalFree( lpMsgBuf );
+        return result;
+    }
+    return std::to_string( static_cast<uint32_t>( error ) );
 }
 namespace StackTrace {
 BOOL GetModuleListTH32( HANDLE hProcess, DWORD pid );
@@ -843,7 +864,7 @@ static void getDataFromGlobalSymbols( StackTrace::stack_info &info )
             if ( data[value].address >= info.address )
                 upper = value;
             else
-                lower = value;
+                lower = value;// Create a string with last error message
         }
         if ( upper > 0 ) {
             copy( data[lower].obj, info.object );
@@ -890,7 +911,8 @@ static void getStackInfo2( size_t N, void* const* address, StackTrace::stack_inf
                         info[i].function.fill( 0 );
                     }
                 } else {
-                    printf( "ERROR: SymGetSymFromAddr (%d,%p)\n", GetLastError(), (void*) address2 );
+                    auto msg = getSystemErrorMessage( GetLastError() );
+                    printf( "ERROR: SymGetSymFromAddr (%s,%p)\n", msg.data(), (void*) address2 );
                 }
 
                 // Get line number
@@ -1391,7 +1413,7 @@ BOOL StackTrace::GetModuleListPSAPI( HANDLE hProcess )
         GetModuleBaseNameA( hProcess, hMods[i], tt2, sizeof( tt2 ) );
         DWORD dwRes = LoadModule( hProcess, tt, tt2, (DWORD64) mi.lpBaseOfDll, mi.SizeOfImage );
         if ( dwRes != ERROR_SUCCESS )
-            printf( "ERROR: LoadModule (%d)\n", dwRes );
+            printf( "ERROR: LoadModule (%s)\n", getSystemErrorMessage( dwRes ).data() );
         cnt++;
     }
 
@@ -1408,14 +1430,14 @@ void StackTrace::LoadModules()
 
         // Initialize the symbols
         if ( SymInitialize( GetCurrentProcess(), paths.c_str(), FALSE ) == FALSE )
-            printf( "ERROR: SymInitialize (%d)\n", GetLastError() );
+            printf( "ERROR: SymInitialize (%s)\n", getSystemErrorMessage( GetLastError() ).data() );
 
         DWORD symOptions = SymGetOptions();
         symOptions |= SYMOPT_LOAD_LINES | SYMOPT_FAIL_CRITICAL_ERRORS;
         symOptions     = SymSetOptions( symOptions );
         char buf[1024] = { 0 };
         if ( SymGetSearchPath( GetCurrentProcess(), buf, sizeof( buf ) ) == FALSE )
-            printf( "ERROR: SymGetSearchPath (%d)\n", GetLastError() );
+            printf( "ERROR: SymGetSearchPath (%s)\n", getSystemErrorMessage( GetLastError() ).data() );
 
         // First try to load modules from toolhelp32
         BOOL loaded = StackTrace::GetModuleListTH32( GetCurrentProcess(), GetCurrentProcessId() );

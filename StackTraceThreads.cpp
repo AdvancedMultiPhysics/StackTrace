@@ -187,7 +187,7 @@ std::vector<std::thread::native_handle_type> activeThreads()
         // Retrieve information about the first thread, and exit if unsuccessful
         if ( !Thread32First( hThreadSnap, &te32 ) ) {
             std::cerr << "Unable to get info about first thread\n";
-            CloseHandle( hThreadSnap );            // Must clean up the snapshot object!
+            CloseHandle( hThreadSnap ); // Must clean up the snapshot object!
             return {};
         }
         // Now walk the thread list of the system
