@@ -1107,7 +1107,7 @@ static int backtrace_thread(
     SetLastError( ERROR_SUCCESS );
 #endif
 #else
-#warning Stack trace is not supported on this compiler/OS
+std::cerr << "Stack trace is not supported on this compiler/OS";
 #endif
     return count;
 }
