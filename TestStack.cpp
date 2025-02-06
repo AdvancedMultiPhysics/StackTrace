@@ -580,18 +580,16 @@ int main( int argc, char *argv[] )
         testSignal( results );
 
         // Test catching an error
+        bool caught = false;
         try {
             throw std::logic_error( "Test" );
-            results.failure( "Failed to catch ERROR" );
         } catch ( ... ) {
-            results.passes( "Caught ERROR" );
+            caught = true;
         }
-        try {
-            throw std::logic_error( "test" );
-            results.failure( "Failed to catch exception" );
-        } catch ( ... ) {
+        if ( caught )
             results.passes( "Caught exception" );
-        }
+        else
+            results.failure( "Failed to catch exception" );
 
         // Test generating call stack from a string
         if ( rank == 0 ) {
