@@ -1086,9 +1086,12 @@ static int backtrace_thread(
     frame.AddrStack.Offset  = context.IntSp;
     frame.AddrStack.Mode    = AddrModeFlat;
 #else
-#error "Platform not supported!"
+    static bool print = true;
+    if ( print ) {
+        std::cerr << "Stack trace is not supported on Windows with this architecture\n";
+        print = false;
+    }
 #endif
-
     auto pid = GetCurrentProcess();
     for ( int frameNum = 0; frameNum < 1024; ++frameNum ) {
         BOOL rtn = StackWalk64( imageType, pid, tid, &frame, &context, readProcMem,
@@ -1107,7 +1110,11 @@ static int backtrace_thread(
     SetLastError( ERROR_SUCCESS );
 #endif
 #else
-std::cerr << "Stack trace is not supported on this compiler/OS";
+    static bool print = true;
+    if ( print ) {
+        std::cerr << "Stack trace is not supported on this compiler/OS\n";
+        print = false;
+    }
 #endif
     return count;
 }
