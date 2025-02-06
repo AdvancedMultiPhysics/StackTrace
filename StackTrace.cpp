@@ -182,13 +182,17 @@ static std::string getSystemErrorMessage( DWORD error )
         FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS;
     DWORD langID = MAKELANGID( LANG_NEUTRAL, SUBLANG_DEFAULT );
     DWORD bufLen = FormatMessage( flags, NULL, error, langID, (LPTSTR) &lpMsgBuf, 0, NULL );
+    std::string result;
+    const char *whitespaces = " \t\f\v\n\r\0";
     if ( bufLen ) {
         LPCSTR lpMsgStr = (LPCSTR) lpMsgBuf;
-        std::string result( lpMsgStr, lpMsgStr + bufLen );
+        result          = std::string( lpMsgStr, lpMsgStr + bufLen );
+        result          = result.substr( 0, result.find_last_not_of( whitespaces ) + 1 );
         LocalFree( lpMsgBuf );
-        return result;
     }
-    return std::to_string( static_cast<uint32_t>( error ) );
+    if ( result.empty() )
+        result = std::to_string( static_cast<uint32_t>( error ) );
+    return result;
 }
 namespace StackTrace {
 BOOL GetModuleListTH32( HANDLE hProcess, DWORD pid );
@@ -886,9 +890,9 @@ static void getStackInfo2( size_t N, void* const* address, StackTrace::stack_inf
     // Get the detailed stack info
     try {
         #ifdef USE_WINDOWS
-            IMAGEHLP_SYMBOL64 pSym[1024];
+            SYMBOL_INFO pSym[1024];
             memset( pSym, 0, sizeof( pSym ) );
-            pSym->SizeOfStruct  = sizeof( IMAGEHLP_SYMBOL64 );
+            pSym->SizeOfStruct  = sizeof( SYMBOL_INFO );
             pSym->MaxNameLength = 1024;
 
             IMAGEHLP_MODULE64 Module;
@@ -901,7 +905,7 @@ static void getStackInfo2( size_t N, void* const* address, StackTrace::stack_inf
                 info[i].address = address[i];
                 DWORD64 address2 = reinterpret_cast<DWORD64>( address[i] );
                 DWORD64 offsetFromSymbol;
-                if ( SymGetSymFromAddr( pid, address2, &offsetFromSymbol, pSym ) != FALSE ) {
+                if ( SymFromAddr( pid, address2, &offsetFromSymbol, pSym ) != FALSE ) {
                     char name[8192]={0};
                     DWORD rtn = UnDecorateSymbolName( pSym->Name, name, sizeof(name)-1, UNDNAME_COMPLETE );
                     if ( rtn == 0 ) {
