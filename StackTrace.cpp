@@ -892,8 +892,8 @@ static void getStackInfo2( size_t N, void* const* address, StackTrace::stack_inf
         #ifdef USE_WINDOWS
             SYMBOL_INFO pSym[1024];
             memset( pSym, 0, sizeof( pSym ) );
-            pSym->SizeOfStruct  = sizeof( SYMBOL_INFO );
-            pSym->MaxNameLength = 1024;
+            pSym->SizeOfStruct = sizeof( SYMBOL_INFO );
+            pSym->MaxNameLen = 1024;
 
             IMAGEHLP_MODULE64 Module;
             memset( &Module, 0, sizeof( Module ) );
