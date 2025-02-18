@@ -734,99 +734,98 @@ static auto split_atos( const std::string &buf )
     return std::tie( fun, obj, objPath, file, filePath, line );
 }
 #endif
-// clang-format off
 template<std::size_t blockSize>
-static void getFileAndLineObject( staticVector<StackTrace::stack_info*,blockSize> &info )
+static void getFileAndLineObject( staticVector<StackTrace::stack_info *, blockSize> &info )
 {
     if ( info.empty() )
         return;
-    // This gets the file and line numbers for multiple stack lines in the same object
-    #if defined( USE_LINUX )
-        // Create the call command
-        uint32_t N;
-        char cmd[4096];
-        static_assert( sizeof(unsigned long) == sizeof(size_t), "Unxpected size for ul" );
-        if ( info[0]->objectPath[0] == 0 )
-            N = sprintf(cmd,"addr2line -C -e %s -f",info[0]->object.data());
-        else
-            N = sprintf(cmd,"addr2line -C -e %s/%s -f",info[0]->objectPath.data(),info[0]->object.data());
-        for (size_t i=0; i<info.size() && N < sizeof(cmd) - 32; i++) {
-            N += sprintf(&cmd[N]," %lx %lx",
-                reinterpret_cast<unsigned long>( info[i]->address ),
-                reinterpret_cast<unsigned long>( info[i]->address2 ) );
+// This gets the file and line numbers for multiple stack lines in the same object
+#if defined( USE_LINUX )
+    // Create the call command
+    uint32_t N;
+    char cmd[4096];
+    static_assert( sizeof( unsigned long ) == sizeof( size_t ), "Unxpected size for ul" );
+    if ( info[0]->objectPath[0] == 0 )
+        N = sprintf( cmd, "addr2line -C -e %s -f", info[0]->object.data() );
+    else
+        N = sprintf( cmd, "addr2line -C -e %s/%s -f", info[0]->objectPath.data(),
+                     info[0]->object.data() );
+    for ( size_t i = 0; i < info.size() && N < sizeof( cmd ) - 32; i++ ) {
+        N += sprintf( &cmd[N], " %lx %lx", reinterpret_cast<unsigned long>( info[i]->address ),
+                      reinterpret_cast<unsigned long>( info[i]->address2 ) );
+    }
+    N += sprintf( &cmd[N], " 2> /dev/null" );
+    // Get the function/line/file
+    staticVector<std::array<char, 512>, 4 * blockSize> output;
+    exec2( cmd, output );
+    if ( output.size() != 4 * info.size() )
+        return;
+    // Add the results to info
+    for ( size_t i = 0; i < info.size(); i++ ) {
+        char *tmp1 = output[4 * i + 0].data();
+        char *tmp2 = output[4 * i + 1].data();
+        if ( tmp1[0] == '?' && tmp1[1] == '?' ) {
+            tmp1 = output[4 * i + 2].data();
+            tmp2 = output[4 * i + 3].data();
         }
-        N += sprintf(&cmd[N]," 2> /dev/null");
-        // Get the function/line/file
-        staticVector<std::array<char, 512>,4*blockSize> output;
-        exec2( cmd, output );
-        if ( output.size() != 4*info.size() )
-            return;
-        // Add the results to info
-        for (size_t i=0; i<info.size(); i++) {
-            char *tmp1 = output[4*i+0].data();
-            char *tmp2 = output[4*i+1].data();
-            if ( tmp1[0] == '?' && tmp1[1] == '?' ) {
-                tmp1 = output[4*i+2].data();
-                tmp2 = output[4*i+3].data();
-            }
-            if ( tmp1[0] == '?' && tmp1[1] == '?' ) {
-                continue;
-            }
-            // get function name
-            if ( info[i]->function.empty() ) {
-                cleanupFunctionName( tmp1 );
-                copy( tmp1, info[i]->function );
-            }
-            // get file and line
-            char *buf = tmp2;
-            if ( buf[0] != '?' && buf[0] != 0 ) {
-                size_t j = 0;
-                for ( j = 0; j < 4095 && buf[j] != ':'; j++ ) {
-                }
-                buf[j] = 0;
-                copy( buf, info[i]->filename, info[i]->filenamePath );
-                info[i]->line = atoi( &buf[j + 1] );
-            }
+        if ( tmp1[0] == '?' && tmp1[1] == '?' ) {
+            continue;
         }
-    #elif defined( USE_MAC )
-        // Create the call command
-        void* load_address = loadAddress( hashString( info[0]->object.data() ) );
-        if ( load_address == nullptr )
-            return;
-        // Call atos to get the object info
-        uint32_t N;
-        char cmd[4096];
-        static_assert( sizeof(unsigned long) == sizeof(size_t), "Unxpected size for ul" );
-        auto addr = reinterpret_cast<unsigned long>( load_address );
-        if ( info[0]->objectPath[0] == 0 )
-            N = sprintf( cmd, "atos -o %s -f -l %lx", info[0]->object.data(), addr );
-        else
-            N = sprintf( cmd, "atos -o %s/%s -f -l %lx", info[0]->objectPath.data(), info[0]->object.data(), addr );
-        for (size_t i=0; i<info.size() && N < sizeof(cmd) - 32; i++)
-            N += sprintf( &cmd[N], " %lx", reinterpret_cast<unsigned long>( info[i]->address ) );
-        N += sprintf(&cmd[N]," 2> /dev/null");
-        // Get the function/line/file
-        staticVector<std::array<char, 512>,blockSize> output;
-        exec2( cmd, output );
-        if ( output.size() != info.size() )
-            return;
-        // Parse the output for function, file and line info
-        for ( size_t i=0; i<info.size(); i++) {
-            auto data = split_atos( output[2*i].data() );
-            if ( info[i]->function.empty() )
-                copy( std::get<0>(data), info[i]->function );
-            if ( info[i]->object.empty() ) {
-                copy( std::get<1>(data), info[i]->object );
-                copy( std::get<2>(data), info[i]->objectPath );
-            }
-            if ( info[i]->filename.empty() ) {
-                copy( std::get<3>(data), info[i]->filename );
-                copy( std::get<4>(data), info[i]->filenamePath );
-            }
-            if ( info[i]->line==0 )
-                info[i]->line = std::get<5>(data);
+        // get function name
+        if ( info[i]->function.empty() ) {
+            cleanupFunctionName( tmp1 );
+            copy( tmp1, info[i]->function );
         }
-    #endif
+        // get file and line
+        char *buf = tmp2;
+        if ( buf[0] != '?' && buf[0] != 0 ) {
+            size_t j = 0;
+            for ( j = 0; j < 4095 && buf[j] != ':'; j++ ) {}
+            buf[j] = 0;
+            copy( buf, info[i]->filename, info[i]->filenamePath );
+            info[i]->line = atoi( &buf[j + 1] );
+        }
+    }
+#elif defined( USE_MAC )
+    // Create the call command
+    void *load_address = loadAddress( hashString( info[0]->object.data() ) );
+    if ( load_address == nullptr )
+        return;
+    // Call atos to get the object info
+    uint32_t N;
+    char cmd[4096];
+    static_assert( sizeof( unsigned long ) == sizeof( size_t ), "Unxpected size for ul" );
+    auto addr = reinterpret_cast<unsigned long>( load_address );
+    if ( info[0]->objectPath[0] == 0 )
+        N = sprintf( cmd, "atos -o %s -f -l %lx", info[0]->object.data(), addr );
+    else
+        N = sprintf( cmd, "atos -o %s/%s -f -l %lx", info[0]->objectPath.data(),
+                     info[0]->object.data(), addr );
+    for ( size_t i = 0; i < info.size() && N < sizeof( cmd ) - 32; i++ )
+        N += sprintf( &cmd[N], " %lx", reinterpret_cast<unsigned long>( info[i]->address ) );
+    N += sprintf( &cmd[N], " 2> /dev/null" );
+    // Get the function/line/file
+    staticVector<std::array<char, 512>, blockSize> output;
+    exec2( cmd, output );
+    if ( output.size() != info.size() )
+        return;
+    // Parse the output for function, file and line info
+    for ( size_t i = 0; i < info.size(); i++ ) {
+        auto data = split_atos( output[2 * i].data() );
+        if ( info[i]->function.empty() )
+            copy( std::get<0>( data ), info[i]->function );
+        if ( info[i]->object.empty() ) {
+            copy( std::get<1>( data ), info[i]->object );
+            copy( std::get<2>( data ), info[i]->objectPath );
+        }
+        if ( info[i]->filename.empty() ) {
+            copy( std::get<3>( data ), info[i]->filename );
+            copy( std::get<4>( data ), info[i]->filenamePath );
+        }
+        if ( info[i]->line == 0 )
+            info[i]->line = std::get<5>( data );
+    }
+#endif
 }
 static void getFileAndLine( size_t N, StackTrace::stack_info *info )
 {
@@ -836,13 +835,13 @@ static void getFileAndLine( size_t N, StackTrace::stack_info *info )
     size_t i0 = 0;
     while ( i0 < N ) {
         // Get a list of objects
-        staticVector<uint64_t,blockSize> objectHash;
-        for ( size_t i = i0; i<N && i-i0 < blockSize; i++)
+        staticVector<uint64_t, blockSize> objectHash;
+        for ( size_t i = i0; i < N && i - i0 < blockSize; i++ )
             objectHash.insert( objHash( info[i].object, info[i].objectPath ) );
         // For each object, get the file/line numbers for all entries
-        for ( const auto & hash : objectHash ) {
-            staticVector<StackTrace::stack_info*,blockSize> list;
-            for ( size_t i = i0; i<N && i-i0 < blockSize; i++) {
+        for ( const auto &hash : objectHash ) {
+            staticVector<StackTrace::stack_info *, blockSize> list;
+            for ( size_t i = i0; i < N && i - i0 < blockSize; i++ ) {
                 if ( objHash( info[i].object, info[i].objectPath ) == hash )
                     list.push_back( &info[i] );
             }
@@ -868,7 +867,7 @@ static void getDataFromGlobalSymbols( StackTrace::stack_info &info )
             if ( data[value].address >= info.address )
                 upper = value;
             else
-                lower = value;// Create a string with last error message
+                lower = value; // Create a string with last error message
         }
         if ( upper > 0 ) {
             copy( data[lower].obj, info.object );
@@ -880,101 +879,100 @@ static void getDataFromGlobalSymbols( StackTrace::stack_info &info )
 }
 static void signal_handler( int sig )
 {
-    printf("Signal caught acquiring stack (%i)\n",sig);
-    StackTrace::setErrorHandler( [](const StackTrace::abort_error &err) { std::cerr << err.what(); exit( -1 ); } );
+    printf( "Signal caught acquiring stack (%i)\n", sig );
+    StackTrace::setErrorHandler( []( const StackTrace::abort_error &err ) {
+        std::cerr << err.what();
+        exit( -1 );
+    } );
 }
-static void getStackInfo2( size_t N, void* const* address, StackTrace::stack_info *info )
+static void getStackInfo2( size_t N, void *const *address, StackTrace::stack_info *info )
 {
     // Temporarily handle signals to prevent recursion on the stack
     auto prev_handler = signal( SIGINT, signal_handler );
     // Get the detailed stack info
-    try {
-        #ifdef USE_WINDOWS
-            SYMBOL_INFO pSym[1024];
-            memset( pSym, 0, sizeof( pSym ) );
-            pSym->SizeOfStruct  = sizeof( SYMBOL_INFO );
-            pSym->MaxNameLength = 1024;
+    for ( size_t i = 0; i < N; i++ ) {
+        info[i].clear();
+        info[i].address = address[i];
 
+        try {
+#ifdef USE_WINDOWS
+
+            // Allocate a buffer large enough to hold the symbol information on the stack and get
+            // a pointer to the buffer.  We also have to set the size of the symbol structure itself
+            // and the number of bytes reserved for the name.
+            constexpr uint64_t nameMaxSize = 2048;
+            constexpr uint64_t bufferSize  = ( sizeof( SYMBOL_INFO ) + nameMaxSize + 7 ) / 8;
+            uint64_t buffer[bufferSize]    = { 0 };
+            SYMBOL_INFO *pSym              = (SYMBOL_INFO *) buffer;
+            pSym->SizeOfStruct             = sizeof( SYMBOL_INFO );
+            pSym->MaxNameLen               = nameMaxSize;
+            HANDLE pid                     = GetCurrentProcess();
+            if ( SymFromAddr( pid, address2, &offsetFromSymbol, pSym ) != FALSE ) {
+                char name[2048] = { 0 };
+                DWORD rtn =
+                    UnDecorateSymbolName( pSym->Name, name, sizeof( name ) - 1, UNDNAME_COMPLETE );
+                if ( rtn == 0 ) {
+                    cleanupFunctionName( pSym->Name );
+                    copy( pSym->Name, info[i].function );
+                }
+            }
+
+            // Get line number
+            IMAGEHLP_LINE64 Line;
+            memset( &Line, 0, sizeof( Line ) );
+            Line.SizeOfStruct = sizeof( Line );
+            DWORD offsetFromLine;
+            if ( SymGetLineFromAddr64( pid, address2, &offsetFromLine, &Line ) != FALSE ) {
+                info[i].line = Line.LineNumber;
+                copy( Line.FileName, info[i].filename, info[i].filenamePath );
+            } else {
+                info[i].line = 0;
+                copy( nullptr, info[i].filename, info[i].filenamePath );
+            }
+
+            // Get the object
             IMAGEHLP_MODULE64 Module;
             memset( &Module, 0, sizeof( Module ) );
             Module.SizeOfStruct = sizeof( Module );
-
-            HANDLE pid = GetCurrentProcess();
-
-            for (size_t i=0; i<N; i++) {
-                info[i].address = address[i];
-                DWORD64 address2 = reinterpret_cast<DWORD64>( address[i] );
-                DWORD64 offsetFromSymbol;
-                if ( SymFromAddr( pid, address2, &offsetFromSymbol, pSym ) != FALSE ) {
-                    char name[8192]={0};
-                    DWORD rtn = UnDecorateSymbolName( pSym->Name, name, sizeof(name)-1, UNDNAME_COMPLETE );
-                    if ( rtn == 0 ) {
-                        cleanupFunctionName( pSym->Name );
-                        copy( pSym->Name, info[i].function );
-                    } else {
-                        info[i].function.fill( 0 );
-                    }
-                } else {
-                    auto msg = getSystemErrorMessage( GetLastError() );
-                    printf( "ERROR: SymGetSymFromAddr (%s,%p)\n", msg.data(), (void*) address2 );
-                }
-
-                // Get line number
-                IMAGEHLP_LINE64 Line;
-                memset( &Line, 0, sizeof( Line ) );
-                Line.SizeOfStruct = sizeof( Line );
-                DWORD offsetFromLine;
-                if ( SymGetLineFromAddr64( pid, address2, &offsetFromLine, &Line ) != FALSE ) {
-                    info[i].line     = Line.LineNumber;
-                    copy( Line.FileName, info[i].filename, info[i].filenamePath );
-                } else {
-                    info[i].line     = 0;
-                    copy( nullptr, info[i].filename, info[i].filenamePath );
-                }
-
-                // Get the object
-                if ( SymGetModuleInfo64( pid, address2, &Module ) != FALSE ) {
-                    copy( Module.LoadedImageName, info[i].object, info[i].objectPath );
-                }
+            if ( SymGetModuleInfo64( pid, address2, &Module ) != FALSE ) {
+                copy( Module.LoadedImageName, info[i].object, info[i].objectPath );
             }
-        #else
-            for (size_t i=0; i<N; i++) {
-                info[i].address = address[i];
-                #if defined(_GNU_SOURCE) || defined(USE_MAC)
-                    Dl_info dlinfo;
-                    if ( !dladdr( info[i].address, &dlinfo ) ) {
-                        getDataFromGlobalSymbols( info[i] );
-                        continue;
-                    }
-                    info[i].address2 = subtractAddress( info[i].address, dlinfo.dli_fbase );
-                    copy( dlinfo.dli_fname, info[i].object, info[i].objectPath );
-                    #if defined( USE_ABI )
-                        int status;
-                        char *demangled = abi::__cxa_demangle( dlinfo.dli_sname, nullptr, nullptr, &status );
-                        if ( status == 0 && demangled != nullptr ) {
-                            cleanupFunctionName( demangled );
-                            copy( demangled, info[i].function );
-                        } else if ( dlinfo.dli_sname != nullptr ) {
-                            copy( dlinfo.dli_sname, info[i].function );
-                        }
-                        free( demangled );
-                    #endif
-                    if ( dlinfo.dli_sname != nullptr && info[i].function[0] == 0 ) {
-                        std::array<char,4096> tmp;
-                        copy( dlinfo.dli_sname, tmp );
-                        cleanupFunctionName( tmp.data() );
-                        copy( tmp, info[i].function );
-                    }
-                #else
-                    getDataFromGlobalSymbols( info[i] );
-                #endif
+#else
+    #if defined( _GNU_SOURCE ) || defined( USE_MAC )
+            Dl_info dlinfo;
+            if ( !dladdr( info[i].address, &dlinfo ) ) {
+                getDataFromGlobalSymbols( info[i] );
+                continue;
             }
-            // Get the filename / line numbers for each item on the stack
-            getFileAndLine( N, info );
+            info[i].address2 = subtractAddress( info[i].address, dlinfo.dli_fbase );
+            copy( dlinfo.dli_fname, info[i].object, info[i].objectPath );
+        #if defined( USE_ABI )
+            int status;
+            char *demangled = abi::__cxa_demangle( dlinfo.dli_sname, nullptr, nullptr, &status );
+            if ( status == 0 && demangled != nullptr ) {
+                cleanupFunctionName( demangled );
+                copy( demangled, info[i].function );
+            } else if ( dlinfo.dli_sname != nullptr ) {
+                copy( dlinfo.dli_sname, info[i].function );
+            }
+            free( demangled );
         #endif
-    } catch ( ... ) {
+            if ( dlinfo.dli_sname != nullptr && info[i].function[0] == 0 ) {
+                std::array<char, 4096> tmp;
+                copy( dlinfo.dli_sname, tmp );
+                cleanupFunctionName( tmp.data() );
+                copy( tmp, info[i].function );
+            }
+    #else
+            getDataFromGlobalSymbols( info[i] );
+    #endif
+#endif
+        } catch ( ... ) {
+        }
     }
-    signal( SIGINT, prev_handler ) ;
+    // Get the filename / line numbers for each item on the stack
+    getFileAndLine( N, info );
+    signal( SIGINT, prev_handler );
 }
 StackTrace::stack_info StackTrace::getStackInfo( void *address )
 {
@@ -982,7 +980,7 @@ StackTrace::stack_info StackTrace::getStackInfo( void *address )
     getStackInfo2( 1, &address, &info );
     return info;
 }
-std::vector<StackTrace::stack_info> StackTrace::getStackInfo( const std::vector<void*>& address )
+std::vector<StackTrace::stack_info> StackTrace::getStackInfo( const std::vector<void *> &address )
 {
     std::vector<StackTrace::stack_info> info( address.size() );
     getStackInfo2( address.size(), address.data(), info.data() );
@@ -991,21 +989,22 @@ std::vector<StackTrace::stack_info> StackTrace::getStackInfo( const std::vector<
 
 
 /****************************************************************************
-*  Helper functions for controlling interal signals                         *
-****************************************************************************/
-static int backtrace_thread( const std::thread::native_handle_type&, void**, size_t );
+ *  Helper functions for controlling interal signals                         *
+ ****************************************************************************/
+static int backtrace_thread( const std::thread::native_handle_type &, void **, size_t );
 #if defined( USE_LINUX ) || defined( USE_MAC )
 static int global_thread_backtrace_count;
-static void* global_thread_backtrace[1000];
-static void _callstack_signal_handler( int, siginfo_t*, void* )
+static void *global_thread_backtrace[1000];
+static void _callstack_signal_handler( int, siginfo_t *, void * )
 {
-    global_thread_backtrace_count = backtrace_thread( StackTrace::thisThread(), global_thread_backtrace, 1000 );
+    global_thread_backtrace_count =
+        backtrace_thread( StackTrace::thisThread(), global_thread_backtrace, 1000 );
 }
 static int get_thread_callstack_signal()
 {
     if ( 39 >= SIGRTMIN && 39 <= SIGRTMAX )
         return 39;
-    return std::min<int>( SIGRTMIN+4, SIGRTMAX );
+    return std::min<int>( SIGRTMIN + 4, SIGRTMAX );
 }
 int thread_callstack_signal = get_thread_callstack_signal();
 #else
@@ -1016,8 +1015,8 @@ int thread_callstack_signal = 0;
 /****************************************************************************
  *  Function to get the backtrace                                            *
  ****************************************************************************/
-static int backtrace_thread(
-    const std::thread::native_handle_type &tid, void **buffer, size_t size )
+static int backtrace_thread( const std::thread::native_handle_type &tid, void **buffer,
+                             size_t size )
 {
     int count = 0;
 #if defined( USE_LINUX ) || defined( USE_MAC )
@@ -1047,7 +1046,7 @@ static int backtrace_thread(
         StackTrace_mutex.unlock();
     }
 #elif defined( USE_WINDOWS )
-#if defined( DBGHELP )
+    #if defined( DBGHELP )
 
     // Load the modules for the stack trace
     StackTrace::LoadModules();
@@ -1059,15 +1058,15 @@ static int backtrace_thread(
     RtlCaptureContext( &context );
     STACKFRAME64 frame; // in/out stackframe
     memset( &frame, 0, sizeof( frame ) );
-#ifdef _M_IX86
-    DWORD imageType = IMAGE_FILE_MACHINE_I386;
-    frame.AddrPC.Offset = context.Eip;
-    frame.AddrPC.Mode = AddrModeFlat;
+        #ifdef _M_IX86
+    DWORD imageType        = IMAGE_FILE_MACHINE_I386;
+    frame.AddrPC.Offset    = context.Eip;
+    frame.AddrPC.Mode      = AddrModeFlat;
     frame.AddrFrame.Offset = context.Ebp;
-    frame.AddrFrame.Mode = AddrModeFlat;
+    frame.AddrFrame.Mode   = AddrModeFlat;
     frame.AddrStack.Offset = context.Esp;
-    frame.AddrStack.Mode = AddrModeFlat;
-#elif _M_X64
+    frame.AddrStack.Mode   = AddrModeFlat;
+        #elif _M_X64
     DWORD imageType        = IMAGE_FILE_MACHINE_AMD64;
     frame.AddrPC.Offset    = context.Rip;
     frame.AddrPC.Mode      = AddrModeFlat;
@@ -1075,7 +1074,7 @@ static int backtrace_thread(
     frame.AddrFrame.Mode   = AddrModeFlat;
     frame.AddrStack.Offset = context.Rsp;
     frame.AddrStack.Mode   = AddrModeFlat;
-#elif _M_IA64
+        #elif _M_IA64
     DWORD imageType         = IMAGE_FILE_MACHINE_IA64;
     frame.AddrPC.Offset     = context.StIIP;
     frame.AddrPC.Mode       = AddrModeFlat;
@@ -1085,30 +1084,30 @@ static int backtrace_thread(
     frame.AddrBStore.Mode   = AddrModeFlat;
     frame.AddrStack.Offset  = context.IntSp;
     frame.AddrStack.Mode    = AddrModeFlat;
-#else
+        #else
     static bool print = true;
     if ( print ) {
         std::cerr << "Stack trace is not supported on Windows with this architecture\n";
         print = false;
     }
-#endif
+        #endif
     auto pid = GetCurrentProcess();
     for ( int frameNum = 0; frameNum < 1024; ++frameNum ) {
         BOOL rtn = StackWalk64( imageType, pid, tid, &frame, &context, readProcMem,
-            SymFunctionTableAccess, SymGetModuleBase64, NULL );
+                                SymFunctionTableAccess, SymGetModuleBase64, NULL );
         if ( !rtn ) {
-            printf( "ERROR: StackWalk64 (%p)\n", (void*) frame.AddrPC.Offset );
+            printf( "ERROR: StackWalk64 (%p)\n", (void *) frame.AddrPC.Offset );
             break;
         }
         if ( frame.AddrPC.Offset != 0 ) {
-            buffer[count] = reinterpret_cast<void*>( frame.AddrPC.Offset );
+            buffer[count] = reinterpret_cast<void *>( frame.AddrPC.Offset );
             count++;
         }
         if ( frame.AddrReturn.Offset == 0 )
             break;
     }
     SetLastError( ERROR_SUCCESS );
-#endif
+    #endif
 #else
     static bool print = true;
     if ( print ) {
@@ -1166,8 +1165,8 @@ std::vector<StackTrace::stack_info> StackTrace::getCallStack( std::thread::nativ
     getStackInfo2( count, trace, info.data() );
     return info;
 }
-static std::vector<std::vector<StackTrace::stack_info>> generateStacks(
-    const std::vector<std::vector<void *>> &trace )
+static std::vector<std::vector<StackTrace::stack_info>>
+generateStacks( const std::vector<std::vector<void *>> &trace )
 {
     // Function to find an address
     auto find = []( const auto &data, auto x ) {
@@ -1199,8 +1198,8 @@ static std::vector<std::vector<StackTrace::stack_info>> generateStacks(
     }
     return stack;
 }
-static StackTrace::multi_stack_info generateMultiStack(
-    const std::vector<std::vector<void *>> &trace )
+static StackTrace::multi_stack_info
+generateMultiStack( const std::vector<std::vector<void *>> &trace )
 {
     // Get the stack data for all pointers
     auto stack = generateStacks( trace );
@@ -1211,8 +1210,8 @@ static StackTrace::multi_stack_info generateMultiStack(
         multistack.add( tmp.size(), tmp.data() );
     return multistack;
 }
-static StackTrace::multi_stack_info generateMultiStack(
-    const std::vector<std::thread::native_handle_type> &threads )
+static StackTrace::multi_stack_info
+generateMultiStack( const std::vector<std::thread::native_handle_type> &threads )
 {
     // Get the stack data for all pointers
     std::vector<std::vector<void *>> trace( threads.size() );
@@ -1349,8 +1348,8 @@ BOOL StackTrace::GetModuleListTH32( HANDLE hProcess, DWORD pid )
         return FALSE;
     return TRUE;
 }
-DWORD StackTrace::LoadModule(
-    HANDLE hProcess, LPCSTR img, LPCSTR mod, DWORD64 baseAddr, DWORD size )
+DWORD StackTrace::LoadModule( HANDLE hProcess, LPCSTR img, LPCSTR mod, DWORD64 baseAddr,
+                              DWORD size )
 {
     CHAR *szImg  = _strdup( img );
     CHAR *szMod  = _strdup( mod );
@@ -1448,7 +1447,8 @@ void StackTrace::LoadModules()
         symOptions     = SymSetOptions( symOptions );
         char buf[1024] = { 0 };
         if ( SymGetSearchPath( GetCurrentProcess(), buf, sizeof( buf ) ) == FALSE )
-            printf( "ERROR: SymGetSearchPath (%s)\n", getSystemErrorMessage( GetLastError() ).data() );
+            printf( "ERROR: SymGetSearchPath (%s)\n",
+                    getSystemErrorMessage( GetLastError() ).data() );
 
         // First try to load modules from toolhelp32
         BOOL loaded = StackTrace::GetModuleListTH32( GetCurrentProcess(), GetCurrentProcessId() );
@@ -1465,7 +1465,7 @@ void StackTrace::LoadModules()
  *  Get the signal name                                                      *
  ****************************************************************************/
 #ifdef USE_WINDOWS
-static char *strsignal(int sig)
+static char *strsignal( int sig )
 {
     if ( sig == SIGABRT )
         return "Abnormal termination";
@@ -1483,7 +1483,7 @@ static char *strsignal(int sig)
         return "Unknown";
 }
 #endif
-static std::array<char,64> signalNames[128];
+static std::array<char, 64> signalNames[128];
 const char *StackTrace::signalName( int sig )
 {
     static bool initialized = false;
@@ -1495,7 +1495,7 @@ const char *StackTrace::signalName( int sig )
         initialized = true;
     }
     bool valid = sig > 0 && sig <= 128;
-    return valid ? signalNames[sig - 1].data():nullptr;
+    return valid ? signalNames[sig - 1].data() : nullptr;
 }
 std::vector<int> StackTrace::allSignalsToCatch()
 {
@@ -1628,7 +1628,8 @@ void StackTrace::setSignals( const std::vector<int> &signals, void ( *handler )(
     std::this_thread::yield();
 }
 void StackTrace::raiseSignal( int signal ) { std::raise( signal ); }
-void StackTrace::setErrorHandler( std::function<void( StackTrace::abort_error & )> abort, const std::vector<int> &signals )
+void StackTrace::setErrorHandler( std::function<void( StackTrace::abort_error & )> abort,
+                                  const std::vector<int> &signals )
 {
     abort_fun = abort;
     std::set_terminate( term_func );

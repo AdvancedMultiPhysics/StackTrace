@@ -623,6 +623,7 @@ int main( int argc, char *argv[] )
     StackTrace::clearSignals();
     StackTrace::clearSymbols();
     shutdown();
+
 #ifdef USE_TIMER
     PROFILE_DISABLE();
     if ( rank == 0 ) {
