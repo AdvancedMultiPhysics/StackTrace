@@ -885,6 +885,86 @@ static void signal_handler( int sig )
         exit( -1 );
     } );
 }
+#ifdef USE_WINDOWS
+// Get the stack info for a single address
+static void getStackInfo( StackTrace::stack_info &info )
+{
+    // Allocate a buffer large enough to hold the symbol information on the stack and get
+    // a pointer to the buffer.  We also have to set the size of the symbol structure itself
+    // and the number of bytes reserved for the name.
+    constexpr uint64_t nameMaxSize = 2048;
+    constexpr uint64_t bufferSize  = ( sizeof( SYMBOL_INFO ) + nameMaxSize + 7 ) / 8;
+    uint64_t buffer[bufferSize]    = { 0 };
+    SYMBOL_INFO *pSym              = (SYMBOL_INFO *) buffer;
+    pSym->SizeOfStruct             = sizeof( SYMBOL_INFO );
+    pSym->MaxNameLen               = nameMaxSize;
+    HANDLE pid                     = GetCurrentProcess();
+    if ( SymFromAddr( pid, address2, &offsetFromSymbol, pSym ) != FALSE ) {
+        char name[2048] = { 0 };
+        DWORD rtn = UnDecorateSymbolName( pSym->Name, name, sizeof( name ) - 1, UNDNAME_COMPLETE );
+        if ( rtn == 0 ) {
+            cleanupFunctionName( pSym->Name );
+            copy( pSym->Name, info.function );
+        }
+    }
+
+    // Get line number
+    IMAGEHLP_LINE64 Line;
+    memset( &Line, 0, sizeof( Line ) );
+    Line.SizeOfStruct = sizeof( Line );
+    DWORD offsetFromLine;
+    if ( SymGetLineFromAddr64( pid, address2, &offsetFromLine, &Line ) != FALSE ) {
+        info.line = Line.LineNumber;
+        copy( Line.FileName, info.filename, info.filenamePath );
+    } else {
+        info.line = 0;
+        copy( nullptr, info.filename, info.filenamePath );
+    }
+
+    // Get the object
+    IMAGEHLP_MODULE64 Module;
+    memset( &Module, 0, sizeof( Module ) );
+    Module.SizeOfStruct = sizeof( Module );
+    if ( SymGetModuleInfo64( pid, address2, &Module ) != FALSE ) {
+        copy( Module.LoadedImageName, info.object, info.objectPath );
+    }
+}
+#elif defined( _GNU_SOURCE ) || defined( USE_MAC )
+// Get the stack info for a single address
+static void getStackInfo( StackTrace::stack_info &info )
+{
+    Dl_info dlinfo;
+    if ( !dladdr( info.address, &dlinfo ) ) {
+        getDataFromGlobalSymbols( info );
+        return;
+    }
+    info.address2 = subtractAddress( info.address, dlinfo.dli_fbase );
+    copy( dlinfo.dli_fname, info.object, info.objectPath );
+    // clang-format off
+    #if defined( USE_ABI )
+        int status;
+        char *demangled = abi::__cxa_demangle( dlinfo.dli_sname, nullptr, nullptr, &status );
+        if ( status == 0 && demangled != nullptr ) {
+            cleanupFunctionName( demangled );
+            copy( demangled, info.function );
+        } else if ( dlinfo.dli_sname != nullptr ) {
+            copy( dlinfo.dli_sname, info.function );
+        }
+        free( demangled );
+    #endif
+    // clang-format on
+    if ( dlinfo.dli_sname != nullptr && info.function[0] == 0 ) {
+        std::array<char, 4096> tmp;
+        copy( dlinfo.dli_sname, tmp );
+        cleanupFunctionName( tmp.data() );
+        copy( tmp, info.function );
+    }
+}
+#else
+// Get the stack info for a single address
+static void getStackInfo( StackTrace::stack_info &info ) { getDataFromGlobalSymbols( info ); }
+#endif
+// Get the call stack info for the address stack
 static void getStackInfo2( size_t N, void *const *address, StackTrace::stack_info *info )
 {
     // Temporarily handle signals to prevent recursion on the stack
@@ -893,80 +973,8 @@ static void getStackInfo2( size_t N, void *const *address, StackTrace::stack_inf
     for ( size_t i = 0; i < N; i++ ) {
         info[i].clear();
         info[i].address = address[i];
-
         try {
-#ifdef USE_WINDOWS
-
-            // Allocate a buffer large enough to hold the symbol information on the stack and get
-            // a pointer to the buffer.  We also have to set the size of the symbol structure itself
-            // and the number of bytes reserved for the name.
-            constexpr uint64_t nameMaxSize = 2048;
-            constexpr uint64_t bufferSize  = ( sizeof( SYMBOL_INFO ) + nameMaxSize + 7 ) / 8;
-            uint64_t buffer[bufferSize]    = { 0 };
-            SYMBOL_INFO *pSym              = (SYMBOL_INFO *) buffer;
-            pSym->SizeOfStruct             = sizeof( SYMBOL_INFO );
-            pSym->MaxNameLen               = nameMaxSize;
-            HANDLE pid                     = GetCurrentProcess();
-            if ( SymFromAddr( pid, address2, &offsetFromSymbol, pSym ) != FALSE ) {
-                char name[2048] = { 0 };
-                DWORD rtn =
-                    UnDecorateSymbolName( pSym->Name, name, sizeof( name ) - 1, UNDNAME_COMPLETE );
-                if ( rtn == 0 ) {
-                    cleanupFunctionName( pSym->Name );
-                    copy( pSym->Name, info[i].function );
-                }
-            }
-
-            // Get line number
-            IMAGEHLP_LINE64 Line;
-            memset( &Line, 0, sizeof( Line ) );
-            Line.SizeOfStruct = sizeof( Line );
-            DWORD offsetFromLine;
-            if ( SymGetLineFromAddr64( pid, address2, &offsetFromLine, &Line ) != FALSE ) {
-                info[i].line = Line.LineNumber;
-                copy( Line.FileName, info[i].filename, info[i].filenamePath );
-            } else {
-                info[i].line = 0;
-                copy( nullptr, info[i].filename, info[i].filenamePath );
-            }
-
-            // Get the object
-            IMAGEHLP_MODULE64 Module;
-            memset( &Module, 0, sizeof( Module ) );
-            Module.SizeOfStruct = sizeof( Module );
-            if ( SymGetModuleInfo64( pid, address2, &Module ) != FALSE ) {
-                copy( Module.LoadedImageName, info[i].object, info[i].objectPath );
-            }
-#else
-    #if defined( _GNU_SOURCE ) || defined( USE_MAC )
-            Dl_info dlinfo;
-            if ( !dladdr( info[i].address, &dlinfo ) ) {
-                getDataFromGlobalSymbols( info[i] );
-                continue;
-            }
-            info[i].address2 = subtractAddress( info[i].address, dlinfo.dli_fbase );
-            copy( dlinfo.dli_fname, info[i].object, info[i].objectPath );
-        #if defined( USE_ABI )
-            int status;
-            char *demangled = abi::__cxa_demangle( dlinfo.dli_sname, nullptr, nullptr, &status );
-            if ( status == 0 && demangled != nullptr ) {
-                cleanupFunctionName( demangled );
-                copy( demangled, info[i].function );
-            } else if ( dlinfo.dli_sname != nullptr ) {
-                copy( dlinfo.dli_sname, info[i].function );
-            }
-            free( demangled );
-        #endif
-            if ( dlinfo.dli_sname != nullptr && info[i].function[0] == 0 ) {
-                std::array<char, 4096> tmp;
-                copy( dlinfo.dli_sname, tmp );
-                cleanupFunctionName( tmp.data() );
-                copy( tmp, info[i].function );
-            }
-    #else
-            getDataFromGlobalSymbols( info[i] );
-    #endif
-#endif
+            getStackInfo( info[i] );
         } catch ( ... ) {
         }
     }
