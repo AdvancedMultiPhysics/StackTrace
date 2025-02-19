@@ -899,10 +899,12 @@ static void getStackInfo( StackTrace::stack_info &info )
     pSym->SizeOfStruct             = sizeof( SYMBOL_INFO );
     pSym->MaxNameLen               = nameMaxSize;
     HANDLE pid                     = GetCurrentProcess();
+    DWORD64 address2 = reinterpret_cast<DWORD64>( info.address );
+    DWORD64 offsetFromSymbol = 0;
     if ( SymFromAddr( pid, address2, &offsetFromSymbol, pSym ) != FALSE ) {
         char name[2048] = { 0 };
         DWORD rtn = UnDecorateSymbolName( pSym->Name, name, sizeof( name ) - 1, UNDNAME_COMPLETE );
-        if ( rtn == 0 ) {
+        if ( rtn != 0 ) {
             cleanupFunctionName( pSym->Name );
             copy( pSym->Name, info.function );
         }
@@ -1509,9 +1511,7 @@ std::vector<int> StackTrace::allSignalsToCatch()
 {
     std::vector<int> signals;
 #ifdef USE_WINDOWS
-    signals.reserve( 32 );
-    for ( int i = 1; i < 32; i++ )
-        signals.push_back( i );
+    signals = { SIGABRT, SIGFPE, SIGILL, SIGINT, SIGSEGV, SIGTERM };
 #else
     signals.reserve( SIGRTMAX );
     for ( int i = 1; i < 32; i++ ) {

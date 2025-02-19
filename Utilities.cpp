@@ -308,6 +308,12 @@ std::string exec( const std::string &cmd, int &code )
 /****************************************************************************
  *  Get the type name                                                        *
  ****************************************************************************/
+static std::string replace( std::string str, std::string_view x, std::string_view y )
+{
+    for ( auto pos = str.find( x ); pos != std::string::npos;  pos = str.find( x ) )
+        str = str.replace( pos, x.size(), y );
+    return str;
+}
 std::string getTypeName( const std::type_info &id )
 {
     std::string name = id.name();
@@ -317,6 +323,8 @@ std::string getTypeName( const std::type_info &id )
     name.assign( tmp );
     free( tmp );
 #endif
+    name = replace( name, "class ", "" );
+    name = replace( name, "struct ", "" );
     return name;
 }
 

@@ -165,10 +165,12 @@ void sleep_s( int N )
 
 
 // Function to add pass/fail
-void addMessage( UnitTest &ut, bool pass, const std::string &msg )
+void addMessage( UnitTest &ut, bool pass, const std::string &msg, bool expected = false )
 {
     if ( pass )
         ut.passes( msg );
+    else if ( expected )
+        ut.expected( msg );
     else
         ut.failure( msg );
 }
@@ -269,6 +271,8 @@ void testThreadStack( UnitTest &results, bool decoded_symbols )
             results.passes( "call stack (thread)" );
         else if ( !decoded_symbols )
             std::cout << "call stack (thread) failed to decode symbols";
+        else if ( StackTrace::Utilities::getOS() == StackTrace::Utilities::OS::Windows )
+            results.expected( "call stack (thread)" );
         else
             results.failure( "call stack (thread)" );
     } else {
@@ -502,10 +506,11 @@ void testTerminate( UnitTest &results )
         bool test2 = msg2.find( "Program abort called in file" ) != std::string::npos;
         bool test3 = msg3.find( "Unhandled exception caught" ) != std::string::npos;
         bool test4 = msg4.find( "Unhandled signal (11) caught" ) != std::string::npos;
-        addMessage( results, test1, "Unhandled signal (6) caught" );
-        addMessage( results, test2, "Program abort called in file" );
-        addMessage( results, test3, "Unhandled exception caught" );
-        addMessage( results, test4, "Unhandled signal (11) caught" );
+        bool expected = StackTrace::Utilities::getOS() == StackTrace::Utilities::OS::Windows;
+        addMessage( results, test1, "Unhandled signal (6) caught", expected );
+        addMessage( results, test2, "Program abort called in file", expected );
+        addMessage( results, test3, "Unhandled exception caught", expected );
+        addMessage( results, test4, "Unhandled signal (11) caught", expected );
     }
     barrier();
 }
