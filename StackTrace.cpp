@@ -1555,7 +1555,6 @@ static std::function<void( StackTrace::abort_error &err )> abort_fun;
 StackTrace::abort_error rethrow()
 {
     StackTrace::abort_error error;
-#ifdef USE_LINUX
     try {
         static int tried_throw = 0;
         if ( tried_throw == 0 ) {
@@ -1573,9 +1572,6 @@ StackTrace::abort_error rethrow()
         // Caught an unknown exception
         error.message = "Unknown exception";
     }
-#else
-    error.message = "Unknown exception";
-#endif
     if ( error.type == StackTrace::terminateType::unknown )
         error.type = StackTrace::terminateType::exception;
     if ( error.bytes == 0 )
