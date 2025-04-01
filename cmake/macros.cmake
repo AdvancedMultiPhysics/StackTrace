@@ -159,14 +159,12 @@ FUNCTION( ADD_DISTCLEAN ${ARGN} )
         TPLs.h
         ${ARGN}
     )
-    ADD_CUSTOM_TARGET(distclean @echo cleaning for source distribution)
     IF (UNIX)
-        ADD_CUSTOM_COMMAND(
-            DEPENDS clean
+        ADD_CUSTOM_TARGET(
+            distclean
             COMMENT "distribution clean"
-            COMMAND rm
-            ARGS    -Rf ${DISTCLEANED}
-            TARGET  distclean
+            COMMAND rm -Rf ${DISTCLEANED}
+            WORKING_DIRECTORY "${CMAKE_CURRENT_BUILD_DIR}"
         )
     ELSE()
         SET( DISTCLEANED
@@ -181,11 +179,11 @@ FUNCTION( ADD_DISTCLEAN ${ARGN} )
         APPEND_LIST( "${DISTCLEAN_FILE}" "${DISTCLEANED}" " " " " )
         FILE( APPEND "${DISTCLEAN_FILE}" "\n" )
         APPEND_LIST( "${DISTCLEAN_FILE}" "${DISTCLEANED}" "for /d %%x in ("   ") do rd /s /q \"%%x\"\n" )
-        ADD_CUSTOM_COMMAND(
-            DEPENDS clean
+        ADD_CUSTOM_TARGET(
+            distclean
             COMMENT "distribution clean"
             COMMAND distclean.bat & del /s/q/f distclean.bat
-            TARGET  distclean
+            WORKING_DIRECTORY "${CMAKE_CURRENT_BUILD_DIR}"
         )
     ENDIF()
 ENDFUNCTION()
