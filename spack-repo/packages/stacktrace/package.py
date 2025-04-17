@@ -18,9 +18,12 @@ class Stacktrace(CMakePackage):
     variant("mpi", default=True, description="build with mpi")
     variant("shared", default=False, description="Build shared libraries")
     variant("pic", default=False, description="Produce position-independent code")
+    variant("timerutility", default=False, description="Build with support for TimerUtility")
 
     depends_on("cmake@3.26.0:", type="build")
     depends_on("mpi", when="+mpi")
+    depends_on("timerutility", when="+timerutility")
+    depends_on("timerutility+shared", when="+timerutility+shared")
 
     def cmake_args(self):
         args = [
