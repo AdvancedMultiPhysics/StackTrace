@@ -7,13 +7,17 @@ from spack.package import *
 
 
 class Stacktrace(CMakePackage):
+    """A library to enable easy debugging of an application."""
+
     homepage = "https://github.com/AdvancedMultiPhysics/StackTrace"
     git = "https://github.com/AdvancedMultiPhysics/StackTrace.git"
 
     maintainers("bobby-philip", "gllongo", "rbberger")
 
+    license("UNKNOWN")
+
     version("master", branch="master")
-    version("0.0.93", tag="0.0.93")
+    version("0.0.93", tag="0.0.93", commit="cb068ee7733825036bbd4f9fda89b4f6e12d73b5")
 
     variant("mpi", default=True, description="build with mpi")
     variant("shared", default=False, description="Build shared libraries")
