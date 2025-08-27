@@ -17,6 +17,7 @@ class Stacktrace(CMakePackage):
     license("UNKNOWN")
 
     version("master", branch="master")
+    version("0.0.94", tag="0.0.94", commit="2c3a64e0d3169295ffb2811703b5b246bbe8badc")
     version("0.0.93", tag="0.0.93", commit="cb068ee7733825036bbd4f9fda89b4f6e12d73b5")
 
     variant("mpi", default=True, description="build with mpi")
