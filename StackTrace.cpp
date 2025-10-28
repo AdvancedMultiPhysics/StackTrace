@@ -1475,7 +1475,7 @@ void StackTrace::LoadModules()
  *  Get the signal name                                                      *
  ****************************************************************************/
 #ifdef USE_WINDOWS
-static char *strsignal( int sig )
+static const char *strsignal( int sig )
 {
     if ( sig == SIGABRT )
         return "Abnormal termination";
@@ -1925,7 +1925,7 @@ static void cleanupFunctionName( char *function )
         strrep( function, N, " >", ">" );
         strrep( function, N, "< ", "<" );
     }
-    // Replace std::chrono::duration with abbriviated version
+    // Replace std::chrono::duration with abbreviated version
     if ( find( "std::chrono::duration<" ) != npos ) {
         // clang-format off
         strrep( function, N, "std::chrono::duration<long, std::nano>", "std::chrono::nanoseconds" );
@@ -1939,7 +1939,7 @@ static void cleanupFunctionName( char *function )
         strrep( function, N, "< ", "<" );
         // clang-format on
     }
-    // Replace std::this_thread::sleep_for with abbriviated version.
+    // Replace std::this_thread::sleep_for with abbreviated version.
     if ( find( "::sleep_for<" ) != npos ) {
         strrep( function, N, "::sleep_for<long, std::nano>", "::sleep_for<nanoseconds>" );
         strrep( function, N, "::sleep_for<long, std::micro>", "::sleep_for<microseconds>" );

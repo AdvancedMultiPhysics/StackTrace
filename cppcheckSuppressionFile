@@ -1,7 +1,9 @@
 // CppCheck suppression file
 unmatchedSuppression:*
 class_X_Y:*
-*:*/mpicxx.h
 nullPointer:*/Utilities.cpp:292
 rethrowNoCurrentException:*/StackTrace.cpp
 
+// Suppress MPI warnings
+*:*/mpicxx.h
+*:*/mpi/*
