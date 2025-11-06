@@ -85,7 +85,7 @@ IF ( MPIEXEC )
 ENDIF()
 IF ( ( NOT DEFINED USE_MPI ) OR ( USE_MPI AND NOT MPI_SKIP_SEARCH ) )
     # Use CMake to find MPI
-    FIND_PACKAGE( MPI )
+    FIND_PACKAGE( MPI COMPONENTS CXX )
     IF ( NOT DEFINED USE_MPI )
         SET( USE_MPI ${MPI_FOUND} )
     ENDIF()
@@ -136,6 +136,16 @@ IF ( USE_MPI )
     ENDIF()
 ELSE()
     SET( SET_USE_MPI "0" )
+ENDIF()
+
+
+# Set shared/static library
+IF ( NOT DEFINED LIB_TYPE )
+    IF ( ENABLE_SHARED )
+        SET( LIB_TYPE SHARED )
+    ELSE()
+        SET( LIB_TYPE STATIC )
+    ENDIF()
 ENDIF()
 
 
