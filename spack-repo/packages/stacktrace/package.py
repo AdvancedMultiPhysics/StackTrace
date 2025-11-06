@@ -72,7 +72,7 @@ class Stacktrace(CMakePackage):
     @run_after("build")
     def filter_compilers(self):
         kwargs = {"ignore_absent": True, "backup": False, "string": True}
-        filenames = [join_path(self.prefix, "TPLsConfig.cmake")]
+        filenames = [join_path(self.prefix, "StackTraceConfig.cmake")]
 
         filter_file(spack_cc, self.compiler.cc, *filenames, **kwargs)
         filter_file(spack_cxx, self.compiler.cxx, *filenames, **kwargs)
