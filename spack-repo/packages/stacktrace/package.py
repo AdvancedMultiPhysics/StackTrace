@@ -32,17 +32,25 @@ class Stacktrace(CMakePackage):
         description="C++ standard",
     )
 
+    conflicts("cxxstd=20", when="@:0.0.94") #c++ 20 is only compatible with stacktrace master and up
+    conflicts("cxxstd=23", when="@:0.0.94") #c++ 23 is only compatible with stacktrace master and up
+
     depends_on("c", type="build")
     depends_on("cxx", type="build")
     depends_on("fortran", type="build")
+
+    depends_on("git", type="build")
 
     depends_on("cmake@3.26.0:", type="build")
     depends_on("mpi", when="+mpi")
     depends_on("timerutility", when="+timerutility")
     depends_on("timerutility+shared", when="+timerutility+shared")
 
+    phases = ["cmake", "build"]
+
     def cmake_args(self):
-        args = [
+        spec = self.spec
+        options = [
             self.define("StackTrace_INSTALL_DIR", self.prefix),
             self.define_from_variant("USE_MPI", "mpi"),
             self.define("MPI_SKIP_SEARCH", False),
@@ -57,6 +65,15 @@ class Stacktrace(CMakePackage):
             self.define("FFLAGS", self.compiler.fc_pic_flag),
             self.define('CMAKE_C_COMPILER',   spack_cc),
             self.define('CMAKE_CXX_COMPILER', spack_cxx),
-            self.define('CMAKE_Fortran_COMPILER', spack_fc),
+            self.define('CMAKE_Fortran_COMPILER', spack_fc)
         ]
-        return args
+        return options
+
+    @run_after("build")
+    def filter_compilers(self):
+        kwargs = {"ignore_absent": True, "backup": False, "string": True}
+        filenames = [join_path(self.prefix, "TPLsConfig.cmake")]
+
+        filter_file(spack_cc, self.compiler.cc, *filenames, **kwargs)
+        filter_file(spack_cxx, self.compiler.cxx, *filenames, **kwargs)
+        filter_file(spack_fc, self.compiler.fc, *filenames, **kwargs)
