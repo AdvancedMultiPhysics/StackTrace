@@ -1,9 +1,11 @@
 #ifndef included_StackTraceMacros
 #define included_StackTraceMacros
 
-#if @SET_USE_MPI @
+// clang-format off
+#if @SET_USE_MPI@
     #define STACKTRACE_USE_MPI
 #endif
+// clang-format on
 
 // Disable/Enable warnings
 // clang-format off
