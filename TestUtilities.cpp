@@ -12,6 +12,7 @@
 #include <sstream>
 #include <vector>
 
+#include "StackTrace/StackTraceMacros.h"
 #include "StackTrace/Utilities.h"
 
 #include <functional>
@@ -22,8 +23,8 @@ using namespace StackTrace;
 
 // Include MPI
 // clang-format off
-#ifdef USE_MPI
-    #include "StackTrace/StackTraceMacros.h"
+#ifdef STACKTRACE_USE_MPI
+
     STACKTRACE_DISABLE_WARNINGS
     #include "mpi.h"
     STACKTRACE_ENABLE_WARNINGS

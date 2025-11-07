@@ -82,6 +82,11 @@ ENDIF()
 CHECK_ENABLE_FLAG( USE_MPI 0 )
 INCLUDE( cmake/libraries.cmake )
 CONFIGURE_MPI()
+IF ( USE_MPI )
+    SET( SET_USE_MPI "1" )
+ELSE()
+    SET( SET_USE_MPI "0" )
+ENDIF()
 
 
 # Set shared/static library

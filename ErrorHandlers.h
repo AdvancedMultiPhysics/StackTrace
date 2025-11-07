@@ -8,7 +8,7 @@
 
 #include <functional>
 
-#if @SET_USE_MPI@
+#ifdef STACKTRACE_USE_MPI
 STACKTRACE_DISABLE_WARNINGS
 #include "mpi.h"
 STACKTRACE_ENABLE_WARNINGS
@@ -28,7 +28,7 @@ void setErrorHandler( std::function<void( StackTrace::abort_error& )> abort, con
 void clearErrorHandler();
 
 
-#if @SET_USE_MPI@
+#ifdef STACKTRACE_USE_MPI
 
     //! Set an error handler for MPI
     void setMPIErrorHandler( MPI_Comm comm );

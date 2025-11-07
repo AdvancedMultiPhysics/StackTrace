@@ -899,8 +899,8 @@ static void getStackInfo( StackTrace::stack_info &info )
     pSym->SizeOfStruct             = sizeof( SYMBOL_INFO );
     pSym->MaxNameLen               = nameMaxSize;
     HANDLE pid                     = GetCurrentProcess();
-    DWORD64 address2 = reinterpret_cast<DWORD64>( info.address );
-    DWORD64 offsetFromSymbol = 0;
+    DWORD64 address2               = reinterpret_cast<DWORD64>( info.address );
+    DWORD64 offsetFromSymbol       = 0;
     if ( SymFromAddr( pid, address2, &offsetFromSymbol, pSym ) != FALSE ) {
         char name[2048] = { 0 };
         DWORD rtn = UnDecorateSymbolName( pSym->Name, name, sizeof( name ) - 1, UNDNAME_COMPLETE );
@@ -1652,7 +1652,7 @@ void StackTrace::clearErrorHandler()
 /****************************************************************************
  *  Functions to handle MPI errors                                           *
  ****************************************************************************/
-#ifdef USE_MPI
+#ifdef STACKTRACE_USE_MPI
 static bool MPI_Initialized()
 {
     int initialized = 0, finalized = 0;
@@ -1704,7 +1704,7 @@ void StackTrace::clearMPIErrorHandler( MPI_Comm comm )
 /****************************************************************************
  *  Global call stack functionality                                          *
  ****************************************************************************/
-#ifdef USE_MPI
+#ifdef STACKTRACE_USE_MPI
 static MPI_Comm globalCommForGlobalCommStack  = MPI_COMM_NULL;
 static volatile int globalMonitorThreadStatus = -1;
 static void runGlobalMonitorThread()

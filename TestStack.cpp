@@ -28,8 +28,7 @@ std::string rootPath;
 
 // Include MPI
 // clang-format off
-#ifdef USE_MPI
-    #include "mpi.h"
+#ifdef STACKTRACE_USE_MPI
     int getRank() {
         int rank = 0;
         MPI_Comm_rank( MPI_COMM_WORLD, &rank );

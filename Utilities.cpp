@@ -147,7 +147,7 @@ void terminate( const StackTrace::abort_error &err )
         // Use MPI_abort (will terminate all processes)
         force_exit = 2;
         perr << err.what();
-#if defined( USE_MPI ) || defined( HAVE_MPI )
+#ifdef STACKTRACE_USE_MPI
         int initialized = 0, finalized = 0;
         MPI_Initialized( &initialized );
         MPI_Finalized( &finalized );
@@ -170,7 +170,7 @@ void terminate( const StackTrace::abort_error &err )
  ****************************************************************************/
 void setErrorHandlers( std::function<void( StackTrace::abort_error & )> abort )
 {
-#ifdef USE_MPI
+#ifdef STACKTRACE_USE_MPI
     setMPIErrorHandler( MPI_COMM_WORLD );
     setMPIErrorHandler( MPI_COMM_SELF );
 #endif
@@ -181,7 +181,7 @@ void setErrorHandlers( std::function<void( StackTrace::abort_error & )> abort )
 }
 void clearErrorHandlers()
 {
-#ifdef USE_MPI
+#ifdef STACKTRACE_USE_MPI
     clearMPIErrorHandler( MPI_COMM_WORLD );
     clearMPIErrorHandler( MPI_COMM_SELF );
 #endif
@@ -311,7 +311,7 @@ std::string exec( const std::string &cmd, int &code )
  ****************************************************************************/
 static std::string replace( std::string str, std::string_view x, std::string_view y )
 {
-    for ( auto pos = str.find( x ); pos != std::string::npos;  pos = str.find( x ) )
+    for ( auto pos = str.find( x ); pos != std::string::npos; pos = str.find( x ) )
         str = str.replace( pos, x.size(), y );
     return str;
 }
