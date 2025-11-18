@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: (Apache-2.0 OR MIT)
 
+from spack_repo.builtin.build_systems.cmake import CMakePackage
 from spack.package import *
 
 
@@ -46,8 +47,6 @@ class Stacktrace(CMakePackage):
     depends_on("timerutility", when="+timerutility")
     depends_on("timerutility+shared", when="+timerutility+shared")
 
-    phases = ["cmake", "build"]
-
     def cmake_args(self):
         spec = self.spec
         options = [
@@ -68,12 +67,3 @@ class Stacktrace(CMakePackage):
             self.define('CMAKE_Fortran_COMPILER', spack_fc)
         ]
         return options
-
-    @run_after("build")
-    def filter_compilers(self):
-        kwargs = {"ignore_absent": True, "backup": False, "string": True}
-        filenames = [join_path(self.prefix, "StackTraceConfig.cmake")]
-
-        filter_file(spack_cc, self.compiler.cc, *filenames, **kwargs)
-        filter_file(spack_cxx, self.compiler.cxx, *filenames, **kwargs)
-        filter_file(spack_fc, self.compiler.fc, *filenames, **kwargs)
