@@ -134,7 +134,7 @@ IF ( "${CMAKE_CXX_STANDARD}" LESS "17" )
 ELSE()
     FILE( WRITE "${STACKTRACE_INCLUDE}/string_view.h" "namespace StackTrace {\nusing std::string_view;\n}\n" )
 ENDIF()
-FILE( WRITE "${STACKTRACE_INCLUDE}/std.h" "#define STACTRACE_CXX_STANDARD ${CMAKE_CXX_STANDARD}\n" )
+FILE( WRITE "${STACKTRACE_INCLUDE}/std.h" "#define STACKTRACE_CXX_STANDARD ${CMAKE_CXX_STANDARD}\n" )
 SET_COMPILER_FLAGS()
 
 
