@@ -7,7 +7,7 @@
 #include <cstdint>
 #include <cstdio>
 
-#if STACTRACE_CXX_STANDARD >= 20
+#if STACKTRACE_CXX_STANDARD >= 20
     #include <version>
     #if __cpp_lib_source_location
         #include <source_location>
