@@ -142,6 +142,215 @@
 }
 
 
+# MPI supressions
+{
+   MPI_init_cond
+   Memcheck:Cond
+   ...
+   fun:PMPI_Init
+   ...
+}
+{
+   MPI_init_value
+   Memcheck:Value8
+   ...
+   fun:PMPI_Init
+   ...
+}
+{
+   MPI_init_addr16
+   Memcheck:Addr16
+   ...
+   fun:PMPI_Init
+   ...
+}
+{
+   MPI_init_addr8
+   Memcheck:Addr8
+   ...
+   fun:PMPI_Init
+   ...
+}
+{
+   MPI_init_addr4
+   Memcheck:Addr4
+   ...
+   fun:PMPI_Init
+   ...
+}
+{
+   MPI_init_addr1
+   Memcheck:Addr1
+   ...
+   fun:PMPI_Init
+   ...
+}
+{
+   gethostname_cond
+   Memcheck:Cond
+   ...
+   fun:gethostbyname_r
+   fun:gethostbyname
+   ...
+}
+{
+   gethostname_value
+   Memcheck:Value8
+   ...
+   fun:gethostbyname_r
+   fun:gethostbyname
+   ...
+}
+{
+   PMPI_Init_malloc_indirect
+   Memcheck:Leak
+   match-leak-kinds: indirect
+   fun:malloc
+   ...
+   fun:PMPI_Init
+   ...
+}
+{
+   PMPI_Init_malloc_definite
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   ...
+   fun:PMPI_Init
+   ...
+}
+{
+   mpichInitThread
+   Memcheck:Leak
+   ...
+   fun:PMPI_Init_thread
+   fun:_ZN3AMP7AMP_MPI9start_MPIERiPPci
+   ...
+}
+{
+   orte_finalize
+   Memcheck:Leak
+   ...
+   fun:orte_finalize
+   fun:ompi_mpi_finalize
+   ...
+}
+{
+   clone_event
+   Memcheck:Leak
+   ...
+   fun:event_base_loop
+   ...
+   fun:start_thread
+   fun:clone
+}
+{
+   orte_init_leak
+   Memcheck:Leak
+   fun:malloc
+   ...
+   fun:orte_init
+   ...
+}
+{
+   orte_init_leak
+   Memcheck:Leak
+   fun:calloc
+   ...
+   fun:orte_init
+   ...
+}
+{
+   orte_daemon_recv
+   Memcheck:Leak
+   fun:malloc
+   ...
+   fun:orte_daemon_recv
+   ...
+}
+{
+   orte_rmaps_base_map_job
+   Memcheck:Leak
+   fun:malloc
+   ...
+   fun:orte_rmaps_base_map_job
+   ...
+}
+{
+   orte_plm_base_post_launch
+   Memcheck:Leak
+   fun:malloc
+   ...
+   fun:orte_plm_base_post_launch
+   ...
+}
+{
+   orte_debugger_init_after_spawnh
+   Memcheck:Leak
+   fun:malloc
+   ...
+   fun:orte_debugger_init_after_spawn
+   ...
+}
+{
+   orte_odls_base_default_launch_local
+   Memcheck:Leak
+   fun:malloc
+   ...
+   fun:orte_odls_base_default_launch_local
+   ...
+}
+{
+   orte_submit_init
+   Memcheck:Leak
+   ...
+   fun:orte_submit_init
+   ...
+}
+{
+   orte_exit
+   Memcheck:Leak
+   ...
+   fun:exit
+   obj:/usr/bin/orterun
+   ...
+}
+
+
+# Supress nvidia errors
+{
+   libnvidia-opencl
+   Memcheck:Leak
+   ...
+   obj:/usr/lib/x86_64-linux-gnu/libnvidia-opencl.so.*
+   ...
+}
+
+
+# hwloc
+{
+   hwloc_leak
+   Memcheck:Leak
+   ...
+   obj:*/libhwloc.so*
+}
+{
+   hwloc_topology_load_leak
+   Memcheck:Leak
+   ...
+   fun:hwloc_topology_load
+   ...
+}
+{
+   hwloc_PMPI_Init_leak
+   Memcheck:Leak
+   obj:*/libhwloc.so*
+   ...
+   fun:PMPI_Init
+   ...
+}
+
+
 # System errors
 {
    map_doit_memory
@@ -172,6 +381,72 @@
    fun:call_init
    fun:_dl_init
    ...
+}
+{
+   dl_open_worker_definite
+   Memcheck:Leak
+   match-leak-kinds: definite
+   ...
+   fun:dl_open_worker
+   ...
+}
+{
+   dl_open_worker_indirect
+   Memcheck:Leak
+   match-leak-kinds: indirect
+   ...
+   fun:dl_open_worker
+   ...
+}
+{
+   dl_open_worker_reachable
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:dl_open_worker
+   ...
+}
+{
+   start_thread_definite
+   Memcheck:Leak
+   match-leak-kinds: definite
+   ...
+   fun:start_thread
+   fun:clone
+}
+{
+   start_thread_indirect
+   Memcheck:Leak
+   match-leak-kinds: indirect
+   ...
+   fun:start_thread
+   fun:clone
+}
+{
+   start_thread_reachable
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:start_thread
+   fun:clone
+}
+
+
+# pthread errors
+{
+   pthread_initialize_param
+   Memcheck:Param
+   set_robust_list(head)
+   fun:__pthread_initialize_minimal
+   fun:(below main)
+}
+{
+   pthread_initialize_cond
+   Memcheck:Cond
+   fun:__register_atfork
+   fun:__libc_pthread_init
+   fun:__pthread_initialize_minimal
+   fun:(below main)
 }
 
 

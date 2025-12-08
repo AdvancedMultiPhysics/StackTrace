@@ -1894,7 +1894,7 @@ static void cleanupFunctionName( char *function )
     strrep( function, N, "< ", "<" );
     // Remove std::__1::
     strrep( function, N, "std::__1::", "std::" );
-    // Replace std::ratio with abbriviated version
+    // Replace std::ratio with abbreviated version
     auto find = [&function, &N]( const string_view &str, size_t pos = 0 ) {
         return string_view( function, N ).find( str, pos );
     };
@@ -1961,7 +1961,9 @@ static void cleanupFunctionName( char *function )
         strrep( function, N, "::sleep_for<milliseconds>(std::chrono::hours",
                 "::sleep_for(std::chrono::hours" );
     }
-    // Replace std::basic_string with abbriviated version
+    // Replace abi:cxx11
+    strrep( function, N, "[abi:cxx11]", "" );
+    // Replace std::basic_string with abbreviated version
     strrep( function, N, "std::__cxx11::basic_string<", "std::basic_string<" );
     size_t pos = 0;
     while ( pos < N ) {
@@ -1984,7 +1986,23 @@ static void cleanupFunctionName( char *function )
             N = replace( function, N, pos, pos2 - pos, "std::u32string" );
         pos++;
     }
-    // Replace std::make_shared with abbriviated version
+    // Replace std::basic_string with abbreviated version
+    strrep( function, N, "std::__cxx11::basic_string_view<", "std::basic_string_view<" );
+    pos = 0;
+    while ( pos < N ) {
+        // Find next instance of std::basic_string
+        pos = find( "std::basic_string_view<char", pos );
+        if ( pos == npos )
+            break;
+        // Find the matching >
+        size_t pos1 = pos + 17;
+        size_t pos2 = findMatching( function, N, pos1 );
+        if ( pos2 == pos1 )
+            break;
+        N = replace( function, N, pos, pos2 - pos, "std::string_view" );
+        pos++;
+    }
+    // Replace std::make_shared with abbreviated version
     if ( find( "std::make_shared<" ) != npos ) {
         size_t pos1 = find( "std::make_shared<" );
         size_t pos2 = find( ",", pos1 );
