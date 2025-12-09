@@ -245,6 +245,21 @@
    fun:clone
 }
 {
+   pmix_ptl_base_send_handler
+   Memcheck:Param
+   writev(vector[1])
+   ...
+   fun:pmix_ptl_base_send_handler
+   ...
+}
+{
+   ompi_mpi_init
+   Memcheck:Leak
+   ...
+   fun:ompi_mpi_init
+   ...
+}
+{
    orte_init_leak
    Memcheck:Leak
    fun:malloc
