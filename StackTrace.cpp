@@ -880,10 +880,7 @@ static void getDataFromGlobalSymbols( StackTrace::stack_info &info )
 static void signal_handler( int sig )
 {
     printf( "Signal caught acquiring stack (%i)\n", sig );
-    StackTrace::setErrorHandler( []( const StackTrace::abort_error &err ) {
-        std::cerr << err.what();
-        exit( -1 );
-    } );
+    exit( -1 );
 }
 #ifdef USE_WINDOWS
 // Get the stack info for a single address
