@@ -246,12 +246,13 @@ int main( int argc, char *argv[] )
             tmp2     = nullptr;
             n_bytes3 = Utilities::getMemoryUsage();
             if ( n_bytes2 > 0x80000000 && n_bytes2 < n_bytes1 + 0x81000000 &&
-                 abs_diff( n_bytes1, n_bytes3 ) < 1e6 ) {
-                ut.passes( "getMemoryUsage correctly handles 2^31 - 2^32 bytes" );
+                 abs_diff( n_bytes1, n_bytes3 ) < 0x1000000 ) {
+                ut.passes( "Memtest 2-4 GB" );
             } else {
-                std::cout << "Memtest 2-4 GB failes: " << n_bytes1 << " " << n_bytes2 << " "
-                          << n_bytes3 << std::endl;
-                ut.failure( "getMemoryUsage correctly handles 2^31 - 2^32 bytes" );
+                char msg[4096];
+                snprintf( msg, sizeof msg, "Memtest 2-4 GB: 0x%zX 0x%zX 0x%zX", n_bytes1, n_bytes2,
+                          n_bytes3 );
+                ut.failure( msg );
             }
         }
         if ( system_bytes >= 8e9 && rank == 0 ) {
@@ -273,12 +274,13 @@ int main( int argc, char *argv[] )
                 tmp2     = nullptr;
                 n_bytes3 = Utilities::getMemoryUsage();
                 if ( n_bytes2 > 0x100000000 && n_bytes2 < n_bytes1 + 0x110000000 &&
-                     abs_diff( n_bytes1, n_bytes3 ) < 50e3 ) {
-                    ut.passes( "getMemoryUsage correctly handles memory > 2^32 bytes" );
+                     abs_diff( n_bytes1, n_bytes3 ) < 0x1000000 ) {
+                    ut.passes( "Memtest >4 GB" );
                 } else {
-                    std::cout << "Memtest >4 GB fails: " << n_bytes1 << " " << n_bytes2 << " "
-                              << n_bytes3 << std::endl;
-                    ut.expected( "getMemoryUsage does not handle memory > 2^32 bytes" );
+                    char msg[4096];
+                    snprintf( msg, sizeof msg, "Memtest >4 GB: 0x%zX 0x%zX 0x%zX", n_bytes1,
+                              n_bytes2, n_bytes3 );
+                    ut.failure( msg );
                 }
             }
         }

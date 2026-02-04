@@ -495,6 +495,9 @@ void test_throw( UnitTest & )
 // Test terminate
 void testTerminate( UnitTest &results )
 {
+    if ( StackTrace::Utilities::getOS() == StackTrace::Utilities::OS::Windows ) {
+        results.expected( "Skipping abort test for Windows" );
+    }
     if ( getRank() == 0 ) {
         int exit;
         auto msg1  = StackTrace::Utilities::exec( rootPath + "TestTerminate signal 2>&1", exit );
