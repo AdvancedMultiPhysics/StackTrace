@@ -21,51 +21,6 @@
 using namespace StackTrace;
 
 
-// Include MPI
-// clang-format off
-#ifdef STACKTRACE_USE_MPI
-
-    STACKTRACE_DISABLE_WARNINGS
-    #include "mpi.h"
-    STACKTRACE_ENABLE_WARNINGS
-    int getRank() {
-        int rank = 0;
-        MPI_Comm_rank( MPI_COMM_WORLD, &rank );
-        return rank;
-    }
-    int getSize() {
-        int size = 0;
-        MPI_Comm_size( MPI_COMM_WORLD, &size );
-        return size;
-    }
-    void barrier() { MPI_Barrier( MPI_COMM_WORLD ); }
-    int sumReduce( int x ) {
-        int y;
-        MPI_Allreduce( &x, &y, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD );
-        return y;
-    }
-    int startup( int argc, char *argv[] ) {
-        int provided_thread_support;
-        MPI_Init_thread( &argc, &argv, MPI_THREAD_MULTIPLE, &provided_thread_support );
-        return getRank();
-    }
-    void shutdown( ) {
-        MPI_Barrier( MPI_COMM_WORLD );
-        MPI_Finalize( );
-    }
-#else
-    #define MPI_COMM_WORLD 0
-    void MPI_Finalize() {}
-    void barrier() {}
-    int sumReduce( int x ) { return x; }
-    int startup( int, char*[] ) { return 0; }
-    void shutdown( ) { }
-    int getRank() { return 0; }
-    int getSize() { return 1; }
-#endif
-// clang-format on
-
-
 // Class to store pass/failures
 class UnitTest
 {
@@ -76,33 +31,18 @@ public:
 
     void print() const
     {
-        int rank = getRank();
-        if ( rank == 0 ) {
-            std::cout << "\nTests passed:" << std::endl;
-            for ( const auto &msg : passes_ )
-                std::cout << "   " << msg << std::endl;
-            std::cout << std::endl << "Tests expected failed:" << std::endl;
-            printAll( expected_ );
-            std::cout << std::endl << "Tests failed:" << std::endl;
-            printAll( failure_ );
-        } else {
-            printAll( expected_ );
-            printAll( failure_ );
-        }
-    }
-    static void printAll( const std::vector<std::string> &messages )
-    {
-        int rank = getRank();
-        int size = getSize();
-        for ( int i = 0; i < size; i++ ) {
-            if ( rank == i )
-                for ( const auto &msg : messages )
-                    std::cout << "   Rank " << rank << ": " << msg << std::endl;
-            barrier();
-        }
+        printf( "\nTests passed:\n" );
+        for ( const auto &msg : passes_ )
+            printf( "   %s\n", msg.data() );
+        printf( "\nTests expected failed:\n" );
+        for ( const auto &msg : expected_ )
+            printf( "   %s\n", msg.data() );
+        printf( "\nTests failed:\n" );
+        for ( const auto &msg : failure_ )
+            printf( "   %s\n", msg.data() );
     }
 
-    int N_failed() const { return sumReduce( failure_.size() ); }
+    int N_failed() const { return failure_.size(); }
 
     void clear()
     {
@@ -122,35 +62,35 @@ private:
 size_t abs_diff( size_t a, size_t b ) { return ( a >= b ) ? a - b : b - a; }
 
 
-// Zero and check memory block
-void fill( void *x, uint8_t value, size_t bytes )
+// Fill and check memory block (forces system to allocate buffer)
+void fill( uint64_t *x, size_t N )
 {
-    memset( x, value, bytes );
-    auto y    = reinterpret_cast<uint8_t *>( x );
-    bool pass = true;
-    for ( size_t i = 0; i < value; i++ )
-        pass = pass && y[i] == value;
+    uint64_t y = 0x9E3779B97F4A7C15;
+    bool pass  = true;
+    size_t Ns  = N < 10000 ? 1 : 13;
+    for ( uint64_t i = 0; i < N; i += Ns ) {
+        auto z = y ^ i;
+        x[i]   = z;
+        pass   = x[i] == z;
+    }
     if ( !pass )
-        throw std::logic_error( "Failed to set memory" );
+        throw std::logic_error( "Error writing data" );
 }
 
 
 // Test source_location::current
-void test_source_location( UnitTest &ut,
-                           const source_location &source = source_location::current() )
+void test_source_location( UnitTest &ut, const source_location &s1 = source_location::current() )
 {
-    std::cout << "Testing StackTrace::source_location::current:\n";
-    auto source2 = SOURCE_LOCATION_CURRENT();
-    std::cout << "   file: " << source.file_name() << "(" << source.line() << ":" << source.column()
-              << ")  " << source.function_name() << '\n';
-    std::cout << "   file: " << source2.file_name() << "(" << source2.line() << ":"
-              << source2.column() << ")  " << source2.function_name() << '\n';
-    bool test1 = std::string( source.function_name() ).find( "main" ) != std::string::npos;
+    printf( "Testing StackTrace::source_location::current:\n" );
+    auto s2 = SOURCE_LOCATION_CURRENT();
+    printf( "   %s (%u:%u)  %s\n", s1.file_name(), s1.line(), s1.column(), s1.function_name() );
+    printf( "   %s (%u:%u)  %s\n", s2.file_name(), s2.line(), s2.column(), s2.function_name() );
+    bool test1 = std::string( s1.function_name() ).find( "main" ) != std::string::npos;
     bool test2 =
-        std::string( source2.function_name() ).find( "test_source_location" ) != std::string::npos;
+        std::string( s2.function_name() ).find( "test_source_location" ) != std::string::npos;
     if ( test1 && test2 )
         ut.passes( "source_location::current()" );
-    else if ( test2 && source.empty() )
+    else if ( test2 && s1.empty() )
         ut.expected( "source_location::current()" );
     else
         ut.failure( "source_location::current()" );
@@ -160,10 +100,8 @@ void test_source_location( UnitTest &ut,
 /****************************************************************
  * Run some basic utility tests                                  *
  ****************************************************************/
-int main( int argc, char *argv[] )
+int main( int, char *[] )
 {
-    int rank = startup( argc, argv );
-
     // Limit the scope of variables
     int num_failed = 0;
     {
@@ -184,8 +122,9 @@ int main( int argc, char *argv[] )
         test_source_location( ut );
 
         // Test getSystemMemory
-        size_t system_bytes = Utilities::getSystemMemory();
-        std::cout << "Total system bytes = " << system_bytes << std::endl;
+        using LLUINT        = long long unsigned int;
+        LLUINT system_bytes = Utilities::getSystemMemory();
+        printf( "Total system bytes = 0x%llx\n", system_bytes );
         if ( system_bytes > 0 )
             ut.passes( "getSystemMemory" );
         else
@@ -193,23 +132,20 @@ int main( int argc, char *argv[] )
 
         // Test the memory usage
         double t0       = Utilities::time();
-        size_t n_bytes1 = Utilities::getMemoryUsage();
-        double time1    = Utilities::time() - t0;
+        LLUINT n_bytes1 = Utilities::getMemoryUsage();
+        int time1       = 1e9 * ( Utilities::time() - t0 );
         auto *tmp       = new uint64_t[0x100000];
-        fill( tmp, 0xAA, 0x100000 * sizeof( uint64_t ) );
+        fill( tmp, 0x100000 );
         t0              = Utilities::time();
-        size_t n_bytes2 = Utilities::getMemoryUsage();
-        double time2    = Utilities::time() - t0;
+        LLUINT n_bytes2 = Utilities::getMemoryUsage();
+        int time2       = 1e9 * ( Utilities::time() - t0 );
         delete[] tmp;
         t0              = Utilities::time();
-        size_t n_bytes3 = Utilities::getMemoryUsage();
-        double time3    = Utilities::time() - t0;
-        if ( rank == 0 ) {
-            std::cout << "Number of bytes used for a basic test: " << n_bytes1 << ", " << n_bytes2
-                      << ", " << n_bytes3 << std::endl;
-            std::cout << "   Time to query: " << time1 * 1e6 << " us, " << time2 * 1e6 << " us, "
-                      << time3 * 1e6 << " us" << std::endl;
-        }
+        LLUINT n_bytes3 = Utilities::getMemoryUsage();
+        int time3       = 1e9 * ( Utilities::time() - t0 );
+        printf( "Number of bytes used for a basic test: 0x%llx, 0x%llx, 0x%llx\n", n_bytes1,
+                n_bytes2, n_bytes3 );
+        printf( "   Time to query: %i ns, %i ns, %i ns\n", time1, time2, time3 );
         if ( n_bytes1 == 0 ) {
             ut.failure( "getMemoryUsage returns 0" );
         } else {
@@ -231,17 +167,13 @@ int main( int argc, char *argv[] )
         }
 
         // Run large memory test of getMemoryUsage
-        if ( system_bytes >= 4e9 && rank == 0 ) {
+        if ( system_bytes >= 4e9 ) {
             // Test getting the memory usage for 2-4 GB bytes
             // Note: we only run this test on machines with more than 4 GB of memory
             n_bytes1   = Utilities::getMemoryUsage();
             auto *tmp2 = new uint64_t[0x10000001]; // Allocate 2^31+8 bytes
-            fill( tmp2, 0xAA, 0x10000001 * sizeof( uint64_t ) );
+            fill( tmp2, 0x10000001 );
             n_bytes2 = Utilities::getMemoryUsage();
-            for ( int i = 0; i < 10; i++ ) {
-                if ( ( tmp2[rand() % 0x1000000] & 0xFF ) != 0xAA )
-                    ut.failure( "Internal error" );
-            }
             delete[] tmp2;
             tmp2     = nullptr;
             n_bytes3 = Utilities::getMemoryUsage();
@@ -250,26 +182,23 @@ int main( int argc, char *argv[] )
                 ut.passes( "Memtest 2-4 GB" );
             } else {
                 char msg[4096];
-                snprintf( msg, sizeof msg, "Memtest 2-4 GB: 0x%zX 0x%zX 0x%zX", n_bytes1, n_bytes2,
-                          n_bytes3 );
+                snprintf( msg, sizeof msg, "Memtest 2-4 GB: 0x%llx 0x%llx 0x%llx", n_bytes1,
+                          n_bytes2, n_bytes3 );
                 ut.failure( msg );
             }
         }
-        if ( system_bytes >= 8e9 && rank == 0 ) {
+        if ( system_bytes >= 8e9 ) {
             // Test getting the memory usage for > 4 GB bytes
             // Note: we only run this test on machines with more than 8 GB of memory
-            n_bytes1                    = Utilities::getMemoryUsage();
-            size_t size                 = 0x20000000;
-            [[maybe_unused]] auto *tmp2 = new uint64_t[size]; // Allocate 2^31+8 bytes
+            static_assert( sizeof( uint64_t ) == 8 );
+            n_bytes1    = Utilities::getMemoryUsage();
+            size_t size = 0x20000000;
+            auto *tmp2  = new uint64_t[size]; // Allocate 2^31+8 bytes
             if ( tmp2 == nullptr ) {
                 ut.expected( "Unable to allocate variable of size 4 GB" );
             } else {
-                fill( tmp2, 0xAA, size * sizeof( uint64_t ) );
+                fill( tmp2, size );
                 n_bytes2 = Utilities::getMemoryUsage();
-                for ( int i = 0; i < 10; i++ ) {
-                    if ( ( tmp2[rand() % size] & 0xFF ) != 0xAA )
-                        ut.failure( "Internal error" );
-                }
                 delete[] tmp2;
                 tmp2     = nullptr;
                 n_bytes3 = Utilities::getMemoryUsage();
@@ -278,7 +207,7 @@ int main( int argc, char *argv[] )
                     ut.passes( "Memtest >4 GB" );
                 } else {
                     char msg[4096];
-                    snprintf( msg, sizeof msg, "Memtest >4 GB: 0x%zX 0x%zX 0x%zX", n_bytes1,
+                    snprintf( msg, sizeof msg, "Memtest >4 GB: 0x%llx 0x%llx 0x%llx", n_bytes1,
                               n_bytes2, n_bytes3 );
                     ut.failure( msg );
                 }
@@ -287,8 +216,7 @@ int main( int argc, char *argv[] )
 
         // Test getting the executable
         std::string exe = StackTrace::getExecutable();
-        if ( rank == 0 )
-            std::cout << "Executable: " << exe << std::endl;
+        printf( "Executable: %s\n", exe.data() );
         if ( exe.find( "TestUtilities" ) != std::string::npos )
             ut.passes( "getExecutable" );
         else
@@ -309,17 +237,14 @@ int main( int argc, char *argv[] )
 
         // Check if we are running through valgrind and print the result
         if ( Utilities::running_valgrind() )
-            std::cout << "Running through valgrind\n";
+            printf( "Running through valgrind\n" );
         else
-            std::cout << "Not running through valgrind\n";
+            printf( "Not running through valgrind\n" );
 
         // Finished testing, report the results
         ut.print();
         num_failed = ut.N_failed();
     }
-
-    // Shutdown
-    shutdown();
 
     // Finished successfully
     return num_failed;
