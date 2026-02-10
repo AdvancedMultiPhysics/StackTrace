@@ -176,8 +176,8 @@ void addMessage( UnitTest &ut, bool pass, const std::string &msg, bool expected 
 
 
 // Function to perform various signal tests
-int global_signal_helper[1024] = { 0 };
-void handleSignal( int s ) { global_signal_helper[s] = 1; }
+int GlobalSignals[1024] = { 0 };
+void handleSignal( int s ) { GlobalSignals[s] = 1; }
 void testSignal( UnitTest &results )
 {
     barrier();
@@ -190,17 +190,29 @@ void testSignal( UnitTest &results )
         // for ( int i = 1; i <= std::max( 1, signals.back() ); i++ )
         for ( int i = 1; i <= std::max( 1, signals.back() ); i++ )
             std::cout << "  " << i << ": " << StackTrace::signalName( i ) << std::endl;
+        std::cout << std::endl;
         // Test setting/catching different signals
         StackTrace::setSignals( signals, handleSignal );
         for ( auto sig : signals )
             StackTrace::raiseSignal( sig );
         sleep_ms( 50 );
         StackTrace::clearSignals( signals );
-        bool pass = true;
-        for ( auto sig : signals )
-            pass = pass && global_signal_helper[sig] == 1;
-        std::cout << std::endl;
-        addMessage( results, pass, "Signals" );
+        bool pass     = true;
+        bool valgrind = StackTrace::Utilities::running_valgrind();
+        for ( auto sig : signals ) {
+            int val = GlobalSignals[sig];
+            if ( val != 1 ) {
+                pass = false;
+                char msg[1024];
+                snprintf( msg, sizeof msg, "Signal %i not set correctly (%i)", sig, val );
+                if ( valgrind )
+                    results.expected( msg );
+                else
+                    results.failure( msg );
+            }
+        }
+        if ( pass )
+            results.passes( "Signals set/caught" );
     }
     barrier();
 }

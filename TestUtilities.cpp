@@ -126,6 +126,13 @@ int main( int, char *[] )
         // Test source_location
         test_source_location( ut );
 
+        // Check if we are running through valgrind and print the result
+        bool valgrind = Utilities::running_valgrind();
+        if ( valgrind )
+            printf( "Running through valgrind\n" );
+        else
+            printf( "Not running through valgrind\n" );
+
         // Test getSystemMemory
         using LLUINT        = long long unsigned int;
         LLUINT system_bytes = Utilities::getSystemMemory();
@@ -153,7 +160,10 @@ int main( int, char *[] )
                 n_bytes2, n_bytes3 );
         printf( "   Time to query: %i ns, %i ns, %i ns\n", time1, time2, time3 );
         if ( n_bytes1 == 0 ) {
-            ut.failure( "getMemoryUsage returns 0" );
+            if ( valgrind )
+                ut.expected( "getMemoryUsage returns 0" );
+            else
+                ut.failure( "getMemoryUsage returns 0" );
         } else {
             ut.passes( "getMemoryUsage returns non-zero" );
             if ( n_bytes2 > n_bytes1 ) {
@@ -173,7 +183,7 @@ int main( int, char *[] )
         }
 
         // Run large memory test of getMemoryUsage
-        if ( system_bytes >= 4e9 ) {
+        if ( system_bytes >= 4e9 && n_bytes1 > 0 ) {
             // Test getting the memory usage for 2-4 GB bytes
             // Note: we only run this test on machines with more than 4 GB of memory
             n_bytes1   = Utilities::getMemoryUsage();
@@ -194,7 +204,7 @@ int main( int, char *[] )
                 ut.failure( msg );
             }
         }
-        if ( system_bytes >= 8e9 ) {
+        if ( system_bytes >= 8e9 && n_bytes1 > 0 ) {
             // Test getting the memory usage for > 4 GB bytes
             // Note: we only run this test on machines with more than 8 GB of memory
             static_assert( sizeof( uint64_t ) == 8 );
@@ -242,12 +252,6 @@ int main( int, char *[] )
         } catch ( std::exception &err ) {
             ut.failure( "Caught unknown exception type" );
         }
-
-        // Check if we are running through valgrind and print the result
-        if ( Utilities::running_valgrind() )
-            printf( "Running through valgrind\n" );
-        else
-            printf( "Not running through valgrind\n" );
 
         // Finished testing, report the results
         ut.print();
