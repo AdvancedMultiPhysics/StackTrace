@@ -76,6 +76,11 @@ void fill( uint64_t *x, size_t N )
     if ( !pass )
         throw std::logic_error( "Error writing data" );
 }
+void check( uint64_t *x, size_t )
+{
+    if ( x[0] != 0x9E3779B97F4A7C15 )
+        throw std::logic_error( "Failed write" );
+}
 
 
 // Test source_location::current
@@ -139,6 +144,7 @@ int main( int, char *[] )
         t0              = Utilities::time();
         LLUINT n_bytes2 = Utilities::getMemoryUsage();
         int time2       = 1e9 * ( Utilities::time() - t0 );
+        check( tmp, 0x100000 ); // Force a read to ensure memory is not freed early
         delete[] tmp;
         t0              = Utilities::time();
         LLUINT n_bytes3 = Utilities::getMemoryUsage();
@@ -174,6 +180,7 @@ int main( int, char *[] )
             auto *tmp2 = new uint64_t[0x10000001]; // Allocate 2^31+8 bytes
             fill( tmp2, 0x10000001 );
             n_bytes2 = Utilities::getMemoryUsage();
+            check( tmp2, 0x10000001 ); // Force a read to ensure memory is not freed early
             delete[] tmp2;
             tmp2     = nullptr;
             n_bytes3 = Utilities::getMemoryUsage();
@@ -199,6 +206,7 @@ int main( int, char *[] )
             } else {
                 fill( tmp2, size );
                 n_bytes2 = Utilities::getMemoryUsage();
+                check( tmp2, size ); // Force a read to ensure memory is not freed early
                 delete[] tmp2;
                 tmp2     = nullptr;
                 n_bytes3 = Utilities::getMemoryUsage();
