@@ -254,6 +254,39 @@ size_t getMemoryUsage()
     #endif
     return N_bytes;
 }
+void printMemoryUsage( const char *indent )
+{
+    using LLUINT = long long unsigned int;
+    #if defined( WIN32 ) || defined( _WIN32 ) || defined( WIN64 ) || defined( _WIN64 )
+        // Windows
+        PROCESS_MEMORY_COUNTERS_EX mem;
+        ZeroMemory(&mem, sizeof(PROCESS_MEMORY_COUNTERS_EX));
+        GetProcessMemoryInfo( GetCurrentProcess(), (PROCESS_MEMORY_COUNTERS*)&mem, sizeof( mem ) );
+        printf( "%sPageFaultCount: 0x%llx\n", indent, (LLUINT) mem.PageFaultCount );
+        printf( "%sPeakWorkingSetSize: 0x%llx\n", indent, (LLUINT) mem.PeakWorkingSetSize );
+        printf( "%sWorkingSetSize: 0x%llx\n", indent, (LLUINT) mem.WorkingSetSize );
+        printf( "%sQuotaPeakPagedPoolUsage: 0x%llx\n", indent, (LLUINT) mem.QuotaPeakPagedPoolUsage );
+        printf( "%sQuotaPagedPoolUsage: 0x%llx\n", indent, (LLUINT) mem.QuotaPagedPoolUsage );
+        printf( "%sQuotaPeakNonPagedPoolUsage: 0x%llx\n", indent, (LLUINT) mem.QuotaPeakNonPagedPoolUsage );
+        printf( "%sQuotaNonPagedPoolUsage: 0x%llx\n", indent, (LLUINT) mem.QuotaNonPagedPoolUsage );
+        printf( "%sPagefileUsage: 0x%llx\n", indent, (LLUINT) mem.PagefileUsage );
+        printf( "%sPeakPagefileUsage: 0x%llx\n", indent, (LLUINT) mem.PeakPagefileUsage );
+        printf( "%sPrivateUsage: 0x%llx\n", indent, (LLUINT) mem.PrivateUsage );
+    #elif defined( HAVE_MALLINFO2 )
+        // Linux - mallinfo2
+        auto mem   = mallinfo2();
+        printf( "%sarena: 0x%llx\n", indent, (LLUINT) mem.arena );
+        printf( "%sordblks: 0x%llx\n", indent, (LLUINT) mem.ordblks );
+        printf( "%ssmblks: 0x%llx\n", indent, (LLUINT) mem.smblks );
+        printf( "%shblks: 0x%llx\n", indent, (LLUINT) mem.hblks );
+        printf( "%shblkhd: 0x%llx\n", indent, (LLUINT) mem.hblkhd );
+        printf( "%susmblks: 0x%llx\n", indent, (LLUINT) mem.usmblks );
+        printf( "%sfsmblks: 0x%llx\n", indent, (LLUINT) mem.fsmblks );
+        printf( "%suordblks: 0x%llx\n", indent, (LLUINT) mem.uordblks );
+        printf( "%sfordblks: 0x%llx\n", indent, (LLUINT) mem.fordblks );
+        printf( "%skeepcost: 0x%llx\n", indent, (LLUINT) mem.keepcost );
+    #endif
+}
 // clang-format on
 
 

@@ -216,6 +216,8 @@ int main( int, char *[] )
             } else {
                 fill( tmp2, size );
                 n_bytes2 = Utilities::getMemoryUsage();
+                printf( "Memory for >4GB test\n" );
+                Utilities::printMemoryUsage( "   " );
                 check( tmp2, size ); // Force a read to ensure memory is not freed early
                 delete[] tmp2;
                 tmp2     = nullptr;
@@ -257,6 +259,9 @@ int main( int, char *[] )
         ut.print();
         num_failed = ut.N_failed();
     }
+
+    printf( "\nMemory at exit\n" );
+    Utilities::printMemoryUsage( "   " );
 
     // Finished successfully
     return num_failed;

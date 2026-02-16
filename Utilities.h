@@ -57,7 +57,7 @@ std::string getenv( const char *name );
 /*!
  * Function to get the memory availible.
  * This function will return the total memory availible
- * Note: depending on the implimentation, this number may be rounded to
+ * Note: depending on the implementation, this number may be rounded to
  * to a multiple of the page size.
  * If this function fails, it will return 0.
  */
@@ -67,11 +67,19 @@ size_t getSystemMemory();
 /*!
  * Function to get the memory usage.
  * This function will return the total memory used by the application.
- * Note: depending on the implimentation, this number may be rounded to
+ * Note: depending on the implementation, this number may be rounded to
  * to a multiple of the page size.
  * If this function fails, it will return 0.
  */
 size_t getMemoryUsage();
+
+
+/*!
+ * Function to print the memory usage.
+ * This function will print the memory used by the application in the
+ * OS native data structure.  Useful for debugging.
+ */
+void printMemoryUsage( const char *indent = "" );
 
 
 /*!
