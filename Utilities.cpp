@@ -230,7 +230,7 @@ size_t getMemoryUsage()
             PROCESS_MEMORY_COUNTERS_EX mem;
             ZeroMemory(&mem, sizeof(PROCESS_MEMORY_COUNTERS_EX));
             GetProcessMemoryInfo( GetCurrentProcess(), (PROCESS_MEMORY_COUNTERS*)&mem, sizeof( mem ) );
-            size_t N_bytes = mem.WorkingSetSize;
+            size_t N_bytes = mem.PagefileUsage;
         #elif defined( __APPLE__ )
             // MAC
             struct task_basic_info t_info;
