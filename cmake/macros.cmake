@@ -1,51 +1,58 @@
 # Append a list to a file
 FUNCTION( APPEND_LIST FILENAME VARS PREFIX POSTFIX )
-    FOREACH ( tmp ${VARS} )
+    FOREACH( tmp ${VARS} )
         FILE( APPEND "${FILENAME}" "${PREFIX}" )
         FILE( APPEND "${FILENAME}" "${tmp}" )
         FILE( APPEND "${FILENAME}" "${POSTFIX}" )
-    ENDFOREACH ()
+    ENDFOREACH()
 ENDFUNCTION()
-
 
 # Set compiler flags
 MACRO( SET_COMPILER_FLAGS )
-    IF ( CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX OR (${CMAKE_CXX_COMPILER_ID} MATCHES "GNU") )
-        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic -Woverloaded-virtual -Wsign-compare -Wformat-security -Wformat-overflow=2 -Wno-aggressive-loop-optimizations")
-    ELSEIF ( MSVC OR MSVC_IDE OR MSVC60 OR MSVC70 OR MSVC71 OR MSVC80 OR CMAKE_COMPILER_2005 OR MSVC90 OR MSVC10 )
+    IF ( CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX OR ( ${CMAKE_CXX_COMPILER_ID} MATCHES "GNU" ) )
+        SET( CMAKE_CXX_FLAGS
+            "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic -Woverloaded-virtual -Wsign-compare -Wformat-security -Wformat-overflow=2 -Wno-aggressive-loop-optimizations" )
+    ELSEIF (
+        MSVC
+        OR MSVC_IDE
+        OR MSVC60
+        OR MSVC70
+        OR MSVC71
+        OR MSVC80
+        OR CMAKE_COMPILER_2005
+        OR MSVC90
+        OR MSVC10 )
         # Add Microsoft specifc compiler options
-        SET( CMAKE_C_FLAGS     "${CMAKE_C_FLAGS} /D _SCL_SECURE_NO_WARNINGS /D _CRT_SECURE_NO_WARNINGS /D _ITERATOR_DEBUG_LEVEL=0 /wd4267 /Zc:preprocessor /EHsc" )
+        SET( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /D _SCL_SECURE_NO_WARNINGS /D _CRT_SECURE_NO_WARNINGS /D _ITERATOR_DEBUG_LEVEL=0 /wd4267 /Zc:preprocessor /EHsc" )
         SET( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /D _SCL_SECURE_NO_WARNINGS /D _CRT_SECURE_NO_WARNINGS /D _ITERATOR_DEBUG_LEVEL=0 /wd4267 /Zc:preprocessor /EHsc" )
-    ELSEIF ( ${CMAKE_CXX_COMPILER_ID} MATCHES "Intel" ) 
-        SET(CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -Wall" )
+    ELSEIF ( ${CMAKE_CXX_COMPILER_ID} MATCHES "Intel" )
+        SET( CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -Wall" )
     ELSEIF ( ${CMAKE_CXX_COMPILER_ID} MATCHES "PGI" )
-        SET(CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -Minform=inform -Mlist --display_error_number --diag_suppress 111,128,185")
-    ELSEIF ( (${CMAKE_CXX_COMPILER_ID} MATCHES "CRAY") OR (${CMAKE_CXX_COMPILER_ID} MATCHES "Cray") )
-        SET(CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS}")
-    ELSEIF ( (${CMAKE_CXX_COMPILER_ID} MATCHES "CLANG") OR (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang") )
-        SET(CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic -Wno-missing-braces -Wmissing-field-initializers -ftemplate-depth=1024")
+        SET( CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -Minform=inform -Mlist --display_error_number --diag_suppress 111,128,185" )
+    ELSEIF ( (${CMAKE_CXX_COMPILER_ID} MATCHES "CRAY" ) OR ( ${CMAKE_CXX_COMPILER_ID} MATCHES "Cray" ) )
+        SET( CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS}" )
+    ELSEIF ( (${CMAKE_CXX_COMPILER_ID} MATCHES "CLANG" ) OR ( ${CMAKE_CXX_COMPILER_ID} MATCHES "Clang" ) )
+        SET( CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic -Wno-missing-braces -Wmissing-field-initializers -ftemplate-depth=1024" )
     ELSEIF ( ${CMAKE_CXX_COMPILER_ID} MATCHES "XL" )
-        SET(CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -Wall -ftemplate-depth=512")
-    ELSEIF ( (${CMAKE_C_COMPILER_ID} MATCHES "NVHPC") OR (${CMAKE_CXX_COMPILER_ID} MATCHES "NVHPC") )
-        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic -Woverloaded-virtual -Wsign-compare -Wformat-security")
+        SET( CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -Wall -ftemplate-depth=512" )
+    ELSEIF ( (${CMAKE_C_COMPILER_ID} MATCHES "NVHPC" ) OR ( ${CMAKE_CXX_COMPILER_ID} MATCHES "NVHPC" ) )
+        SET( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic -Woverloaded-virtual -Wsign-compare -Wformat-security" )
     ELSE()
-        MESSAGE( "CMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}")
-        MESSAGE( "CMAKE_CXX_COMPILER_ID=${CMAKE_CXX_COMPILER_ID}")
-        MESSAGE(FATAL_ERROR "Unknown C/C++ compiler")
+        MESSAGE( "CMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}" )
+        MESSAGE( "CMAKE_CXX_COMPILER_ID=${CMAKE_CXX_COMPILER_ID}" )
+        MESSAGE( FATAL_ERROR "Unknown C/C++ compiler" )
     ENDIF()
-    IF ( "${CMAKE_BUILD_TYPE}" STREQUAL "Debug" AND NOT ("${CMAKE_CXX_FLAGS_DEBUG}" MATCHES "-D_DEBUG") )
-        SET( CMAKE_C_FLAGS_DEBUG   " ${CMAKE_C_FLAGS_DEBUG}   -DDEBUG -D_DEBUG" )
-        SET( CMAKE_CXX_FLAGS_DEBUG " ${CMAKE_CXX_FLAGS_DEBUG} -DDEBUG -D_DEBUG" )        
+    IF ( "${CMAKE_BUILD_TYPE}" STREQUAL "Debug" AND NOT ("${CMAKE_CXX_FLAGS_DEBUG}" MATCHES "-D_DEBUG" ) )
+        SET( CMAKE_C_FLAGS_DEBUG " ${CMAKE_C_FLAGS_DEBUG}   -DDEBUG -D_DEBUG" )
+        SET( CMAKE_CXX_FLAGS_DEBUG " ${CMAKE_CXX_FLAGS_DEBUG} -DDEBUG -D_DEBUG" )
     ENDIF()
     # Enable GLIBCXX_DEBUG flags
     CHECK_ENABLE_FLAG( ENABLE_GXX_DEBUG 0 )
-    IF ( ENABLE_GXX_DEBUG AND NOT ("${CMAKE_CXX_FLAGS_DEBUG}" MATCHES "-D_GLIBCXX_DEBUG") ) 
+    IF ( ENABLE_GXX_DEBUG AND NOT ( "${CMAKE_CXX_FLAGS_DEBUG}" MATCHES "-D_GLIBCXX_DEBUG" ) )
         SET( CMAKE_CXX_FLAGS_DEBUG " ${CMAKE_CXX_FLAGS_DEBUG} -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC" )
     ENDIF()
-    MESSAGE( "CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
+    MESSAGE( "CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}" )
 ENDMACRO()
-
-
 
 # Macro to add user compile flags
 MACRO( ADD_USER_FLAGS )
@@ -56,44 +63,41 @@ MACRO( ADD_USER_FLAGS )
     STRING( STRIP "${LDLIBS} ${LDLIBS_EXTRA}" LDLIBS )
 ENDMACRO()
 
-
 # Check if a flag is enabled
 MACRO( CHECK_ENABLE_FLAG FLAG DEFAULT )
     IF ( NOT DEFINED ${FLAG} )
         SET( ${FLAG} ${DEFAULT} )
     ELSEIF ( ${FLAG} STREQUAL "" )
         SET( ${FLAG} ${DEFAULT} )
-    ELSEIF ( ( ${${FLAG}} STREQUAL "FALSE" ) OR ( ${${FLAG}} STREQUAL "false" ) OR ( ${${FLAG}} STREQUAL "0" ) OR ( ${${FLAG}} STREQUAL "OFF" ) )
+    ELSEIF ( (${${FLAG}} STREQUAL "FALSE" ) OR ( ${${FLAG}} STREQUAL "false" ) OR ( ${${FLAG}} STREQUAL "0" ) OR ( ${${FLAG}} STREQUAL "OFF" ) )
         SET( ${FLAG} 0 )
-    ELSEIF ( ( ${${FLAG}} STREQUAL "TRUE" ) OR ( ${${FLAG}} STREQUAL "true" ) OR ( ${${FLAG}} STREQUAL "1" ) OR ( ${${FLAG}} STREQUAL "ON" ) )
+    ELSEIF ( (${${FLAG}} STREQUAL "TRUE" ) OR ( ${${FLAG}} STREQUAL "true" ) OR ( ${${FLAG}} STREQUAL "1" ) OR ( ${${FLAG}} STREQUAL "ON" ) )
         SET( ${FLAG} 1 )
     ELSE()
-        MESSAGE( "Bad value for ${FLAG} (${${FLAG}}); use true or false" )
+        MESSAGE( "Bad value for ${FLAG} ( ${${FLAG}}); use true or false" )
     ENDIF()
 ENDMACRO()
-
 
 # Get system libraries
 MACRO( GET_SYSTEM_LIBS )
     IF ( ${CMAKE_SYSTEM_NAME} STREQUAL "Windows" )
         # Windows specific system libraries
-        SET( SYSTEM_PATHS "C:/Program Files (x86)/Microsoft SDKs/Windows/v7.0A/Lib/x64" 
-                          "C:/Program Files (x86)/Microsoft Visual Studio 8/VC/PlatformSDK/Lib/AMD64" 
-                          "C:/Program Files (x86)/Microsoft Visual Studio 12.0/Common7/Packages/Debugger/X64" )
-        FIND_LIBRARY( PSAPI_LIB    NAMES Psapi    PATHS ${SYSTEM_PATHS}  NO_DEFAULT_PATH )
-        FIND_LIBRARY( DBGHELP_LIB  NAMES DbgHelp  PATHS ${SYSTEM_PATHS}  NO_DEFAULT_PATH )
-        FIND_LIBRARY( DBGHELP_LIB  NAMES DbgHelp )
-        IF ( PSAPI_LIB ) 
+        SET( SYSTEM_PATHS "C:/Program Files (x86)/Microsoft SDKs/Windows/v7.0A/Lib/x64" "C:/Program Files (x86)/Microsoft Visual Studio 8/VC/PlatformSDK/Lib/AMD64"
+                         "C:/Program Files (x86)/Microsoft Visual Studio 12.0/Common7/Packages/Debugger/X64" )
+        FIND_LIBRARY( PSAPI_LIB NAMES Psapi PATHS ${SYSTEM_PATHS} NO_DEFAULT_PATH )
+        FIND_LIBRARY( DBGHELP_LIB NAMES DbgHelp PATHS ${SYSTEM_PATHS} NO_DEFAULT_PATH )
+        FIND_LIBRARY( DBGHELP_LIB NAMES DbgHelp )
+        IF ( PSAPI_LIB )
             ADD_DEFINITIONS( -DPSAPI )
             SET( SYSTEM_LIBS ${PSAPI_LIB} )
         ENDIF()
-        IF ( DBGHELP_LIB ) 
+        IF ( DBGHELP_LIB )
             ADD_DEFINITIONS( -DDBGHELP )
             SET( SYSTEM_LIBS ${DBGHELP_LIB} )
         ELSE()
             MESSAGE( WARNING "Did not find DbgHelp, stack trace will not be availible" )
         ENDIF()
-        MESSAGE("System libs: ${SYSTEM_LIBS}")
+        MESSAGE( "System libs: ${SYSTEM_LIBS}" )
     ELSE()
         SET( SYSTEM_LIBS "-ldl" )
         # Check for pthread
@@ -103,24 +107,23 @@ MACRO( GET_SYSTEM_LIBS )
             SET( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread" )
         ENDIF()
         IF ( lpthread )
-            LIST(APPEND SYSTEM_LIBS "-lpthread" )
+            LIST( APPEND SYSTEM_LIBS "-lpthread" )
         ENDIF()
         # Check for rdynamic
         # Needed for backtrace to print function names
         IF ( NOT USE_STATIC )
             CHECK_CXX_COMPILER_FLAG( "-rdynamic" rdynamic )
             IF ( rdynamic )
-                LIST(APPEND SYSTEM_LIBS "$<$<LINK_LANGUAGE:CXX>:-rdynamic>" )
+                LIST( APPEND SYSTEM_LIBS "$<$<LINK_LANGUAGE:CXX>:-rdynamic>" )
             ENDIF()
         ENDIF()
     ENDIF()
 ENDMACRO()
 
-
 # add custom target distclean
 # cleans and removes cmake generated files etc.
 FUNCTION( ADD_DISTCLEAN ${ARGN} )
-    SET(DISTCLEANED
+    SET( DISTCLEANED
         assembly
         cmake.depends
         cmake.check_depends
@@ -134,7 +137,8 @@ FUNCTION( ADD_DISTCLEAN ${ARGN} )
         cppcheck-build
         Doxyfile
         Makefile
-        core core.*
+        core
+        core.*
         DartConfiguration.tcl
         install_manifest.txt
         Testing
@@ -157,37 +161,19 @@ FUNCTION( ADD_DISTCLEAN ${ARGN} )
         cppclean
         compile_commands.json
         TPLs.h
-        ${ARGN}
-    )
-    IF (UNIX)
-        ADD_CUSTOM_TARGET(
-            distclean
-            COMMENT "distribution clean"
-            COMMAND rm -Rf ${DISTCLEANED}
-            WORKING_DIRECTORY "${CMAKE_CURRENT_BUILD_DIR}"
-        )
+        ${ARGN} )
+    IF ( UNIX )
+        ADD_CUSTOM_TARGET( distclean COMMENT "distribution clean" COMMAND rm -Rf ${DISTCLEANED} WORKING_DIRECTORY "${CMAKE_CURRENT_BUILD_DIR}" )
     ELSE()
-        SET( DISTCLEANED
-            ${DISTCLEANED}
-            *.vcxproj*
-            ipch
-            x64
-            Debug
-        )
+        SET( DISTCLEANED ${DISTCLEANED} *.vcxproj* ipch x64 Debug )
         SET( DISTCLEAN_FILE "${CMAKE_CURRENT_BINARY_DIR}/distclean.bat" )
-        FILE( WRITE  "${DISTCLEAN_FILE}" "del /s /q /f " )
+        FILE( WRITE "${DISTCLEAN_FILE}" "del /s /q /f " )
         APPEND_LIST( "${DISTCLEAN_FILE}" "${DISTCLEANED}" " " " " )
         FILE( APPEND "${DISTCLEAN_FILE}" "\n" )
-        APPEND_LIST( "${DISTCLEAN_FILE}" "${DISTCLEANED}" "for /d %%x in ("   ") do rd /s /q \"%%x\"\n" )
-        ADD_CUSTOM_TARGET(
-            distclean
-            COMMENT "distribution clean"
-            COMMAND distclean.bat & del /s/q/f distclean.bat
-            WORKING_DIRECTORY "${CMAKE_CURRENT_BUILD_DIR}"
-        )
+        APPEND_LIST( "${DISTCLEAN_FILE}" "${DISTCLEANED}" "for /d %%x in ( " " ) do rd /s /q \"%%x\"\n" )
+        ADD_CUSTOM_TARGET( distclean COMMENT "distribution clean" COMMAND distclean.bat & del /s/q/f distclean.bat WORKING_DIRECTORY "${CMAKE_CURRENT_BUILD_DIR}" )
     ENDIF()
 ENDFUNCTION()
-
 
 # Add a test
 FUNCTION( ADD_EXE EXE SRC )
@@ -195,6 +181,6 @@ FUNCTION( ADD_EXE EXE SRC )
     TARGET_LINK_LIBRARIES( ${EXE} stacktrace )
     TARGET_LINK_LIBRARIES( ${EXE} ${TIMER_LIB} ${MPI_CXX_LIBRARIES} ${COVERAGE_LIBS} ${SYSTEM_LIBS} )
     SET_TARGET_PROPERTIES( ${EXE} PROPERTIES LINK_FLAGS "${MPI_CXX_LINK_FLAGS} ${LDFLAGS} ${LDFLAGS_EXTRA}" )
-    TARGET_COMPILE_DEFINITIONS(  ${EXE} PUBLIC ${COVERAGE_FLAGS} )
+    TARGET_COMPILE_DEFINITIONS( ${EXE} PUBLIC ${COVERAGE_FLAGS} )
     INSTALL( TARGETS ${EXE} DESTINATION "${${PROJ}_INSTALL_DIR}/bin" )
 ENDFUNCTION()

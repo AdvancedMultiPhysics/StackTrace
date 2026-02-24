@@ -1,7 +1,7 @@
 # Macro to configure MPI
-MACRO ( CONFIGURE_MPI )
+MACRO( CONFIGURE_MPI )
     CHECK_ENABLE_FLAG( USE_MPI 1 )
-    MESSAGE("MPIEXEC = ${MPIEXEC}")
+    MESSAGE( "MPIEXEC = ${MPIEXEC}" )
     IF ( USE_MPI )
         MESSAGE( "Configuring MPI" )
         IF ( MPIEXEC )
@@ -9,11 +9,11 @@ MACRO ( CONFIGURE_MPI )
         ENDIF()
         # Write mpi test
         SET( MPI_TEST_SRC "${CMAKE_CURRENT_BINARY_DIR}/test_mpi.cpp" )
-        FILE(WRITE  ${MPI_TEST_SRC} "#include <mpi.h>\n" )
-        FILE(APPEND ${MPI_TEST_SRC} "int main(int argc, char** argv) {\n" )
-        FILE(APPEND ${MPI_TEST_SRC} "    MPI_Init(&argc,&argv);\n")
-        FILE(APPEND ${MPI_TEST_SRC} "    MPI_Finalize();\n" )
-        FILE(APPEND ${MPI_TEST_SRC} "}\n" )
+        FILE( WRITE ${MPI_TEST_SRC} "#include <mpi.h>\n" )
+        FILE( APPEND ${MPI_TEST_SRC} "int main(int argc, char** argv) {\n" )
+        FILE( APPEND ${MPI_TEST_SRC} "    MPI_Init(&argc,&argv);\n" )
+        FILE( APPEND ${MPI_TEST_SRC} "    MPI_Finalize();\n" )
+        FILE( APPEND ${MPI_TEST_SRC} "}\n" )
         # Search for MPI
         IF ( NOT MPI_SKIP_SEARCH )
             FIND_PACKAGE( MPI )
@@ -22,14 +22,11 @@ MACRO ( CONFIGURE_MPI )
             ENDIF()
         ELSE()
             # Test the compile
-            FOREACH ( tmp C CXX Fortran )
+            FOREACH( tmp C CXX Fortran )
                 IF ( CMAKE_${tmp}_COMPILER )
                     SET( TMP_FLAGS -DINCLUDE_DIRECTORIES=${MPI_CXX_INCLUDE_PATH} )
-                    TRY_COMPILE( MPI_TEST_${tmp} ${CMAKE_CURRENT_BINARY_DIR} ${MPI_TEST_SRC}
-                        CMAKE_FLAGS ${TMP_FLAGS}
-                        LINK_OPTIONS ${MPI_CXX_LINK_FLAGS}
-                        LINK_LIBRARIES ${MPI_CXX_LIBRARIES}
-                        OUTPUT_VARIABLE OUT_TXT)
+                    TRY_COMPILE( MPI_TEST_${tmp} ${CMAKE_CURRENT_BINARY_DIR} ${MPI_TEST_SRC} CMAKE_FLAGS ${TMP_FLAGS} LINK_OPTIONS ${MPI_CXX_LINK_FLAGS}
+                                LINK_LIBRARIES ${MPI_CXX_LIBRARIES} OUTPUT_VARIABLE OUT_TXT )
                     IF ( NOT ${MPI_TEST_${tmp}} )
                         MESSAGE( FATAL_ERROR "Skipping MPI search and default compile fails:\n${OUT_TXT}" )
                     ENDIF()
@@ -64,11 +61,8 @@ MACRO ( CONFIGURE_MPI )
         ENDIF()
         # Perform a final test compilation
         SET( TMP_FLAGS ${MPI_${tmp}_COMPILE_FLAGS} -DINCLUDE_DIRECTORIES=${MPI_CXX_INCLUDE_DIRS} )
-        TRY_COMPILE( MPI_TEST ${CMAKE_CURRENT_BINARY_DIR} ${MPI_TEST_SRC}
-            CMAKE_FLAGS ${TMP_FLAGS}
-            -D"LINK_OPTIONS=${MPI_CXX_LINK_FLAGS}"
-            LINK_LIBRARIES ${MPI_CXX_LIBRARIES}
-            OUTPUT_VARIABLE OUT_TXT )
+        TRY_COMPILE( MPI_TEST ${CMAKE_CURRENT_BINARY_DIR} ${MPI_TEST_SRC} CMAKE_FLAGS ${TMP_FLAGS} -D"LINK_OPTIONS=${MPI_CXX_LINK_FLAGS}" LINK_LIBRARIES ${MPI_CXX_LIBRARIES}
+                    OUTPUT_VARIABLE OUT_TXT )
         IF ( NOT MPI_TEST )
             MESSAGE( FATAL_ERROR "Compiling MPI test fails:\n${OUT_TXT}" )
         ENDIF()
@@ -81,27 +75,26 @@ MACRO ( CONFIGURE_MPI )
     ENDIF()
 ENDMACRO()
 
-
 # Function to try and add MPI include flags
-FUNCTION ( ADD_MPI_FLAGS )
+FUNCTION( ADD_MPI_FLAGS )
     IF ( MPI_CXX_INCLUDE_DIRS )
         RETURN()
     ENDIF()
     SET( MPI_ARGS )
     # Test if we are using cray wrappers
-    EXECUTE_PROCESS(COMMAND ${CMAKE_CXX_COMPILER} --cray-print-opts RESULT_VARIABLE flag ERROR_QUIET OUTPUT_VARIABLE out )
+    EXECUTE_PROCESS( COMMAND ${CMAKE_CXX_COMPILER} --cray-print-opts RESULT_VARIABLE flag ERROR_QUIET OUTPUT_VARIABLE out )
     IF ( "${flag}" STREQUAL "0" )
-        separate_arguments( MPI_ARGS NATIVE_COMMAND ${out} )
+        SEPARATE_ARGUMENTS( MPI_ARGS NATIVE_COMMAND ${out} )
     ENDIF()
     # Test if we can use mpi --show
-    EXECUTE_PROCESS(COMMAND ${CMAKE_CXX_COMPILER} --show RESULT_VARIABLE flag ERROR_QUIET OUTPUT_VARIABLE out )
+    EXECUTE_PROCESS( COMMAND ${CMAKE_CXX_COMPILER} --show RESULT_VARIABLE flag ERROR_QUIET OUTPUT_VARIABLE out )
     IF ( "${flag}" STREQUAL "0" )
-        separate_arguments( MPI_ARGS NATIVE_COMMAND ${out} )
+        SEPARATE_ARGUMENTS( MPI_ARGS NATIVE_COMMAND ${out} )
     ENDIF()
     # Test if we can use mpi -show
-    EXECUTE_PROCESS(COMMAND ${CMAKE_CXX_COMPILER} -show RESULT_VARIABLE flag ERROR_QUIET OUTPUT_VARIABLE out )
+    EXECUTE_PROCESS( COMMAND ${CMAKE_CXX_COMPILER} -show RESULT_VARIABLE flag ERROR_QUIET OUTPUT_VARIABLE out )
     IF ( "${flag}" STREQUAL "0" )
-        separate_arguments( MPI_ARGS NATIVE_COMMAND ${out} )
+        SEPARATE_ARGUMENTS( MPI_ARGS NATIVE_COMMAND ${out} )
     ENDIF()
     IF ( NOT MPI_ARGS )
         RETURN()
