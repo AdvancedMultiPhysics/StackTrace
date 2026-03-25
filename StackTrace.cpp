@@ -3,7 +3,6 @@
 #include "StackTrace/StaticVector.h"
 #include "StackTrace/Utilities.h"
 #include "StackTrace/Utilities.hpp"
-#include "StackTrace/string_view.h"
 
 #include <algorithm>
 #include <atomic>
@@ -18,6 +17,7 @@
 #include <set>
 #include <sstream>
 #include <stdexcept>
+#include <string_view>
 #include <thread>
 
 
@@ -79,7 +79,6 @@
 #endif
 
 
-using StackTrace::string_view;
 using namespace StackTrace::Utilities;
 
 
@@ -93,7 +92,7 @@ static std::shared_ptr<std::thread> globalMonitorThread;
 
 // Function to replace all instances of a string with another
 static constexpr size_t replace( char *str, size_t N, size_t pos, size_t len,
-                                 const string_view &r ) noexcept
+                                 const std::string_view &r ) noexcept
 {
     size_t Nr = r.size();
     auto tmp  = str;
@@ -108,18 +107,18 @@ static constexpr size_t replace( char *str, size_t N, size_t pos, size_t len,
 }
 template<std::size_t N>
 static constexpr size_t replace( std::array<char, N> &str, size_t pos, size_t len,
-                                 const string_view &r ) noexcept
+                                 const std::string_view &r ) noexcept
 {
     return replace( str.data(), N, pos, len, r );
 }
-static constexpr void strrep( char *str, size_t &N, const string_view &s,
-                              const string_view &r ) noexcept
+static constexpr void strrep( char *str, size_t &N, const std::string_view &s,
+                              const std::string_view &r ) noexcept
 {
     size_t Ns  = s.size();
-    size_t pos = string_view( str, N ).find( s );
+    size_t pos = std::string_view( str, N ).find( s );
     while ( pos != std::string::npos ) {
         N   = replace( str, N, pos, Ns, r );
-        pos = string_view( str, N ).find( s );
+        pos = std::string_view( str, N ).find( s );
     }
 }
 
@@ -1892,8 +1891,8 @@ static void cleanupFunctionName( char *function )
     // Remove std::__1::
     strrep( function, N, "std::__1::", "std::" );
     // Replace std::ratio with abbreviated version
-    auto find = [&function, &N]( const string_view &str, size_t pos = 0 ) {
-        return string_view( function, N ).find( str, pos );
+    auto find = [&function, &N]( const std::string_view &str, size_t pos = 0 ) {
+        return std::string_view( function, N ).find( str, pos );
     };
     if ( find( "std::ratio<" ) != npos ) {
         strrep( function, N, "std::ratio<1l, 1000000000000000000000000l>", "std::yocto" );
@@ -1984,11 +1983,11 @@ static void cleanupFunctionName( char *function )
         pos++;
     }
     // Replace std::basic_string with abbreviated version
-    strrep( function, N, "std::__cxx11::basic_string_view<", "std::basic_string_view<" );
+    strrep( function, N, "std::__cxx11::basic_std::string_view<", "std::basic_std::string_view<" );
     pos = 0;
     while ( pos < N ) {
         // Find next instance of std::basic_string
-        pos = find( "std::basic_string_view<char", pos );
+        pos = find( "std::basic_std::string_view<char", pos );
         if ( pos == npos )
             break;
         // Find the matching >
@@ -1996,7 +1995,7 @@ static void cleanupFunctionName( char *function )
         size_t pos2 = findMatching( function, N, pos1 );
         if ( pos2 == pos1 )
             break;
-        N = replace( function, N, pos, pos2 - pos, "std::string_view" );
+        N = replace( function, N, pos, pos2 - pos, "std::std::string_view" );
         pos++;
     }
     // Replace std::make_shared with abbreviated version
@@ -2017,9 +2016,9 @@ static void cleanupFunctionName( char *function )
 static bool keep( const StackTrace::stack_info &info )
 {
     const size_t npos = std::string::npos;
-    string_view object( info.object.data() );
-    string_view function( info.function.data() );
-    string_view filename( info.filename.data() );
+    std::string_view object( info.object.data() );
+    std::string_view function( info.function.data() );
+    std::string_view filename( info.filename.data() );
     // Remove backtrace_thread from StackTrace.cpp
     if ( filename == "StackTrace.cpp" && function.find( "backtrace_thread" ) != npos )
         return false;
@@ -2107,9 +2106,9 @@ void StackTrace::cleanupStackTrace( multi_stack_info &stack )
     auto it           = stack.children.begin();
     const size_t npos = std::string::npos;
     while ( it != stack.children.end() ) {
-        string_view object( it->stack.object.data() );
-        string_view function( it->stack.function.data() );
-        string_view filename( it->stack.filename.data() );
+        std::string_view object( it->stack.object.data() );
+        std::string_view function( it->stack.function.data() );
+        std::string_view filename( it->stack.filename.data() );
         // Remove callstack (and all children) for threads that are just contributing
         if ( filename == "StackTrace.cpp" ) {
             bool test = function.find( "_callstack_signal_handler" ) != npos ||
@@ -2293,7 +2292,7 @@ const char *StackTrace::abort_error::what() const noexcept
     } else {
         d_msg += "Unknown error called";
     }
-    string_view filename( source.file_name() );
+    std::string_view filename( source.file_name() );
     if ( !filename.empty() ) {
         d_msg += " in file '" + std::string( filename ) + "'";
         if ( source.line() > 0 ) {

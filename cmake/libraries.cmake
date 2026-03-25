@@ -1,3 +1,24 @@
+# Macro to set compiler flags / features
+IF ( NOT CMAKE_CXX_STANDARD )
+    SET( CMAKE_CXX_STANDARD 17 )
+ENDIF()
+IF ( "${CMAKE_CXX_STANDARD}" LESS "17" )
+    MESSAGE( FATAL_ERROR "C++17 or newer required" )
+ELSEIF ( "${CMAKE_CXX_STANDARD}" GREATER "17" )
+    # Test for source_location
+    SET( SOURCE_LOC_TEST_SRC "${CMAKE_CURRENT_BINARY_DIR}/test_source_location.cpp" )
+    FILE( WRITE ${SOURCE_LOC_TEST_SRC} "#include <source_location>\n" )
+    FILE( APPEND ${SOURCE_LOC_TEST_SRC} "int main(int, char**) {\n" )
+    FILE( APPEND ${SOURCE_LOC_TEST_SRC} "    static_assert(std::source_location::current().line() != 0);\n" )
+    FILE( APPEND ${SOURCE_LOC_TEST_SRC} "}\n" )
+    TRY_COMPILE( SOURCE_LOC_TEST ${CMAKE_CURRENT_BINARY_DIR} ${SOURCE_LOC_TEST_SRC} OUTPUT_VARIABLE OUT_TXT )
+    IF ( NOT ${MPI_TEST_${tmp}} )
+        MESSAGE( WARNING "std::source_location is not supported, defaulting to c++17" )
+    ENDIF()
+ENDIF()
+SET_COMPILER_FLAGS()
+
+
 # Macro to configure MPI
 MACRO( CONFIGURE_MPI )
     CHECK_ENABLE_FLAG( USE_MPI 1 )

@@ -95,7 +95,7 @@ void test_source_location( UnitTest &ut, const source_location &s1 = source_loca
         std::string( s2.function_name() ).find( "test_source_location" ) != std::string::npos;
     if ( test1 && test2 )
         ut.passes( "source_location::current()" );
-    else if ( test2 && s1.empty() )
+    else if ( test2 && s1.line() == 0 )
         ut.expected( "source_location::current()" );
     else
         ut.failure( "source_location::current()" );

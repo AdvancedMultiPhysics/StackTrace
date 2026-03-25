@@ -1,0 +1,12 @@
+#ifndef included_StackTrace_source_location
+#define included_StackTrace_source_location
+
+#include <source_location>
+
+namespace StackTrace {
+    using std::source_location;
+}
+
+#define SOURCE_LOCATION_CURRENT() std::source_location::current()
+
+#endif

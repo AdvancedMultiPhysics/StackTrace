@@ -101,7 +101,7 @@ class abort_error : public std::exception
 {
 public:
     std::string message;       //!< Abort message
-    source_location source;    //!< Source where the error occured
+    source_location source;    //!< Source where the error occurred
     terminateType type;        //!< What caused the termination
     printStackType stackType;  //!< Print the local stack, all threads, or global call stack
     uint8_t signal;            //!< Signal number

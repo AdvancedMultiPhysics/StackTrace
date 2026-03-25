@@ -118,15 +118,6 @@ IF ( COVERAGE_FOUND )
 ENDIF()
 
 # Set compiler flags
-IF ( NOT CMAKE_CXX_STANDARD )
-    SET( CMAKE_CXX_STANDARD 17 )
-ENDIF()
-IF ( "${CMAKE_CXX_STANDARD}" LESS "17" )
-    MESSAGE( FATAL_ERROR "C++17 or newer required" )
-ELSE()
-    FILE( WRITE "${STACKTRACE_INCLUDE}/string_view.h" "namespace StackTrace {\nusing std::string_view;\n}\n" )
-ENDIF()
-FILE( WRITE "${STACKTRACE_INCLUDE}/std.h" "#define STACKTRACE_CXX_STANDARD ${CMAKE_CXX_STANDARD}\n" )
 SET_COMPILER_FLAGS()
 
 # Check if we are using the timer (allows a more accurate memory usage)
@@ -153,6 +144,13 @@ FOREACH( tmp ${hfiles} )
     SET( DST_FILE "${STACKTRACE_INCLUDE}/${tmp}" )
     CONFIGURE_FILE( "${SRC_FILE}" "${DST_FILE}" @ONLY )
 ENDFOREACH()
+IF ( "${CMAKE_CXX_STANDARD}" STREQUAL "17" )
+    CONFIGURE_FILE( "${CMAKE_CURRENT_SOURCE_DIR}/source_location.c17"
+                    "${STACKTRACE_INCLUDE}/source_location.h" @ONLY )
+ELSE()
+    CONFIGURE_FILE( "${CMAKE_CURRENT_SOURCE_DIR}/source_location.c20"
+                    "${STACKTRACE_INCLUDE}/source_location.h" @ONLY )
+ENDIF()
 
 # Check for mallinfo2
 INCLUDE( CheckSymbolExists )

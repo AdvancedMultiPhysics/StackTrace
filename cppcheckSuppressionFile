@@ -1,10 +1,11 @@
 // CppCheck suppression file
 unmatchedSuppression:*
 class_X_Y:*
-nullPointer:*/Utilities.cpp:293
+nullPointer:*/Utilities.cpp
 rethrowNoCurrentException:*/StackTrace.cpp
 ctuOneDefinitionRuleViolation:*/TestStack.cpp
 ctuOneDefinitionRuleViolation:*/TestUtilities.cpp
+throwInEntryPoint:*
 
 // Suppress MPI warnings
 *:*/mpicxx.h
