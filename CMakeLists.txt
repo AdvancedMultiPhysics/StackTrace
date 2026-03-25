@@ -118,6 +118,7 @@ IF ( COVERAGE_FOUND )
 ENDIF()
 
 # Set compiler flags
+SET_COMPILER_STD()
 SET_COMPILER_FLAGS()
 
 # Check if we are using the timer (allows a more accurate memory usage)
