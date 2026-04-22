@@ -93,7 +93,7 @@ MACRO( CONFIGURE_MPI )
         ENDIF()
     ENDIF()
     IF ( USE_MPI AND NOT MPIEXEC )
-        MESSAGE( FATAL_ERROR "Unable to find MPIEXEC, please set it before continuing" )
+        MESSAGE( WARNING "Unable to find MPIEXEC, please set it before continuing" )
     ENDIF()
 ENDMACRO()
 

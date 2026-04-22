@@ -35,8 +35,10 @@ PROJECT( ${PROJ} LANGUAGES CXX )
 INCLUDE( cmake/macros.cmake )
 
 # Enable testing
-ENABLE_TESTING()
-INCLUDE( CTest )
+IF ( NOT DISABLE_TESTS )
+    ENABLE_TESTING()
+    INCLUDE( CTest )
+ENDIF()
 
 # Create a release target
 INCLUDE( cmake/WriteRepoVersion.cmake )
@@ -98,6 +100,7 @@ GET_SYSTEM_LIBS()
 
 # Add distclean target
 ADD_DISTCLEAN(
+    a.out
     libstacktrace*
     FindStackTrace.cmake
     TestStack
@@ -105,6 +108,8 @@ ADD_DISTCLEAN(
     TestUtilities
     ExampleStack.txt
     cppcheck-build
+    test_mpi.cpp
+    test_source_location.cpp
     STACKTRACE-*.*.*.tar.gz )
 
 # Check if we want to enable coverage
@@ -185,10 +190,12 @@ ADD_EXE( TestTerminate TestTerminate.cpp )
 ADD_EXE( TestUtilities TestUtilities.cpp )
 CONFIGURE_FILE( "data/ExampleStack.txt" "${CMAKE_CURRENT_BINARY_DIR}/ExampleStack.txt" @ONLY )
 CONFIGURE_FILE( "data/ExampleStack.txt" "${${PROJ}_INSTALL_DIR}/bin/ExampleStack.txt" @ONLY )
-ADD_TEST( NAME TestStack COMMAND $<TARGET_FILE:TestStack> )
-ADD_TEST( NAME TestUtilities COMMAND $<TARGET_FILE:TestUtilities> )
-IF ( USE_MPI )
-    ADD_TEST( NAME TestStack-4procs COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4 $<TARGET_FILE:TestStack> )
+IF ( NOT DISABLE_TESTS )
+    ADD_TEST( NAME TestStack COMMAND $<TARGET_FILE:TestStack> )
+    ADD_TEST( NAME TestUtilities COMMAND $<TARGET_FILE:TestUtilities> )
+    IF ( USE_MPI AND DEFINED MPIEXEC )
+        ADD_TEST( NAME TestStack-4procs COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4 $<TARGET_FILE:TestStack> )
+    ENDIF()
 ENDIF()
 
 # Add the cppcheck tests
