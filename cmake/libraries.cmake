@@ -46,7 +46,7 @@ MACRO( CONFIGURE_MPI )
             # Test the compile
             FOREACH( tmp C CXX Fortran )
                 IF ( CMAKE_${tmp}_COMPILER )
-                    SET( TMP_FLAGS -DINCLUDE_DIRECTORIES=${MPI_CXX_INCLUDE_PATH} )
+                    SET( TMP_FLAGS -DINCLUDE_DIRECTORIES=${MPI_CXX_INCLUDE_DIRS} )
                     TRY_COMPILE( MPI_TEST_${tmp} ${CMAKE_CURRENT_BINARY_DIR} ${MPI_TEST_SRC} CMAKE_FLAGS ${TMP_FLAGS} LINK_OPTIONS ${MPI_CXX_LINK_FLAGS}
                                 LINK_LIBRARIES ${MPI_CXX_LIBRARIES} OUTPUT_VARIABLE OUT_TXT )
                     IF ( NOT ${MPI_TEST_${tmp}} )

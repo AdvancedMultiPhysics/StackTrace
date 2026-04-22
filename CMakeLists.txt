@@ -185,12 +185,12 @@ INSTALL( FILES "${CMAKE_CURRENT_BINARY_DIR}/cmake/StackTraceConfig.cmake" "${CMA
         DESTINATION ${${PROJ}_INSTALL_DIR}/lib/cmake/StackTrace )
 
 # Add the tests
-ADD_EXE( TestStack TestStack.cpp )
-ADD_EXE( TestTerminate TestTerminate.cpp )
-ADD_EXE( TestUtilities TestUtilities.cpp )
-CONFIGURE_FILE( "data/ExampleStack.txt" "${CMAKE_CURRENT_BINARY_DIR}/ExampleStack.txt" @ONLY )
-CONFIGURE_FILE( "data/ExampleStack.txt" "${${PROJ}_INSTALL_DIR}/bin/ExampleStack.txt" @ONLY )
 IF ( NOT DISABLE_TESTS )
+    ADD_EXE( TestStack TestStack.cpp )
+    ADD_EXE( TestTerminate TestTerminate.cpp )
+    ADD_EXE( TestUtilities TestUtilities.cpp )
+    CONFIGURE_FILE( "data/ExampleStack.txt" "${CMAKE_CURRENT_BINARY_DIR}/ExampleStack.txt" @ONLY )
+    CONFIGURE_FILE( "data/ExampleStack.txt" "${${PROJ}_INSTALL_DIR}/bin/ExampleStack.txt" @ONLY )
     ADD_TEST( NAME TestStack COMMAND $<TARGET_FILE:TestStack> )
     ADD_TEST( NAME TestUtilities COMMAND $<TARGET_FILE:TestUtilities> )
     IF ( USE_MPI AND DEFINED MPIEXEC )
