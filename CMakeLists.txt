@@ -35,10 +35,7 @@ PROJECT( ${PROJ} LANGUAGES CXX )
 INCLUDE( cmake/macros.cmake )
 
 # Enable testing
-IF ( NOT DISABLE_TESTS )
-    ENABLE_TESTING()
-    INCLUDE( CTest )
-ENDIF()
+INCLUDE( CTest )
 
 # Create a release target
 INCLUDE( cmake/WriteRepoVersion.cmake )
@@ -185,7 +182,7 @@ INSTALL( FILES "${CMAKE_CURRENT_BINARY_DIR}/cmake/StackTraceConfig.cmake" "${CMA
         DESTINATION ${${PROJ}_INSTALL_DIR}/lib/cmake/StackTrace )
 
 # Add the tests
-IF ( NOT DISABLE_TESTS )
+IF ( BUILD_TESTING )
     ADD_EXE( TestStack TestStack.cpp )
     ADD_EXE( TestTerminate TestTerminate.cpp )
     ADD_EXE( TestUtilities TestUtilities.cpp )
