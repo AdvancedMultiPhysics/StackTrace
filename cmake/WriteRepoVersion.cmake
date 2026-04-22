@@ -37,7 +37,7 @@ FUNCTION( WRITE_REPO_VERSION )
     # Save the version info
     SAVE_VERSION_INFO()
 
-    # Load the version info (should already exist in install folder
+    # Load the version info (should already exist in install folder)
     INCLUDE( "${${PROJ}_INSTALL_DIR}/${PROJ}_Version.cmake" )
     MESSAGE( "${PROJ} Version = ${${PROJ}_MAJOR_VERSION}.${${PROJ}_MINOR_VERSION}.${${PROJ}_BUILD_VERSION}" )
 

@@ -8,7 +8,9 @@ MESSAGE( "Configuring StackTrace" )
 MESSAGE( "===========================" )
 
 # Set the project name
-SET( PROJ StackTrace ) # Set the project name for CMake
+SET( PROJ StackTrace )              # Set the project name for CMake
+SET( StackTrace_INC StackTrace )    # Set the inlcude path
+
 
 # Prevent users from building in place
 IF ( "${CMAKE_CURRENT_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_BINARY_DIR}" )
@@ -95,6 +97,23 @@ ENDIF()
 # Add system specific libraries
 GET_SYSTEM_LIBS()
 
+# Set the program to get info from addresses
+SET( TPL_FILE "${CMAKE_CURRENT_BINARY_DIR}/tmp/StackTrace_TPLs.h" )
+FILE( WRITE "${TPL_FILE}" "// StackTrace TPLs\n" )
+IF ( LINUX )
+    FIND_PROGRAM( ADDR2LINE_EXECUTABLE NAMES eu-addr2line DOC "Path to eu-addr2line" )
+    IF ( NOT ADDR2LINE_EXECUTABLE )
+        MESSAGE( STATUS "eu-addr2line was not found, defaulting to addr2line" )
+        MESSAGE( STATUS "Note: eu-addr2line is signficantly faster for large libraries,"
+                        " install elfutils for better performance" )        
+        FIND_PROGRAM( ADDR2LINE_EXECUTABLE NAMES addr2line DOC "Path to addr2line utility" )
+    ENDIF()
+    IF ( NOT ADDR2LINE_EXECUTABLE )
+        SET( ADDR2LINE_EXECUTABLE addr2line )
+    ENDIF()
+    FILE( APPEND "${TPL_FILE}" "#define ADDR2LINE \"${ADDR2LINE_EXECUTABLE}\"\n" )
+ENDIF()
+
 # Add distclean target
 ADD_DISTCLEAN(
     a.out
@@ -180,6 +199,7 @@ CONFIGURE_PACKAGE_CONFIG_FILE( cmake/StackTrace.cmake.in "${CMAKE_CURRENT_BINARY
 WRITE_BASIC_PACKAGE_VERSION_FILE( "${CMAKE_CURRENT_BINARY_DIR}/cmake/StackTraceVersion.cmake" VERSION ${${PROJ}_VERSION} COMPATIBILITY SameMajorVersion )
 INSTALL( FILES "${CMAKE_CURRENT_BINARY_DIR}/cmake/StackTraceConfig.cmake" "${CMAKE_CURRENT_BINARY_DIR}/cmake/StackTraceVersion.cmake"
         DESTINATION ${${PROJ}_INSTALL_DIR}/lib/cmake/StackTrace )
+EXECUTE_PROCESS( COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TPL_FILE}" "${${PROJ}_INSTALL_DIR}/include/StackTrace/StackTrace_TPLs.h" )
 
 # Add the tests
 IF ( BUILD_TESTING )

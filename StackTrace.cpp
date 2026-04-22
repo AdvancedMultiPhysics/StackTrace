@@ -1,5 +1,6 @@
 #include "StackTrace/StackTrace.h"
 #include "StackTrace/ErrorHandlers.h"
+#include "StackTrace/StackTrace_TPLs.h"
 #include "StackTrace/StaticVector.h"
 #include "StackTrace/Utilities.h"
 #include "StackTrace/Utilities.hpp"
@@ -745,9 +746,9 @@ static void getFileAndLineObject( staticVector<StackTrace::stack_info *, blockSi
     char cmd[4096];
     static_assert( sizeof( unsigned long ) == sizeof( size_t ), "Unxpected size for ul" );
     if ( info[0]->objectPath[0] == 0 )
-        N = sprintf( cmd, "addr2line -C -e %s -f", info[0]->object.data() );
+        N = sprintf( cmd, ADDR2LINE " -C -e %s -f", info[0]->object.data() );
     else
-        N = sprintf( cmd, "addr2line -C -e %s/%s -f", info[0]->objectPath.data(),
+        N = sprintf( cmd, ADDR2LINE " -C -e %s/%s -f", info[0]->objectPath.data(),
                      info[0]->object.data() );
     for ( size_t i = 0; i < info.size() && N < sizeof( cmd ) - 32; i++ ) {
         N += sprintf( &cmd[N], " %lx %lx", reinterpret_cast<unsigned long>( info[i]->address ),
@@ -828,25 +829,27 @@ static void getFileAndLineObject( staticVector<StackTrace::stack_info *, blockSi
 }
 static void getFileAndLine( size_t N, StackTrace::stack_info *info )
 {
-    // Limit block size to prevent blowing out the stack
-    constexpr size_t blockSize = 256;
-    // Operate on blocks
     size_t i0 = 0;
     while ( i0 < N ) {
         // Get a list of objects
-        staticVector<uint64_t, blockSize> objectHash;
-        for ( size_t i = i0; i < N && i - i0 < blockSize; i++ )
-            objectHash.insert( objHash( info[i].object, info[i].objectPath ) );
+        staticVector<uint64_t, 256> objectHash;
+        size_t N2 = i0;
+        for ( ; N2 < N && objectHash.size() < objectHash.capacity(); N2++ )
+            objectHash.insert( objHash( info[N2].object, info[N2].objectPath ) );
         // For each object, get the file/line numbers for all entries
-        for ( const auto &hash : objectHash ) {
-            staticVector<StackTrace::stack_info *, blockSize> list;
-            for ( size_t i = i0; i < N && i - i0 < blockSize; i++ ) {
+        for ( auto hash : objectHash ) {
+            staticVector<StackTrace::stack_info *, 256> list;
+            for ( size_t i = i0; i < N2; i++ ) {
                 if ( objHash( info[i].object, info[i].objectPath ) == hash )
                     list.push_back( &info[i] );
+                if ( list.capacity() == list.size() ) {
+                    getFileAndLineObject( list );
+                    list.clear();
+                }
             }
             getFileAndLineObject( list );
         }
-        i0 = std::min( N, i0 + blockSize );
+        i0 = N2;
     }
 }
 // Try to use the global symbols to decode info about the stack
